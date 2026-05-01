@@ -1,0 +1,189 @@
+---
+description: Техническое видение БаЦзы-Бот v3.1. Обязательно к прочтению перед написанием бизнес-логики.
+alwaysApply: true
+---
+
+# БаЦзы-Бот — Техническое видение v3.1
+
+## Product Vision
+
+Профессиональный Telegram-бот "Анастасия" — AI-консультант по системе Ба Цзы (四柱命理).
+Высокоточный расчёт карты (Swiss Ephemeris) + мульти-модельный AI для персональных консультаций на русском языке.
+Монетизация: базовая интерпретация всегда бесплатна, диалог с Анастасией — по тарифам.
+
+---
+
+## Tech Stack
+
+| Слой | Технология | Обоснование |
+|------|-----------|-------------|
+| Язык | Python 3.11+ | Совместимость с pyswisseph, aiogram, SQLAlchemy async |
+| Bot framework | aiogram 3.x (async) | FSM, роутеры, middleware, inline keyboards |
+| Web framework | FastAPI + Jinja2 + HTMX | Админ-панель, будущий Mini App |
+| ORM | SQLAlchemy 2.0 (async) | PostgreSQL, async engine |
+| Миграции | Alembic | Управление схемой |
+| БД основная | PostgreSQL | Users, Charts, Consultations, Subscriptions |
+| БД знаний | KuzuDB (embedded graph) | Граф знаний Бацзы — RAG для LLM |
+| Кэш / FSM | Redis | FSM-состояния, rate limit, feature flags, history |
+| Очереди | TaskIQ | Долгие AI-генерации (>30 сек) |
+| AI провайдер | OpenRouter API | Единая точка для всех моделей |
+| AI основная | Kimi K2 (moonshot) | Специализация на китайских текстах |
+| AI fallback | Claude 3.5 Sonnet | Резервная модель |
+| AI image | gpt-image-1 | Генерация визуальной карты в стиле Mingli |
+| Астрономия | pyswisseph + JPL DE431 | Точность < 0.001", TST, 24 сезона |
+| Геокодирование | geopy (Nominatim) + timezonefinder | Город → координаты → таймзона |
+| Мониторинг | Langfuse (self-hosted) | LLM cost, latency, quality, traces |
+| Логирование | structlog | JSON-логи с trace_id |
+| Линтинг | ruff + mypy (strict) | Статическая типизация, форматирование |
+| Тесты | pytest + pytest-asyncio | Unit + integration + E2E |
+| Деплой | Yandex Cloud (VPS + managed services) | PostgreSQL managed, Redis managed, Object Storage |
+| CI/CD | GitHub Actions | lint → test → build → deploy |
+| Хранилище файлов | Yandex Object Storage | PNG карты, CSV экспорт диалогов |
+
+---
+
+## Architecture
+
+### ADR-001: Архитектурный паттерн — Domain-Driven Design (DDD)
+
+**Context:** Проект объединяет сложную астрономическую бизнес-логику (Бацзы), AI-оркестрацию и Telegram-интерфейс. Необходимо чистое разделение.
+
+**Solution:** DDD с Layered Architecture:
+```
+Telegram/HTTP (Transport)
+       ↓
+   Bot Routers (Use Cases)
+       ↓
+Calculator | AI Orchestrator | KuzuDB RAG  (Domain)
+       ↓
+PostgreSQL | Redis | OpenRouter API  (Infrastructure)
+```
+- Calculator — **stateless**: вход `ChartInput`, выход `ChartOutput`. Никакой зависимости от Telegram или БД.
+- AI Orchestrator — управляет контекстом, маршрутизацией, фолбэком. Не знает о Telegram.
+- Репозитории — единственный способ обращаться к БД.
+
+**Consequences:** Калькулятор тестируется изолированно (80%+ coverage). AI-логика не зависит от транспорта. Можно добавить Web App без изменений домена.
+
+### ADR-002: AI Оркестрация — OpenRouter + Kimi K2
+
+**Context:** Нужен один провайдер для Kimi (китайская метафизика), Claude (русский язык, глубина), gpt-image-1 (генерация карты).
+
+**Solution:** OpenRouter API как единая точка. Модели:
+- Базовая интерпретация + диалог: `moonshot/moonshot-kimi-k2` (primary)
+- Fallback: `anthropic/claude-3.5-sonnet`
+- Генерация карты: `openai/gpt-image-1`
+- Переключение модели без деплоя: Redis feature flag `llm:active_model`
+
+**Consequences:** Один API ключ. Простой фолбэк. Смена модели через /admin model.
+
+### ADR-003: Визуализация карты — GPT Image Generation
+
+**Context:** Нужна красивая карта в стиле Mingli с иероглифами, цветами элементов, балансом.
+
+**Solution:**
+1. 24 PNG-ассета иероглифов (10 стволов + 12 ветвей + 2 Инь/Ян) — подготовлены заранее, хранятся в `assets/hieroglyphs/`
+2. Данные карты → текстовый промпт для gpt-image-1 с описанием layout
+3. PNG → Yandex Object Storage → send_photo в Telegram
+4. Fallback: Pillow-композиция из ассетов
+
+**Consequences:** Высокое качество визуала. Зависимость от OpenAI image API. Fallback обеспечивает стабильность.
+
+### ADR-004: База знаний — KuzuDB Graph
+
+**Context:** Ответы LLM должны опираться на конкретные правила Бацзы из книг, не на обучение модели.
+
+**Solution:** KuzuDB (embedded, Python) — граф знаний:
+- Узлы: Element, Stem, Branch, TenGod, Rule, Interpretation, Star
+- Рёбра: GENERATES, CONTROLS, CLASHES_WITH, COMBINES_WITH, MEANS
+- При запросе: извлечь концепты → query KuzuDB → релевантный подграф → в контекст LLM
+
+**Consequences:** Ответы Анастасии основаны на фактических правилах. Требует оцифровки книг (задача 2.2). Повышает качество без увеличения размера промпта.
+
+### ADR-005: Деплой — Yandex Cloud
+
+**Context:** Российская аудитория, нужна стабильность и управляемые сервисы.
+
+**Solution:**
+- Yandex Compute Cloud (VPS, 2 vCPU / 4GB RAM) — Docker-контейнеры
+- Yandex Managed PostgreSQL — управляемая БД
+- Yandex Managed Redis — кэш и FSM
+- Yandex Object Storage (S3-совместимый) — PNG карты, CSV экспорт
+- Yandex Certificate Manager — SSL для webhook
+- Деплой через `yc` CLI + GitHub Actions
+
+**Consequences:** Управляемые сервисы = меньше ops. Все данные в российском облаке. Инструкция в deploy.md.
+
+---
+
+## Data Models
+
+### User
+`id (UUID) | telegram_id (BigInt, unique) | username | first_name | locale (ru) | free_question_used (bool) | created_at | updated_at`
+
+### Chart
+`id (UUID) | user_id (FK) | name | birth_datetime_utc | birth_datetime_original | latitude | longitude | tz_offset | early_rat (bool) | hidden_stems_school | chart_data (JSONB) | has_birth_time (bool) | created_at`
+
+### Consultation
+`id (UUID) | user_id (FK) | chart_id (FK) | topic | user_message (Text) | ai_response (Text) | model_used | prompt_tokens | completion_tokens | cost_usd | latency_ms | trace_id | created_at`
+
+### Subscription
+`id (UUID) | user_id (FK, unique) | plan (free/single/session/monthly) | status (active/expired) | questions_remaining | session_expires_at | monthly_expires_at | payment_provider | created_at`
+
+### Event (для ректификации)
+`id (UUID) | chart_id (FK) | event_date | event_type | description | created_at`
+
+Связи: User 1→N Chart, User 1→N Consultation, User 1→1 Subscription, Chart 1→N Event, Chart 1→N Consultation
+
+---
+
+## Monetization Logic
+
+```
+Все пользователи: расчёт карты + визуал (PNG) + 6-блочная интерпретация = БЕСПЛАТНО ВСЕГДА
+
+Новый пользователь (free_question_used = False):
+  → 1 вопрос Анастасии бесплатно
+  → После ответа: экран тарифов
+
+Повторный пользователь:
+  → Кнопка "Задать вопрос" → экран тарифов
+
+Тарифы:
+  - Разовый (99 RUB): 1 вопрос + 3 уточнения — plan=single, questions_remaining=4
+  - Сессия (349 RUB): диалог 7 дней ≤30 вопросов — plan=session, session_expires_at
+  - Подписка (690 RUB/мес): неограниченно 30 дней — plan=monthly, monthly_expires_at
+```
+
+---
+
+## LLM Integration
+
+### Контекст LLM для каждого запроса:
+1. Системный промпт Анастасии (`ai/prompts/anastasia_system.md`, 68 КБ)
+2. Карта пользователя в Markdown-формате (стволы, ветви, 10 Божеств, взаимодействия)
+3. Релевантный подграф из KuzuDB (по концептам вопроса)
+4. История диалога (Redis, TTL 24ч)
+5. Если временной вопрос: карты текущего года/месяца/дня + ближайших 3 лет
+
+### Маршрутизация:
+- Простой вопрос → Kimi K2 (быстро, дёшево)
+- Сложный / верификация → Kimi K2 + Qwen (синтез)
+- Временной вопрос → Kimi K2 + temporal_context
+
+---
+
+## Deploy
+
+ADR-005 выше. Пошаговые команды: `deploy.md`
+
+Среды: dev (docker-compose локально) → staging (Yandex Cloud, тестовые ключи) → production (Yandex Cloud, prod ключи)
+
+---
+
+## Logging & Config
+
+- **Логи:** structlog, JSON, trace_id через все слои
+- **Config:** Pydantic Settings из .env (никогда не коммитить .env)
+- **Feature flags:** Redis (`flag:ai_enabled`, `flag:payments_enabled`, `llm:active_model`)
+- **Secrets:** Yandex Lockbox или GitHub Secrets для CI
+- **PII:** координаты округляются до 2 знаков, telegram_id хешируется в публичных логах

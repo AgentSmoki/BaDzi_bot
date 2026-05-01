@@ -1,0 +1,99 @@
+---
+description: Соглашения по коду для БаЦзы-Бот. Читать перед написанием любого кода.
+alwaysApply: true
+---
+
+# Соглашения по коду — БаЦзы-Бот
+
+## Нейминг
+
+| Сущность | Стиль | Пример |
+|----------|-------|--------|
+| Переменные, функции | `snake_case` | `chart_data`, `get_user_by_id` |
+| Классы, Pydantic модели | `PascalCase` | `ChartInput`, `UserRepository` |
+| Константы | `UPPER_SNAKE` | `FREE_DAILY_LIMIT`, `OPENROUTER_BASE_URL` |
+| Файлы модулей | `snake_case.py` | `true_solar_time.py`, `day_master.py` |
+| Роутеры aiogram | `snake_case_router` | `consultation_router`, `start_router` |
+| Таблицы БД | `snake_case` (plural) | `users`, `charts`, `consultations` |
+| Env vars | `UPPER_SNAKE` | `BOT_TOKEN`, `OPENROUTER_API_KEY` |
+
+## Структура директорий
+
+```
+BaDzi_bot/
+├── bot/              # Telegram транспортный слой (aiogram)
+│   ├── routers/      # Один файл = один домен (start, consultation, chart...)
+│   ├── middlewares/  # db_session, user, tracing
+│   ├── keyboards/    # inline клавиатуры
+│   ├── states.py     # Все FSM состояния в одном файле
+│   ├── filters.py    # Magic filters
+│   ├── config.py     # Pydantic Settings
+│   └── main.py       # Entry point
+├── calculator/       # Бизнес-логика Бацзы (stateless, без зависимостей от bot/db)
+├── ai/               # AI оркестрация (без зависимостей от bot/)
+│   ├── prompts/      # .md файлы системных промптов
+│   └── ...
+├── knowledge/        # KuzuDB граф знаний
+│   ├── schema.py     # Схема узлов и рёбер
+│   └── ingest/       # Скрипты оцифровки
+├── db/               # Только SQLAlchemy модели + репозитории
+│   └── repositories/ # Один файл = один агрегат
+├── web/              # FastAPI (только для Admin + будущий Mini App)
+├── tasks/            # TaskIQ воркеры
+├── monitoring/       # Langfuse helpers
+├── migrations/       # Alembic (не редактировать вручную)
+├── assets/
+│   └── hieroglyphs/  # 24 PNG-ассета иероглифов
+├── tests/
+│   ├── unit/
+│   └── integration/
+└── .github/workflows/
+```
+
+## Правила кода
+
+- **Макс. длина функции:** 40 строк. Длиннее — выносить в вспомогательную функцию.
+- **Макс. длина файла:** 300 строк. Длиннее — разбить на модули.
+- **Строгая типизация:** все функции с type hints. `mypy --strict` должен проходить.
+- **Async всё:** все I/O операции (БД, Redis, HTTP, AI) — async/await.
+- **Запрет `!`:** в строках ответов Анастасии (валидировать в тестах).
+- **Нет магических чисел:** вынести в константы или Settings.
+- **Импорты:** stdlib → third-party → local (ruff автоматически сортирует).
+
+## Обработка ошибок
+
+- Кастомные исключения в `{module}/exceptions.py` (наследуются от `BaDziBaseError`)
+- Логировать с контекстом: `logger.error("msg", exc_info=True, user_id=..., trace_id=...)`
+- Никогда не глотать исключения молча (`except Exception: pass` — запрещено)
+- Telegram handlers ловят исключения на уровне middleware — не в каждом хендлере
+
+## Репозитории (Database)
+
+- Только через репозиторий — никаких прямых запросов к БД в роутерах
+- Метод = одна операция: `get_by_id`, `create`, `update_plan`, `count_today_questions`
+- Возвращают модели SQLAlchemy, не raw данные
+
+## Линтинг
+
+```toml
+# pyproject.toml
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+strict = true
+ignore_missing_imports = true
+```
+
+Pre-commit хуки: `ruff check --fix` → `ruff format` → `mypy` → secret scan
+
+## Тестирование
+
+- Фреймворк: pytest + pytest-asyncio
+- Расположение: `tests/unit/{module}/test_{file}.py`
+- Нейминг тестов: `test_{что_тестируем}_{ожидаемое_поведение}`
+- Калькулятор: 80%+ покрытие (детерминированный, хорошо тестируется)
+- Bot слой: 60%+ покрытие (E2E для критических FSM-флоу)
+- AI слой: mock OpenRouter (не тратить деньги на тесты)
+- Запуск: `pytest --cov=calculator --cov=ai --cov-report=term-missing`
