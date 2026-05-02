@@ -22,7 +22,7 @@
 - [x] 1.1.2 Создать .pre-commit-config.yaml (ruff + mypy + secret scan)
 - [x] 1.1.3 Dockerfile (python:3.11-slim + gcc для pyswisseph)
 - [x] 1.1.4 docker-compose.yml (bot + web + worker + postgres + redis)
-- [ ] 1.1.5 GitHub Actions CI/CD (.github/workflows/ci.yml)
+- [x] 1.1.5 GitHub Actions CI/CD (.github/workflows/ci.yml)
 
 ### 1.2 Конфигурация и логирование
 - [ ] 1.2.1 bot/config.py — Pydantic Settings (все env vars из .env.example)
