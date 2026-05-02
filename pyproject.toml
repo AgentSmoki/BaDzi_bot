@@ -26,8 +26,8 @@ dependencies = [
     "redis[hiredis]==5.2.1",
 
     # --- Config / Validation ---
-    "pydantic==2.11.4",
-    "pydantic-settings==2.9.1",
+    "pydantic==2.10.6",
+    "pydantic-settings==2.8.1",
     "python-dotenv==1.1.0",
 
     # --- HTTP client (OpenRouter) ---
@@ -35,7 +35,7 @@ dependencies = [
     "tenacity==9.1.2",
 
     # --- AI / LLM monitoring ---
-    "langfuse==2.59.8",
+    "langfuse==4.5.1",
 
     # --- Graph database ---
     "kuzu==0.10.0",
@@ -58,7 +58,7 @@ dependencies = [
     "dateparser==1.2.1",
 
     # --- S3 / Object Storage ---
-    "aioboto3==14.3.0",
+    "aioboto3==15.5.0",
 
     # --- Task queue ---
     "taskiq[asyncio]==0.11.14",

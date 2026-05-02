@@ -19,7 +19,7 @@
 
 ### 1.1 Инфраструктура проекта
 - [x] 1.1.1 Настроить pyproject.toml (ruff, mypy, pytest, pytest-asyncio)
-- [ ] 1.1.2 Создать .pre-commit-config.yaml (ruff + mypy + secret scan)
+- [x] 1.1.2 Создать .pre-commit-config.yaml (ruff + mypy + secret scan)
 - [ ] 1.1.3 Dockerfile (python:3.11-slim + gcc для pyswisseph)
 - [ ] 1.1.4 docker-compose.yml (bot + web + worker + postgres + redis)
 - [ ] 1.1.5 GitHub Actions CI/CD (.github/workflows/ci.yml)
