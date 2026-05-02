@@ -9,7 +9,7 @@
 
 - [x] P-1 Подготовить 24 PNG-ассета иероглифов (10 стволов + 12 ветвей + 2 Инь/Ян) в стиле Mingli
 - [ ] P-2 Настроить OpenRouter API аккаунт, получить ключ
-- [ ] P-3 Создать Yandex Cloud аккаунт, установить `yc` CLI
+- [x] P-3 Создать Yandex Cloud аккаунт, установить `yc` CLI — все ресурсы созданы (PostgreSQL, Redis, VPS, S3)
 - [x] P-4 Сделать Gemini Deep Research по 6 архитектурным вопросам (результаты в doc/gemini_research.md)
 - [x] P-5 Скаффолд директорий (tests/, knowledge/, monitoring/, web/, tasks/ — все созданы)
 
@@ -18,7 +18,7 @@
 ## Этап 1 — MVP (май–июнь 2026)
 
 ### 1.1 Инфраструктура проекта
-- [ ] 1.1.1 Настроить pyproject.toml (ruff, mypy, pytest, pytest-asyncio)
+- [x] 1.1.1 Настроить pyproject.toml (ruff, mypy, pytest, pytest-asyncio)
 - [ ] 1.1.2 Создать .pre-commit-config.yaml (ruff + mypy + secret scan)
 - [ ] 1.1.3 Dockerfile (python:3.11-slim + gcc для pyswisseph)
 - [ ] 1.1.4 docker-compose.yml (bot + web + worker + postgres + redis)
@@ -114,7 +114,7 @@
 - [ ] 1.13.5 FastAPI admin page (Basic Auth) — дашборд с теми же метриками
 
 ### 1.14 Деплой MVP
-- [ ] 1.14.1 Создать ресурсы Yandex Cloud (VPS, PostgreSQL, Redis, Object Storage) — см. deploy.md
+- [x] 1.14.1 Создать ресурсы Yandex Cloud (VPS, PostgreSQL, Redis, Object Storage) — созданы 2026-05-02
 - [ ] 1.14.2 Загрузить Docker-образ в Yandex Container Registry
 - [ ] 1.14.3 Запустить миграции Alembic
 - [ ] 1.14.4 Настроить Telegram webhook
