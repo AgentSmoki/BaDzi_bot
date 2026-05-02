@@ -48,7 +48,7 @@ Senior Python Developer, специализация: aiogram 3.x, FastAPI, SQLAl
 - **Визуальная карта** — Playwright (HTML/CSS Jinja2-шаблон → PNG screenshot). Fallback: Pillow + 24 PNG-ассеты. PNG → Yandex Object Storage → send_photo.
 - **База знаний** — KuzuDB (embedded). RAG: концепты из вопроса → query → подграф → в контекст LLM.
 - **Временные вопросы** — детектор → карты текущего года/месяца/дня + 3 года.
-- **Монетизация** — базовая интерпретация ВСЕГДА бесплатна. 1 вопрос бесплатно для новых. Тарифы: 99/349/690 RUB.
+- **Монетизация** — базовая интерпретация ВСЕГДА бесплатна. 1 вопрос бесплатно для новых. Тарифы: 290/990/2490 RUB (Месяц / 3 месяца / Год).
 - **Деплой** — Yandex Cloud (VPS + Managed PostgreSQL + Managed Redis + Object Storage).
 
 ## Как работать с OpenRouter
