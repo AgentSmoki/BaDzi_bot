@@ -1,0 +1,24 @@
+{
+  "files": {
+    "code": [],
+    "document": [
+      "/Users/admin/Documents/Razarabotka/BaDzi_bot/QWEN.md",
+      "/Users/admin/Documents/Razarabotka/BaDzi_bot/MASTER.md",
+      "/Users/admin/Documents/Razarabotka/BaDzi_bot/product_idea.md",
+      "/Users/admin/Documents/Razarabotka/BaDzi_bot/\u0411\u0430\u0437\u0430/ba_zi_prompt_anastasia_v2.md",
+      "/Users/admin/Documents/Razarabotka/BaDzi_bot/doc/vision.md",
+      "/Users/admin/Documents/Razarabotka/BaDzi_bot/doc/\u0421\u043e\u0437\u0434\u0430\u043d\u0438\u0435 \u0432\u044b\u0441\u043e\u043a\u043e\u0442\u043e\u0447\u043d\u043e\u0433\u043e \u043a\u0430\u043b\u044c\u043a\u0443\u043b\u044f\u0442\u043e\u0440\u0430 \u0411\u0430\u0426\u0437\u044b.md"
+    ],
+    "paper": [
+      "/Users/admin/Documents/Razarabotka/BaDzi_bot/\u0411\u0430\u0437\u0430/\u041e\u0441\u043d\u043e\u0432\u044b \u0411\u0430 \u0426\u0437\u044b .pdf"
+    ],
+    "image": [],
+    "video": []
+  },
+  "total_files": 7,
+  "total_words": 21442,
+  "needs_graph": false,
+  "warning": "Corpus is ~21,442 words - fits in a single context window. You may not need a graph.",
+  "skipped_sensitive": [],
+  "graphifyignore_patterns": 0
+}

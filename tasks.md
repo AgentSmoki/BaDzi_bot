@@ -7,11 +7,11 @@
 
 ## Подготовительные задачи (до кода)
 
-- [ ] P-1 Подготовить 24 PNG-ассета иероглифов (10 стволов + 12 ветвей + 2 Инь/Ян) в стиле Mingli
+- [x] P-1 Подготовить 24 PNG-ассета иероглифов (10 стволов + 12 ветвей + 2 Инь/Ян) в стиле Mingli
 - [ ] P-2 Настроить OpenRouter API аккаунт, получить ключ
 - [ ] P-3 Создать Yandex Cloud аккаунт, установить `yc` CLI
-- [ ] P-4 Сделать Gemini Deep Research по 6 архитектурным вопросам (см. MASTER.md §Исследования)
-- [ ] P-5 Скаффолд директорий (src/, tests/, migrations/, assets/, knowledge/)
+- [x] P-4 Сделать Gemini Deep Research по 6 архитектурным вопросам (результаты в doc/gemini_research.md)
+- [x] P-5 Скаффолд директорий (tests/, knowledge/, monitoring/, web/, tasks/ — все созданы)
 
 ---
 
@@ -64,11 +64,11 @@
 - [ ] 1.6.9 Тесты калькулятора (tests/unit/test_calculator/) — покрытие 80%+
 
 ### 1.7 Визуальная карта (GPT Image Generation)
-- [ ] 1.7.1 ai/image_generator.py — генерация карты через gpt-image-1 (OpenRouter)
-- [ ] 1.7.2 Промпт для генерации карты (шаблон с данными + reference style Mingli)
-- [ ] 1.7.3 Загрузка PNG в Yandex Object Storage
-- [ ] 1.7.4 Отправка фото в Telegram (send_photo)
-- [ ] 1.7.5 Fallback: Pillow-композиция из 24 PNG-ассетов если GPT Image недоступен
+- [ ] 1.7.1 ai/card_renderer.py — рендеринг карты через Playwright (HTML/CSS → PNG screenshot)
+- [ ] 1.7.2 Jinja2 HTML-шаблон карты (тёмная тема Mingli, цвета элементов, 4 столпа + баланс)
+- [ ] 1.7.3 Загрузка PNG в Yandex Object Storage (aioboto3, кэш по hash данных карты)
+- [ ] 1.7.4 Отправка фото в Telegram (send_photo по pre-signed URL)
+- [ ] 1.7.5 Fallback: Pillow-композиция из 24 PNG-ассетов если Playwright недоступен
 
 ### 1.8 Базовая интерпретация (6 блоков, всегда бесплатно)
 - [ ] 1.8.1 ai/base_interpretation.py — генерация 6 блоков через Kimi K2 (OpenRouter)
@@ -89,7 +89,7 @@
 
 ### 1.10 Монетизация и лимиты
 - [ ] 1.10.1 Redis rate limiter (счётчик вопросов/день для free)
-- [ ] 1.10.2 bot/routers/subscription.py — экран тарифов (Разовый 99р / Сессия 349р / Подписка 690р)
+- [ ] 1.10.2 bot/routers/subscription.py — экран тарифов (Месяц 290р / 3 месяца 990р / Год 2490р)
 - [ ] 1.10.3 Telegram Payments / ЮKassa интеграция
 - [ ] 1.10.4 Логика: 1 бесплатный вопрос для новых пользователей
 - [ ] 1.10.5 После оплаты: обновить Subscription в БД

@@ -27,9 +27,9 @@ alwaysApply: true
 | Кэш / FSM | Redis | FSM-состояния, rate limit, feature flags, history |
 | Очереди | TaskIQ | Долгие AI-генерации (>30 сек) |
 | AI провайдер | OpenRouter API | Единая точка для всех моделей |
-| AI основная | Kimi K2 (moonshot) | Специализация на китайских текстах |
+| AI основная | Kimi 2.6 (moonshotai) | Специализация на китайских текстах, последняя версия |
 | AI fallback | Claude 3.5 Sonnet | Резервная модель |
-| AI image | gpt-image-1 | Генерация визуальной карты в стиле Mingli |
+| Рендеринг карты | Playwright (Headless Chrome) | HTML/CSS → PNG, точные иероглифы из 24 PNG-ассетов |
 | Астрономия | pyswisseph + JPL DE431 | Точность < 0.001", TST, 24 сезона |
 | Геокодирование | geopy (Nominatim) + timezonefinder | Город → координаты → таймзона |
 | Мониторинг | Langfuse (self-hosted) | LLM cost, latency, quality, traces |
@@ -69,24 +69,24 @@ PostgreSQL | Redis | OpenRouter API  (Infrastructure)
 **Context:** Нужен один провайдер для Kimi (китайская метафизика), Claude (русский язык, глубина), gpt-image-1 (генерация карты).
 
 **Solution:** OpenRouter API как единая точка. Модели:
-- Базовая интерпретация + диалог: `moonshot/moonshot-kimi-k2` (primary)
+- Базовая интерпретация + диалог: `moonshotai/kimi-2.6` (primary)
 - Fallback: `anthropic/claude-3.5-sonnet`
-- Генерация карты: `openai/gpt-image-1`
 - Переключение модели без деплоя: Redis feature flag `llm:active_model`
 
 **Consequences:** Один API ключ. Простой фолбэк. Смена модели через /admin model.
 
-### ADR-003: Визуализация карты — GPT Image Generation
+### ADR-003: Визуализация карты — Playwright HTML Rendering
 
-**Context:** Нужна красивая карта в стиле Mingli с иероглифами, цветами элементов, балансом.
+**Context:** Нужна красивая карта в стиле Mingli с иероглифами, цветами элементов, балансом. Генеративные AI-модели (gpt-image-1, DALL-E) катастрофически галлюцинируют китайские иероглифы — недопустимо для астрологического сервиса.
 
 **Solution:**
-1. 24 PNG-ассета иероглифов (10 стволов + 12 ветвей + 2 Инь/Ян) — подготовлены заранее, хранятся в `assets/hieroglyphs/`
-2. Данные карты → текстовый промпт для gpt-image-1 с описанием layout
-3. PNG → Yandex Object Storage → send_photo в Telegram
-4. Fallback: Pillow-композиция из ассетов
+1. 24 PNG-ассета иероглифов (10 стволов + 12 ветвей + 2 Инь/Ян) — готовы, хранятся в `assets/hieroglyphs/`
+2. Данные карты → Jinja2 HTML-шаблон (тёмная тема в стиле Mingli, CSS цвета элементов)
+3. Playwright headless Chromium → screenshot элемента → PNG bytes
+4. PNG → Yandex Object Storage → send_photo в Telegram
+5. Fallback: Pillow-композиция из 24 PNG-ассетов (без браузера)
 
-**Consequences:** Высокое качество визуала. Зависимость от OpenAI image API. Fallback обеспечивает стабильность.
+**Consequences:** 100% точность иероглифов. Красивый CSS-layout (градиенты, баланс элементов). Playwright работает в Docker headless без X11. Требует установки chromium в образе (fonts-noto-cjk для CJK шрифтов).
 
 ### ADR-004: База знаний — KuzuDB Graph
 
@@ -148,10 +148,10 @@ PostgreSQL | Redis | OpenRouter API  (Infrastructure)
 Повторный пользователь:
   → Кнопка "Задать вопрос" → экран тарифов
 
-Тарифы:
-  - Разовый (99 RUB): 1 вопрос + 3 уточнения — plan=single, questions_remaining=4
-  - Сессия (349 RUB): диалог 7 дней ≤30 вопросов — plan=session, session_expires_at
-  - Подписка (690 RUB/мес): неограниченно 30 дней — plan=monthly, monthly_expires_at
+Тарифы (ЮKassa):
+  - Месяц (290 RUB): безлимит 30 дней — plan=monthly, monthly_expires_at
+  - 3 месяца (990 RUB): безлимит 90 дней — plan=quarterly, expires_at
+  - Год (2490 RUB): безлимит 365 дней — plan=annual, expires_at
 ```
 
 ---

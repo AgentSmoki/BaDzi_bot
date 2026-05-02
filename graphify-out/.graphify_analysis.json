@@ -1,0 +1,223 @@
+{
+  "communities": {
+    "0": [
+      "ai_fallback",
+      "ai_orchestrator",
+      "ai_router",
+      "ai_synthesis",
+      "claude_sonnet",
+      "kimi_moonshot",
+      "langfuse",
+      "litellm",
+      "qwen_36",
+      "taskiq"
+    ],
+    "1": [
+      "anastasia_persona",
+      "bazi_bot_project",
+      "ci_cd",
+      "docker_railway",
+      "fastapi_web",
+      "html_visualization",
+      "ruff_mypy",
+      "subscription_model",
+      "system_prompt_anastasia",
+      "zi_ping_school"
+    ],
+    "2": [
+      "bazi_calculator",
+      "ddd_architecture",
+      "early_late_rat",
+      "four_pillars",
+      "qi_phases",
+      "solar_terms_24",
+      "swiss_ephemeris",
+      "tai_yuan",
+      "ten_gods"
+    ],
+    "3": [
+      "day_master",
+      "hidden_stems",
+      "interactions",
+      "luck_pillars",
+      "ming_gong",
+      "postgresql",
+      "symbolic_stars",
+      "technical_vision"
+    ],
+    "4": [
+      "aiogram_bot",
+      "feature_flags",
+      "fsm_flow",
+      "pii_masking",
+      "pydantic_settings",
+      "rate_limiting",
+      "redis_cache",
+      "structlog"
+    ],
+    "5": [
+      "dst_history",
+      "equation_of_time",
+      "geocoding",
+      "true_solar_time",
+      "tz_database"
+    ]
+  },
+  "cohesion": {
+    "0": 0.38,
+    "1": 0.22,
+    "2": 0.25,
+    "3": 0.25,
+    "4": 0.32,
+    "5": 0.4
+  },
+  "gods": [
+    {
+      "id": "bazi_calculator",
+      "label": "\u0412\u044b\u0441\u043e\u043a\u043e\u0442\u043e\u0447\u043d\u044b\u0439 \u043a\u0430\u043b\u044c\u043a\u0443\u043b\u044f\u0442\u043e\u0440 \u0411\u0430\u0446\u0437\u044b",
+      "edges": 19
+    },
+    {
+      "id": "ai_orchestrator",
+      "label": "AI Orchestrator (\u043c\u0443\u043b\u044c\u0442\u0438-\u043c\u043e\u0434\u0435\u043b\u044c\u043d\u044b\u0439)",
+      "edges": 12
+    },
+    {
+      "id": "technical_vision",
+      "label": "\u0422\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u043e\u0435 \u0432\u0438\u0434\u0435\u043d\u0438\u0435 v3.0",
+      "edges": 12
+    },
+    {
+      "id": "bazi_bot_project",
+      "label": "\u0411\u0430\u0426\u0437\u044b-\u0411\u043e\u0442 Project",
+      "edges": 7
+    },
+    {
+      "id": "aiogram_bot",
+      "label": "Telegram Bot (aiogram 3.x)",
+      "edges": 6
+    },
+    {
+      "id": "true_solar_time",
+      "label": "\u0418\u0441\u0442\u0438\u043d\u043d\u043e\u0435 \u0441\u043e\u043b\u043d\u0435\u0447\u043d\u043e\u0435 \u0432\u0440\u0435\u043c\u044f (TST)",
+      "edges": 5
+    },
+    {
+      "id": "claude_sonnet",
+      "label": "Claude Sonnet (\u043e\u0441\u043d\u043e\u0432\u043d\u0430\u044f \u043c\u043e\u0434\u0435\u043b\u044c)",
+      "edges": 5
+    },
+    {
+      "id": "qwen_36",
+      "label": "Qwen 3.6 (\u0432\u0435\u0440\u0438\u0444\u0438\u043a\u0430\u0446\u0438\u044f)",
+      "edges": 4
+    },
+    {
+      "id": "kimi_moonshot",
+      "label": "Kimi (Moonshot AI, \u0432\u0435\u0440\u0438\u0444\u0438\u043a\u0430\u0446\u0438\u044f)",
+      "edges": 4
+    },
+    {
+      "id": "ai_fallback",
+      "label": "\u0424\u043e\u043b\u0431\u044d\u043a-\u043c\u0435\u0445\u0430\u043d\u0438\u0437\u043c",
+      "edges": 4
+    }
+  ],
+  "surprises": [
+    {
+      "source": "Pydantic Settings (.env)",
+      "target": "\u0411\u0430\u0426\u0437\u044b-\u0411\u043e\u0442 Project",
+      "source_files": [
+        "doc/vision.md",
+        "MASTER.md"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "conceptually_related_to",
+      "why": "connects across different repos/directories; bridges separate communities; peripheral node `Pydantic Settings (.env)` unexpectedly reaches hub `\u0411\u0430\u0426\u0437\u044b-\u0411\u043e\u0442 Project`"
+    },
+    {
+      "source": "\u0411\u0430\u0426\u0437\u044b-\u0411\u043e\u0442 Project",
+      "target": "\u0412\u044b\u0441\u043e\u043a\u043e\u0442\u043e\u0447\u043d\u044b\u0439 \u043a\u0430\u043b\u044c\u043a\u0443\u043b\u044f\u0442\u043e\u0440 \u0411\u0430\u0446\u0437\u044b",
+      "source_files": [
+        "MASTER.md",
+        "doc/\u0421\u043e\u0437\u0434\u0430\u043d\u0438\u0435 \u0432\u044b\u0441\u043e\u043a\u043e\u0442\u043e\u0447\u043d\u043e\u0433\u043e \u043a\u0430\u043b\u044c\u043a\u0443\u043b\u044f\u0442\u043e\u0440\u0430 \u0411\u0430\u0426\u0437\u044b.md"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "conceptually_related_to",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "\u0411\u0430\u0426\u0437\u044b-\u0411\u043e\u0442 Project",
+      "target": "AI Orchestrator (\u043c\u0443\u043b\u044c\u0442\u0438-\u043c\u043e\u0434\u0435\u043b\u044c\u043d\u044b\u0439)",
+      "source_files": [
+        "MASTER.md",
+        "doc/vision.md"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "conceptually_related_to",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "\u0411\u0430\u0426\u0437\u044b-\u0411\u043e\u0442 Project",
+      "target": "HTML-\u0432\u0438\u0437\u0443\u0430\u043b\u0438\u0437\u0430\u0446\u0438\u044f (Jinja2 + HTMX + Chart.js)",
+      "source_files": [
+        "MASTER.md",
+        "doc/vision.md"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "conceptually_related_to",
+      "why": "connects across different repos/directories; peripheral node `HTML-\u0432\u0438\u0437\u0443\u0430\u043b\u0438\u0437\u0430\u0446\u0438\u044f (Jinja2 + HTMX + Chart.js)` unexpectedly reaches hub `\u0411\u0430\u0426\u0437\u044b-\u0411\u043e\u0442 Project`"
+    },
+    {
+      "source": "\u0411\u0430\u0426\u0437\u044b-\u0411\u043e\u0442 Project",
+      "target": "\u041c\u043e\u0434\u0435\u043b\u044c \u043c\u043e\u043d\u0435\u0442\u0438\u0437\u0430\u0446\u0438\u0438 (Free/Pro)",
+      "source_files": [
+        "MASTER.md",
+        "product_idea.md"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "conceptually_related_to",
+      "why": "connects across different repos/directories; peripheral node `\u041c\u043e\u0434\u0435\u043b\u044c \u043c\u043e\u043d\u0435\u0442\u0438\u0437\u0430\u0446\u0438\u0438 (Free/Pro)` unexpectedly reaches hub `\u0411\u0430\u0426\u0437\u044b-\u0411\u043e\u0442 Project`"
+    }
+  ],
+  "questions": [
+    {
+      "type": "bridge_node",
+      "question": "Why does `\u0412\u044b\u0441\u043e\u043a\u043e\u0442\u043e\u0447\u043d\u044b\u0439 \u043a\u0430\u043b\u044c\u043a\u0443\u043b\u044f\u0442\u043e\u0440 \u0411\u0430\u0446\u0437\u044b` connect `Community 2` to `Community 1`, `Community 3`, `Community 4`, `Community 5`?",
+      "why": "High betweenness centrality (0.604) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `\u0411\u0430\u0426\u0437\u044b-\u0411\u043e\u0442 Project` connect `Community 1` to `Community 0`, `Community 2`, `Community 4`?",
+      "why": "High betweenness centrality (0.349) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `AI Orchestrator (\u043c\u0443\u043b\u044c\u0442\u0438-\u043c\u043e\u0434\u0435\u043b\u044c\u043d\u044b\u0439)` connect `Community 0` to `Community 1`, `Community 2`, `Community 4`?",
+      "why": "High betweenness centrality (0.347) - this node is a cross-community bridge."
+    },
+    {
+      "type": "verify_inferred",
+      "question": "Are the 2 inferred relationships involving `\u0412\u044b\u0441\u043e\u043a\u043e\u0442\u043e\u0447\u043d\u044b\u0439 \u043a\u0430\u043b\u044c\u043a\u0443\u043b\u044f\u0442\u043e\u0440 \u0411\u0430\u0446\u0437\u044b` (e.g. with `FastAPI Web Visualization` and `Domain-Driven Design`) actually correct?",
+      "why": "`\u0412\u044b\u0441\u043e\u043a\u043e\u0442\u043e\u0447\u043d\u044b\u0439 \u043a\u0430\u043b\u044c\u043a\u0443\u043b\u044f\u0442\u043e\u0440 \u0411\u0430\u0446\u0437\u044b` has 2 INFERRED edges - model-reasoned connections that need verification."
+    },
+    {
+      "type": "verify_inferred",
+      "question": "Are the 2 inferred relationships involving `AI Orchestrator (\u043c\u0443\u043b\u044c\u0442\u0438-\u043c\u043e\u0434\u0435\u043b\u044c\u043d\u044b\u0439)` (e.g. with `TaskIQ (background tasks)` and `Domain-Driven Design`) actually correct?",
+      "why": "`AI Orchestrator (\u043c\u0443\u043b\u044c\u0442\u0438-\u043c\u043e\u0434\u0435\u043b\u044c\u043d\u044b\u0439)` has 2 INFERRED edges - model-reasoned connections that need verification."
+    },
+    {
+      "type": "isolated_nodes",
+      "question": "What connects `LiteLLM (SDK-\u0430\u0433\u0440\u0435\u0433\u0430\u0442\u043e\u0440)`, `PostgreSQL (UUID primary keys)`, `\u0414\u0438\u043b\u0435\u043c\u043c\u0430 \u0427\u0430\u0441\u0430 \u041a\u0440\u044b\u0441\u044b (Early/Late Rat)` to the rest of the system?",
+      "why": "9 weakly-connected nodes found - possible documentation gaps or missing edges."
+    }
+  ],
+  "labels": {
+    "0": "AI \u041c\u0443\u043b\u044c\u0442\u0438-\u043c\u043e\u0434\u0435\u043b\u044c\u043d\u0430\u044f \u041e\u0440\u043a\u0435\u0441\u0442\u0440\u0430\u0446\u0438\u044f",
+    "1": "\u041f\u0440\u043e\u0434\u0443\u043a\u0442 \u0438 \u0412\u0438\u0437\u0443\u0430\u043b\u0438\u0437\u0430\u0446\u0438\u044f",
+    "2": "\u041a\u0430\u043b\u044c\u043a\u0443\u043b\u044f\u0442\u043e\u0440 \u0411\u0430\u0446\u0437\u044b (\u044f\u0434\u0440\u043e)",
+    "3": "\u041c\u0435\u0442\u0430\u0444\u0438\u0437\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u044d\u043b\u0435\u043c\u0435\u043d\u0442\u044b \u043a\u0430\u0440\u0442\u044b",
+    "4": "\u0411\u043e\u0442-\u0438\u043d\u0444\u0440\u0430\u0441\u0442\u0440\u0443\u043a\u0442\u0443\u0440\u0430 (Telegram, Redis, FSM)",
+    "5": "\u0425\u0440\u043e\u043d\u043e\u0431\u0438\u043e\u043b\u043e\u0433\u0438\u044f (TST, DST, \u0433\u0435\u043e\u043a\u043e\u0434\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435)"
+  }
+}

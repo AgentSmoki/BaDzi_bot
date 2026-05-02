@@ -44,8 +44,8 @@ Senior Python Developer, специализация: aiogram 3.x, FastAPI, SQLAl
 ## Ключевые архитектурные решения (из vision.mdc)
 
 - **Calculator** — stateless. Вход: `ChartInput`. Выход: `ChartOutput`. Нет зависимостей от bot/ или db/.
-- **AI** — через OpenRouter API. Primary: Kimi K2. Fallback: Claude 3.5 Sonnet.
-- **Визуальная карта** — gpt-image-1 через OpenRouter. PNG → Yandex Object Storage → send_photo.
+- **AI** — через OpenRouter API. Primary: Kimi 2.6 (`moonshotai/kimi-2.6`). Fallback: Claude 3.5 Sonnet.
+- **Визуальная карта** — Playwright (HTML/CSS Jinja2-шаблон → PNG screenshot). Fallback: Pillow + 24 PNG-ассеты. PNG → Yandex Object Storage → send_photo.
 - **База знаний** — KuzuDB (embedded). RAG: концепты из вопроса → query → подграф → в контекст LLM.
 - **Временные вопросы** — детектор → карты текущего года/месяца/дня + 3 года.
 - **Монетизация** — базовая интерпретация ВСЕГДА бесплатна. 1 вопрос бесплатно для новых. Тарифы: 99/349/690 RUB.

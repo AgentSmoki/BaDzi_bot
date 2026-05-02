@@ -1,0 +1,7 @@
+/Users/admin/Documents/Razarabotka/BaDzi_bot/QWEN.md
+/Users/admin/Documents/Razarabotka/BaDzi_bot/MASTER.md
+/Users/admin/Documents/Razarabotka/BaDzi_bot/product_idea.md
+/Users/admin/Documents/Razarabotka/BaDzi_bot/База/ba_zi_prompt_anastasia_v2.md
+/Users/admin/Documents/Razarabotka/BaDzi_bot/doc/vision.md
+/Users/admin/Documents/Razarabotka/BaDzi_bot/doc/Создание высокоточного калькулятора БаЦзы.md
+/Users/admin/Documents/Razarabotka/BaDzi_bot/База/Основы Ба Цзы .pdf
