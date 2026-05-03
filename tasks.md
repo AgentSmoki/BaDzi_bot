@@ -27,7 +27,7 @@
 ### 1.2 Конфигурация и логирование
 - [x] 1.2.1 bot/config.py — Pydantic Settings (все env vars из .env.example)
 - [x] 1.2.2 Настройка structlog (JSON-формат, trace_id биндинг)
-- [ ] 1.2.3 Middleware trace_id (bot/middlewares/tracing.py)
+- [x] 1.2.3 Middleware trace_id (bot/middlewares/tracing.py)
 
 ### 1.3 База данных
 - [ ] 1.3.1 db/engine.py — async PostgreSQL engine + session factory
