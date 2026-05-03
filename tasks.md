@@ -25,7 +25,7 @@
 - [x] 1.1.5 GitHub Actions CI/CD (.github/workflows/ci.yml)
 
 ### 1.2 Конфигурация и логирование
-- [ ] 1.2.1 bot/config.py — Pydantic Settings (все env vars из .env.example)
+- [x] 1.2.1 bot/config.py — Pydantic Settings (все env vars из .env.example)
 - [ ] 1.2.2 Настройка structlog (JSON-формат, trace_id биндинг)
 - [ ] 1.2.3 Middleware trace_id (bot/middlewares/tracing.py)
 
