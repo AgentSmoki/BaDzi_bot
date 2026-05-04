@@ -44,7 +44,7 @@
 - [x] 1.4.5 calculator/pillars.py — Генерация 4 столпов (年月日時), 60-ричный цикл
 - [x] 1.4.6 calculator/hidden_stems.py — Скрытые стволы (3 школы: Traditional, Modern, Ken Lai)
 - [x] 1.4.7 calculator/ten_gods.py — Маппинг 10 Божеств
-- [ ] 1.4.8 calculator/day_master.py — Сила ДМ (полезное/вредное божество)
+- [x] 1.4.8 calculator/day_master.py — Сила ДМ (полезное/вредное божество)
 - [ ] 1.4.9 Тесты калькулятора (tests/unit/test_calculator/) — покрытие 80%+ (единственный модуль с тестами в MVP)
 
 ### 1.5 Telegram Bot — базовая структура
