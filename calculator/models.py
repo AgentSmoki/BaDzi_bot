@@ -44,6 +44,39 @@ class LuckPillarsOutput(BaseModel):
     pillars: list[LuckPillar]
 
 
+InteractionType = Literal[
+    "stem_combination",
+    "branch_clash",
+    "six_harmony",
+    "three_harmony",
+    "half_harmony",
+    "three_punishment",
+    "self_punishment",
+    "six_harm",
+    "six_break",
+]
+
+
+class Interaction(BaseModel):
+    type: InteractionType
+    name: str
+    members: list[str]
+    transforms_to: str | None = None
+    pillars: list[str]
+
+
+class InteractionsOutput(BaseModel):
+    stem_combinations: list[Interaction]
+    branch_clashes: list[Interaction]
+    six_harmonies: list[Interaction]
+    three_harmonies: list[Interaction]
+    half_harmonies: list[Interaction]
+    three_punishments: list[Interaction]
+    self_punishments: list[Interaction]
+    six_harms: list[Interaction]
+    six_breaks: list[Interaction]
+
+
 # ── Calculator I/O ────────────────────────────────────────────────────────────
 
 
@@ -80,3 +113,4 @@ class ChartOutput(BaseModel):
     ten_gods: dict[str, list[str]]
     element_balance: dict[str, float]
     luck_pillars: LuckPillarsOutput | None = None
+    interactions: InteractionsOutput | None = None
