@@ -138,7 +138,7 @@
 ## Этап 2 — Расширение (июль–август 2026)
 
 ### 2.1 Калькулятор — расширение
-- [ ] 2.1.1 calculator/luck_pillars.py — Столпы Удачи (Да Юнь) до минуты
+- [x] 2.1.1 calculator/luck_pillars.py — Столпы Удачи (Да Юнь) до минуты
 - [ ] 2.1.2 calculator/interactions.py — все взаимодействия (合沖刑害破)
 - [ ] 2.1.3 calculator/symbolic_stars.py — 50-90 Шэнь Ша
 - [ ] 2.1.4 calculator/auxiliary.py — Мин Гун, Тай Юань

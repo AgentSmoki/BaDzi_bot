@@ -12,6 +12,7 @@ STEMS: tuple[str, ...] = get_args(Stem)
 BRANCHES: tuple[str, ...] = get_args(Branch)
 
 HiddenStemsSchool = Literal["traditional", "modern", "ken_lai"]
+Gender = Literal["male", "female"]
 
 
 # ── Composite types ───────────────────────────────────────────────────────────
@@ -21,6 +22,26 @@ class Pillar(BaseModel):
     stem: Stem
     branch: Branch
     name: str
+
+
+class LuckPillar(BaseModel):
+    stem: Stem
+    branch: Branch
+    name: str
+    start_age: int
+    start_datetime: datetime
+    end_datetime: datetime
+
+
+class LuckPillarsOutput(BaseModel):
+    gender: Gender
+    direction: Literal["forward", "backward"]
+    start_age_years: int
+    start_age_months: int
+    start_age_days: int
+    start_age_hours: int
+    start_age_minutes: int
+    pillars: list[LuckPillar]
 
 
 # ── Calculator I/O ────────────────────────────────────────────────────────────
@@ -33,6 +54,7 @@ class ChartInput(BaseModel):
     tz_offset: float
     early_rat: bool = False
     hidden_stems_school: HiddenStemsSchool = "traditional"
+    gender: Gender | None = None
 
     @field_validator("latitude")
     @classmethod
@@ -57,3 +79,4 @@ class ChartOutput(BaseModel):
     hidden_stems: dict[str, list[Stem]]
     ten_gods: dict[str, list[str]]
     element_balance: dict[str, float]
+    luck_pillars: LuckPillarsOutput | None = None
