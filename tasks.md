@@ -31,7 +31,7 @@
 
 ### 1.3 База данных
 - [x] 1.3.1 db/engine.py — async PostgreSQL engine + session factory
-- [ ] 1.3.2 db/models.py — SQLAlchemy модели (User, Chart, Consultation, Subscription, Event)
+- [x] 1.3.2 db/models.py — SQLAlchemy модели (User, Chart, Consultation, Subscription, Event)
 - [ ] 1.3.3 Alembic init (migrations/env.py, alembic.ini)
 - [ ] 1.3.4 Первая миграция: create_initial_tables
 - [ ] 1.3.5 db/repositories/ — UserRepo, ChartRepo, ConsultationRepo, SubscriptionRepo
