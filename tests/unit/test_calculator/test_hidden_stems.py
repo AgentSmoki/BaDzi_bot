@@ -35,7 +35,7 @@ class TestTraditional:
         assert hidden_stems(_b("辰"), self.S) == ["戊", "乙", "癸"]
 
     def test_si(self) -> None:
-        assert hidden_stems(_b("巳"), self.S) == ["丙", "庚", "戊"]
+        assert hidden_stems(_b("巳"), self.S) == ["丙", "戊", "庚"]
 
     def test_wu(self) -> None:
         assert hidden_stems(_b("午"), self.S) == ["丁", "己"]
