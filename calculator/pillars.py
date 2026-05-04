@@ -15,8 +15,8 @@ from calculator.true_solar_time import true_solar_time
 # 甲子 year = 1984 (most recent before J2000)
 _YEAR_REF: int = 1984
 
-# 甲子 day = 1900-01-31 (verified reference)
-_DAY_REF_ORDINAL: int = date(1900, 1, 31).toordinal()
+# 甲子 day = 2000-01-07 (verified: 36480 = 608*60 days from 1900-02-20)
+_DAY_REF_ORDINAL: int = date(2000, 1, 7).toordinal()
 
 # BRANCHES tuple starts at 子(0), MONTH branches start at 寅(2)
 _MONTH_BRANCH_OFFSET: int = 2
