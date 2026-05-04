@@ -38,11 +38,11 @@
 
 ### 1.4 Калькулятор Бацзы (stateless ядро)
 - [x] 1.4.1 calculator/models.py — ChartInput, ChartOutput (Pydantic)
-- [ ] 1.4.2 calculator/swiss.py — pyswisseph интеграция (JPL DE431)
-- [ ] 1.4.3 calculator/true_solar_time.py — TST: LMT + EoT + DST + longitude
-- [ ] 1.4.4 calculator/solar_terms.py — 24 Цзе Ци (вычисление по эклиптике)
-- [ ] 1.4.5 calculator/pillars.py — Генерация 4 столпов (年月日時), 60-ричный цикл
-- [ ] 1.4.6 calculator/hidden_stems.py — Скрытые стволы (3 школы: Traditional, Modern, Ken Lai)
+- [x] 1.4.2 calculator/swiss.py — pyswisseph интеграция (JPL DE431)
+- [x] 1.4.3 calculator/true_solar_time.py — TST: LMT + EoT + DST + longitude
+- [x] 1.4.4 calculator/solar_terms.py — 24 Цзе Ци (вычисление по эклиптике)
+- [x] 1.4.5 calculator/pillars.py — Генерация 4 столпов (年月日時), 60-ричный цикл
+- [x] 1.4.6 calculator/hidden_stems.py — Скрытые стволы (3 школы: Traditional, Modern, Ken Lai)
 - [ ] 1.4.7 calculator/ten_gods.py — Маппинг 10 Божеств
 - [ ] 1.4.8 calculator/day_master.py — Сила ДМ (полезное/вредное божество)
 - [ ] 1.4.9 Тесты калькулятора (tests/unit/test_calculator/) — покрытие 80%+ (единственный модуль с тестами в MVP)
