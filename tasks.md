@@ -37,7 +37,7 @@
 - [x] 1.3.5 db/repositories/ — UserRepo, ChartRepo, ConsultationRepo, SubscriptionRepo
 
 ### 1.4 Калькулятор Бацзы (stateless ядро)
-- [ ] 1.4.1 calculator/models.py — ChartInput, ChartOutput (Pydantic)
+- [x] 1.4.1 calculator/models.py — ChartInput, ChartOutput (Pydantic)
 - [ ] 1.4.2 calculator/swiss.py — pyswisseph интеграция (JPL DE431)
 - [ ] 1.4.3 calculator/true_solar_time.py — TST: LMT + EoT + DST + longitude
 - [ ] 1.4.4 calculator/solar_terms.py — 24 Цзе Ци (вычисление по эклиптике)
