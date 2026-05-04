@@ -1,15 +1,19 @@
 """Four Pillars generation tests.
 
-Reference chart (user-verified against professional Ba Zi calculator):
-  Birth : 1999-09-12 23:55 Moscow Summer Time (UTC+4)
-  City  : Волжский (lon=44.77°E, lat=48.79°N)
-  Year  : 己卯
-  Month : 癸酉  (after 白露 ≈ Sep 8)
-  Day   : 丁卯  (甲子 reference = 2000-01-07)
-  Hour  : 辛亥  (亥時 TST≈22:57, Late Rat default)
+Reference charts (user-verified against professional Ba Zi calculator):
+
+  Chart 1 — Волжский 1999:
+    Birth : 1999-09-12 23:55 Moscow Summer Time (UTC+4)
+    City  : Волжский (lon=44.77°E, lat=48.79°N)
+    Year  : 己卯  Month : 癸酉  Day : 丁卯  Hour : 辛亥
+
+  Chart 2 — Новокузнецк 1997:
+    Birth : 1997-03-09 19:55 UTC+7 (standard time, DST from Mar 30)
+    City  : Новокузнецк (lon=87.10°E, lat=53.76°N)
+    Year  : 丁丑  Month : 癸卯  Day : 庚戌  Hour : 乙酉
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from calculator.models import ChartInput, Pillar
 from calculator.pillars import calculate_pillars
@@ -150,3 +154,51 @@ class TestEarlyLatRat:
     def test_all_pillars_are_pillar_instances(self) -> None:
         for p in calculate_pillars(_VOLZHSKY):
             assert isinstance(p, Pillar)
+
+
+# ── Chart 2 — Новокузнецк 1997-03-09 ─────────────────────────────────────────
+
+_NOVOKUZNETSK = ChartInput(
+    birth_datetime=datetime(1997, 3, 9, 19, 55, 0),
+    latitude=53.76,
+    longitude=87.10,
+    tz_offset=7.0,  # UTC+7 standard time (Kemerovo Oblast), DST starts Mar 30
+)
+
+# Same chart via timezone-aware datetime (covers tzinfo branch in calculate_pillars)
+_NOVOKUZNETSK_AWARE = ChartInput(
+    birth_datetime=datetime(1997, 3, 9, 12, 55, 0, tzinfo=UTC),  # 19:55-7h = 12:55 UTC
+    latitude=53.76,
+    longitude=87.10,
+    tz_offset=7.0,
+)
+
+
+class TestFourPillarsNovokuznetsk1997:
+    def test_year_pillar_ding_chou(self) -> None:
+        year = calculate_pillars(_NOVOKUZNETSK)[0]
+        assert year.stem == "丁"
+        assert year.branch == "丑"
+
+    def test_month_pillar_gui_mao(self) -> None:
+        month = calculate_pillars(_NOVOKUZNETSK)[1]
+        assert month.stem == "癸"
+        assert month.branch == "卯"
+
+    def test_day_pillar_geng_xu(self) -> None:
+        day = calculate_pillars(_NOVOKUZNETSK)[2]
+        assert day.stem == "庚"
+        assert day.branch == "戌"
+
+    def test_hour_pillar_yi_you(self) -> None:
+        hour = calculate_pillars(_NOVOKUZNETSK)[3]
+        assert hour.stem == "乙"
+        assert hour.branch == "酉"
+
+    def test_tzinfo_aware_input_gives_same_result(self) -> None:
+        # Covers the tzinfo-aware branch (pillars.py line 94)
+        naive = calculate_pillars(_NOVOKUZNETSK)
+        aware = calculate_pillars(_NOVOKUZNETSK_AWARE)
+        for p_n, p_a in zip(naive, aware, strict=False):
+            assert p_n.stem == p_a.stem
+            assert p_n.branch == p_a.branch

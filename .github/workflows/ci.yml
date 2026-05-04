@@ -44,12 +44,4 @@ jobs:
         run: mypy .
 
       - name: Pytest with coverage
-        # Tolerate exit code 5 (no tests collected) until 1.4.9 lands.
-        # Remove the wrapper once the calculator test suite is in.
-        run: |
-          set +e
-          pytest
-          code=$?
-          set -e
-          if [ "$code" -eq 0 ] || [ "$code" -eq 5 ]; then exit 0; fi
-          exit "$code"
+        run: pytest

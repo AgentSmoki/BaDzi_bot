@@ -123,6 +123,12 @@ class TestElementBalance:
         bal = element_balance(_PILLARS, _HIDDEN)
         assert bal["木"] > 0
 
+    def test_empty_pillars_returns_zeros(self) -> None:
+        # Covers the zero-total guard (day_master.py line 116)
+        bal = element_balance([], {})
+        assert set(bal.keys()) == {"木", "火", "土", "金", "水"}
+        assert all(v == 0.0 for v in bal.values())
+
 
 # ── dm_strength_score ─────────────────────────────────────────────────────────
 

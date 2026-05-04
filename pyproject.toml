@@ -133,15 +133,16 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "--cov=calculator --cov=ai --cov=bot --cov-report=term-missing -v"
+addopts = "--cov=calculator --cov-report=term-missing -v"
 
 # ── Coverage ──────────────────────────────────────────────────────────────────
 
 [tool.coverage.run]
-source = ["calculator", "ai", "bot", "db"]
+source = ["calculator"]
 omit = ["tests/*", "migrations/*"]
 
 [tool.coverage.report]
+fail_under = 80
 exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",

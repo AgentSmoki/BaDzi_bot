@@ -8,10 +8,11 @@ Astronomical reference points (UTC):
 """
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 
-from calculator.swiss import julian_day, sun_longitude
+from calculator.swiss import julian_day, set_ephemeris_path, sun_longitude
 
 _TOLERANCE_DEG: float = 1.0  # acceptable error for equinox/solstice tests
 
@@ -58,3 +59,16 @@ class TestSunLongitude:
         jd = julian_day(datetime(1990, 6, 15, 12, 0, tzinfo=UTC))
         lon = sun_longitude(jd)
         assert 0.0 <= lon < 360.0
+
+
+class TestSetEphemerisPath:
+    def test_existing_path_does_not_raise(self, tmp_path: Path) -> None:
+        set_ephemeris_path(tmp_path)  # tmp_path exists → no warning, no error
+
+    def test_missing_path_does_not_raise(self, tmp_path: Path) -> None:
+        # Non-existent path triggers a warning but must not raise
+        missing = tmp_path / "no_such_dir"
+        set_ephemeris_path(missing)
+
+    def test_accepts_string(self, tmp_path: Path) -> None:
+        set_ephemeris_path(str(tmp_path))
