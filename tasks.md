@@ -34,7 +34,7 @@
 - [x] 1.3.2 db/models.py — SQLAlchemy модели (User, Chart, Consultation, Subscription, Event)
 - [x] 1.3.3 Alembic init (migrations/env.py, alembic.ini)
 - [x] 1.3.4 Первая миграция: create_initial_tables
-- [ ] 1.3.5 db/repositories/ — UserRepo, ChartRepo, ConsultationRepo, SubscriptionRepo
+- [x] 1.3.5 db/repositories/ — UserRepo, ChartRepo, ConsultationRepo, SubscriptionRepo
 
 ### 1.4 Калькулятор Бацзы (stateless ядро)
 - [ ] 1.4.1 calculator/models.py — ChartInput, ChartOutput (Pydantic)
