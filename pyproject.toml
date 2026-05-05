@@ -110,6 +110,7 @@ ignore = [
 "tests/**/*.py" = ["S", "ANN"]
 "migrations/**/*.py" = ["ANN", "N999"]
 "calculator/symbolic_stars_tables.py" = ["E501", "RUF001"]
+"scripts/**/*.py" = ["E501", "RUF001"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["bot", "calculator", "ai", "db", "web", "tasks", "monitoring", "knowledge"]

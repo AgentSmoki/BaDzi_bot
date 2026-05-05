@@ -118,6 +118,31 @@ class AuxiliaryPillars(BaseModel):
     ming_gong: Pillar
 
 
+StructureCategory = Literal[
+    "regular",  # 正格
+    "month_special",  # 建禄 / 月刃
+    "monoelement",  # 一气格
+    "transformation",  # 化气格
+    "following",  # 从格
+]
+DeterminismLevel = Literal["high", "medium", "low"]
+
+
+class Structure(BaseModel):
+    name_zh: str
+    name_pinyin: str
+    name_ru: str
+    category: StructureCategory
+    useful_god: str
+    harmful_god: str
+    determinism: DeterminismLevel
+    source: str
+
+
+class StructuresOutput(BaseModel):
+    structures: list[Structure]
+
+
 # ── Calculator I/O ────────────────────────────────────────────────────────────
 
 
@@ -157,3 +182,4 @@ class ChartOutput(BaseModel):
     interactions: InteractionsOutput | None = None
     symbolic_stars: SymbolicStarsOutput | None = None
     auxiliary: AuxiliaryPillars | None = None
+    structures: StructuresOutput | None = None
