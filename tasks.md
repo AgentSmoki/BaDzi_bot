@@ -140,7 +140,7 @@
 ### 2.1 Калькулятор — расширение
 - [x] 2.1.1 calculator/luck_pillars.py — Столпы Удачи (Да Юнь) до минуты
 - [x] 2.1.2 calculator/interactions.py — все взаимодействия (合沖刑害破)
-- [ ] 2.1.3 calculator/symbolic_stars.py — 50-90 Шэнь Ша
+- [x] 2.1.3 calculator/symbolic_stars.py — 50-90 Шэнь Ша
 - [ ] 2.1.4 calculator/auxiliary.py — Мин Гун, Тай Юань
 - [ ] 2.1.5 calculator/structure.py — Специальные структуры карты (格局)
 

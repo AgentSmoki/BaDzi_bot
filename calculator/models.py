@@ -77,6 +77,42 @@ class InteractionsOutput(BaseModel):
     six_breaks: list[Interaction]
 
 
+SymbolicStarCategory = Literal[
+    "noble",
+    "academic",
+    "wealth",
+    "career",
+    "romance",
+    "travel",
+    "death_grave",
+    "punishment",
+    "violence",
+    "loneliness",
+    "spiritual",
+    "calamity",
+    "longevity",
+    "child",
+    "illness",
+    "religious",
+    "other",
+]
+SymbolicStarNature = Literal["auspicious", "inauspicious", "mixed"]
+
+
+class SymbolicStar(BaseModel):
+    name_zh: str
+    name_pinyin: str
+    name_ru: str
+    category: SymbolicStarCategory
+    nature: SymbolicStarNature
+    source: str
+    pillars: list[str]
+
+
+class SymbolicStarsOutput(BaseModel):
+    stars: list[SymbolicStar]
+
+
 # ── Calculator I/O ────────────────────────────────────────────────────────────
 
 
@@ -114,3 +150,4 @@ class ChartOutput(BaseModel):
     element_balance: dict[str, float]
     luck_pillars: LuckPillarsOutput | None = None
     interactions: InteractionsOutput | None = None
+    symbolic_stars: SymbolicStarsOutput | None = None
