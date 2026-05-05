@@ -1,7 +1,7 @@
 # Graph Report - /Users/admin/Documents/Razarabotka/BaDzi_bot  (2026-05-05)
 
 ## Corpus Check
-- 59 files · ~71,319 words
+- 59 files · ~71,359 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary

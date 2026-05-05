@@ -1,7 +1,12 @@
 /Users/admin/Documents/Razarabotka/BaDzi_bot/QWEN.md
 /Users/admin/Documents/Razarabotka/BaDzi_bot/MASTER.md
-/Users/admin/Documents/Razarabotka/BaDzi_bot/product_idea.md
-/Users/admin/Documents/Razarabotka/BaDzi_bot/База/ba_zi_prompt_anastasia_v2.md
-/Users/admin/Documents/Razarabotka/BaDzi_bot/doc/vision.md
-/Users/admin/Documents/Razarabotka/BaDzi_bot/doc/Создание высокоточного калькулятора БаЦзы.md
+/Users/admin/Documents/Razarabotka/BaDzi_bot/deploy.md
+/Users/admin/Documents/Razarabotka/BaDzi_bot/tasks.md
+/Users/admin/Documents/Razarabotka/BaDzi_bot/CLAUDE.md
+/Users/admin/Documents/Razarabotka/BaDzi_bot/graphify-out/GRAPH_REPORT.md
+/Users/admin/Documents/Razarabotka/BaDzi_bot/doc/gemini_research.md
+/Users/admin/Documents/Razarabotka/BaDzi_bot/doc/research/symbolic_stars_v2_gemini.md
+/Users/admin/Documents/Razarabotka/BaDzi_bot/doc/research/structures_v2_perplexity_deep.md
+/Users/admin/Documents/Razarabotka/BaDzi_bot/doc/research/structures_v1_perplexity.md
+/Users/admin/Documents/Razarabotka/BaDzi_bot/doc/research/symbolic_stars_v1.md
 /Users/admin/Documents/Razarabotka/BaDzi_bot/База/Основы Ба Цзы .pdf

@@ -77,6 +77,12 @@ def main() -> int:
     _, _, _, uncached = check_semantic_cache(prose_files)
     cached_count = len(prose_files) - len(uncached)
 
+    # Persist the canonical handoff file consumed by `/graphify . --update`
+    # (Step B0 of the skill pipeline). Empty file if no drift.
+    uncached_txt = PROJECT_ROOT / "graphify-out" / ".graphify_uncached.txt"
+    uncached_txt.parent.mkdir(parents=True, exist_ok=True)
+    uncached_txt.write_text("\n".join(uncached) + ("\n" if uncached else ""), encoding="utf-8")
+
     if not uncached:
         if not args.quiet:
             print(
