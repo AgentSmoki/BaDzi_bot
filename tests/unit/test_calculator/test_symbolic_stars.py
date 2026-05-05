@@ -368,14 +368,16 @@ class TestYearBranchAnchored:
         assert any(s.name_zh == "白虎" for s in out.stars)
 
     def test_tianxi_zi_year_with_you(self) -> None:
+        # Use valid 60-cycle pairs: 甲子 year + 辛酉 day (both legal combos)
         out = calculate_symbolic_stars(
-            _mk([("乙", "子"), ("丙", "辰"), ("甲", "酉"), ("丁", "寅")])
+            _mk([("甲", "子"), ("丙", "辰"), ("辛", "酉"), ("丁", "卯")])
         )
         assert any(s.name_zh == "天喜" for s in out.stars)
 
     def test_hongluan_zi_year_with_mao(self) -> None:
+        # 甲子 year + 丁卯 month (target 卯 in month)
         out = calculate_symbolic_stars(
-            _mk([("乙", "子"), ("丙", "辰"), ("甲", "卯"), ("丁", "寅")])
+            _mk([("甲", "子"), ("丁", "卯"), ("丙", "寅"), ("戊", "申")])
         )
         assert any(s.name_zh == "红鸾" for s in out.stars)
 
@@ -561,6 +563,94 @@ class TestOutputIntegrity:
         ]
         with pytest.raises(ValueError, match="pillar names must be"):
             calculate_symbolic_stars(bad)
+
+
+# ── Block A v2: deferred dynamic stars (空亡, 元辰, 勾绞) ─────────────────────
+
+
+class TestKongWang:
+    def test_jia_zi_day_void_xu_hai(self) -> None:
+        # 甲子日 (60-cycle idx 0) → 甲子旬 → void = 戌, 亥
+        out = calculate_symbolic_stars(
+            _mk([("乙", "戌"), ("丙", "辰"), ("甲", "子"), ("丁", "亥")])
+        )
+        hits = _names(out.stars, "空亡")
+        assert len(hits) == 1
+        assert set(hits[0].pillars) == {"year", "hour"}
+
+    def test_jia_xu_day_void_shen_you(self) -> None:
+        # 甲戌 (60-idx 10) → 甲戌旬 → void = 申, 酉
+        out = calculate_symbolic_stars(
+            _mk([("乙", "申"), ("丙", "辰"), ("甲", "戌"), ("丁", "酉")])
+        )
+        assert any(s.name_zh == "空亡" for s in out.stars)
+
+    def test_jia_yin_day_void_zi_chou(self) -> None:
+        # 甲寅 (60-idx 50) → 甲寅旬 → void = 子, 丑
+        out = calculate_symbolic_stars(
+            _mk([("乙", "子"), ("丙", "辰"), ("甲", "寅"), ("丁", "丑")])
+        )
+        hits = _names(out.stars, "空亡")
+        assert len(hits) == 1
+        assert set(hits[0].pillars) == {"year", "hour"}
+
+    def test_no_kongwang_when_void_branches_absent(self) -> None:
+        # 甲子日, void = 戌/亥, but chart has neither
+        out = calculate_symbolic_stars(
+            _mk([("乙", "卯"), ("丙", "辰"), ("甲", "子"), ("丁", "巳")])
+        )
+        assert not any(s.name_zh == "空亡" for s in out.stars)
+
+
+class TestYuanChen:
+    def test_yang_year_jia_zi(self) -> None:
+        # 甲子 (Yang, year_branch 子=0): clash=午, +1 → 未
+        out = calculate_symbolic_stars(
+            _mk([("甲", "子"), ("丙", "辰"), ("丁", "卯"), ("丁", "未")])
+        )
+        hits = _names(out.stars, "元辰")
+        assert len(hits) == 1
+        assert hits[0].pillars == ["hour"]
+
+    def test_yin_year_yi_chou(self) -> None:
+        # 乙丑 (Yin, year_branch 丑=1): clash=未, -1 -> 午
+        out = calculate_symbolic_stars(
+            _mk([("乙", "丑"), ("丙", "辰"), ("丁", "卯"), ("丁", "午")])
+        )
+        assert any(s.name_zh == "元辰" for s in out.stars)
+
+    def test_no_yuanchen_when_target_absent(self) -> None:
+        out = calculate_symbolic_stars(
+            _mk([("甲", "子"), ("丙", "辰"), ("丁", "卯"), ("丁", "巳")])
+        )
+        assert not any(s.name_zh == "元辰" for s in out.stars)
+
+
+class TestGouJiao:
+    def test_zi_year_targets_mao_and_you(self) -> None:
+        # year_branch 子=0: targets = {+3=卯, -3=酉}
+        out = calculate_symbolic_stars(
+            _mk([("甲", "子"), ("乙", "卯"), ("丙", "寅"), ("丁", "酉")])
+        )
+        hits = _names(out.stars, "勾绞")
+        assert len(hits) == 1
+        assert set(hits[0].pillars) == {"month", "hour"}
+
+    def test_chen_year_targets_wei_and_chou(self) -> None:
+        # year_branch 辰=4: targets = {+3=未, -3=丑}
+        out = calculate_symbolic_stars(
+            _mk([("甲", "辰"), ("乙", "未"), ("丙", "寅"), ("丁", "丑")])
+        )
+        assert any(s.name_zh == "勾绞" for s in out.stars)
+
+    def test_polarity_doesnt_change_target_set(self) -> None:
+        # Yang (甲子) and Yin (乙丑) of same group → 勾绞 set is determined by year_branch only.
+        # Just verify no asymmetric bug: 子 year and 丑 year give different but valid sets.
+        a = calculate_symbolic_stars(_mk([("甲", "子"), ("乙", "卯"), ("丙", "寅"), ("丁", "酉")]))
+        b = calculate_symbolic_stars(_mk([("乙", "丑"), ("丙", "辰"), ("丁", "卯"), ("戊", "戌")]))
+        # 丑 year (idx 1): targets = {+3=辰, -3=戌}
+        assert any(s.name_zh == "勾绞" for s in a.stars)
+        assert any(s.name_zh == "勾绞" for s in b.stars)
 
 
 # ── Smoke: realistic chart ────────────────────────────────────────────────────

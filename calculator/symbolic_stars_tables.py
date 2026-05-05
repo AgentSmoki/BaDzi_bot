@@ -155,6 +155,24 @@ META: dict[str, StarMeta] = {
     "tianchu": StarMeta(
         "天厨贵人", "tianchu guiren", "Небесная Кухня", "noble", "auspicious", "三命通会"
     ),
+    "kongwang": StarMeta("空亡", "kongwang", "Пустота", "death_grave", "mixed", "三命通会"),
+    "yuanchen": StarMeta("元辰", "yuanchen", "Юань Чэнь", "calamity", "inauspicious", "三命通会"),
+    "goujiao": StarMeta(
+        "勾绞", "goujiao", "Крюк и Петля", "punishment", "inauspicious", "渊海子平"
+    ),
+}
+
+
+# ── Special tables: 空亡 (Xun-based), 元辰 / 勾绞 (year-polarity dynamic) ──
+
+# 60-cycle decade (Xun) → 2 void branches
+KONGWANG_BY_XUN: dict[int, tuple[str, str]] = {
+    0: ("戌", "亥"),  # 甲子旬 (positions 0-9)
+    1: ("申", "酉"),  # 甲戌旬 (10-19)
+    2: ("午", "未"),  # 甲申旬 (20-29)
+    3: ("辰", "巳"),  # 甲午旬 (30-39)
+    4: ("寅", "卯"),  # 甲辰旬 (40-49)
+    5: ("子", "丑"),  # 甲寅旬 (50-59)
 }
 
 

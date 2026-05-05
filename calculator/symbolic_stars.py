@@ -1,11 +1,8 @@
 """Symbolic Stars (神煞) detection for a Ba Zi chart.
 
-Detects 60 classical stars via 7 detector families. See symbolic_stars_tables.py
-for the data; this module is purely glue.
-
-Skipped from v1 (deferred to v2 / separate tasks):
-  - 元辰, 勾绞 — dynamic year-polarity formulas
-  - 空亡 — Xun-based (separate task 2.1.5)
+Detects 63 classical stars via 7 detector families + 3 dynamic special handlers
+(空亡 Xun-based, 元辰 / 勾绞 year-polarity formulas).
+See symbolic_stars_tables.py for the static data.
 """
 
 from __future__ import annotations
@@ -14,6 +11,8 @@ from collections.abc import Mapping
 from typing import cast
 
 from calculator.models import (
+    BRANCHES,
+    STEMS,
     Pillar,
     SymbolicStar,
     SymbolicStarCategory,
@@ -23,6 +22,7 @@ from calculator.models import (
 from calculator.symbolic_stars_tables import (
     DAY_BRANCH_TO_BRANCH,
     DAY_STEM_TO_BRANCH,
+    KONGWANG_BY_XUN,
     META,
     MONTH_BRANCH_TO_BRANCH,
     MONTH_BRANCH_TO_STEM,
@@ -57,6 +57,14 @@ def _make_star(star_id: str, pillars: list[str]) -> SymbolicStar:
         source=meta.source,
         pillars=_sort_pillars(pillars),
     )
+
+
+def _sixty_cycle_index(stem_idx: int, branch_idx: int) -> int:
+    """Find unique 60-cycle index x with x%10=stem_idx and x%12=branch_idx."""
+    for x in range(60):
+        if x % 10 == stem_idx and x % 12 == branch_idx:
+            return x
+    raise ValueError(f"invalid stem/branch combination: ({stem_idx}, {branch_idx})")
 
 
 def _detect_anchor_lookup(
@@ -154,5 +162,34 @@ def calculate_symbolic_stars(pillars: list[Pillar]) -> SymbolicStarsOutput:
     season = SEASON_OF_MONTH.get(month_pillar.branch)
     if season is not None and day_pillar_str == TIANSHE_BY_SEASON[season]:
         stars.append(_make_star("tianshe", ["day"]))
+
+    # H. Special: 空亡 — Xun (decade) of day pillar gives 2 void branches
+    day_stem_idx = STEMS.index(day_pillar.stem)
+    day_branch_idx = BRANCHES.index(day_pillar.branch)
+    xun = _sixty_cycle_index(day_stem_idx, day_branch_idx) // 10
+    void_branches = set(KONGWANG_BY_XUN[xun])
+    void_pillars = [p for ch, p in branches_in_chart if ch in void_branches]
+    if void_pillars:
+        stars.append(_make_star("kongwang", void_pillars))
+
+    # I. Special: 元辰 — Yang year → clash+1; Yin year → clash-1.
+    #    Equivalent: Yang → year_branch + 7; Yin → year_branch + 5 (mod 12).
+    year_stem_idx = STEMS.index(year_pillar.stem)
+    year_branch_idx = BRANCHES.index(year_pillar.branch)
+    yang_year = year_stem_idx % 2 == 0
+    yc_offset = 7 if yang_year else 5
+    yc_target = BRANCHES[(year_branch_idx + yc_offset) % 12]
+    yc_pillars = [p for ch, p in branches_in_chart if ch == yc_target]
+    if yc_pillars:
+        stars.append(_make_star("yuanchen", yc_pillars))
+
+    # J. Special: 勾绞 — symmetric ±3 from year_branch (Hook + Loop union).
+    gj_targets = {
+        BRANCHES[(year_branch_idx + 3) % 12],
+        BRANCHES[(year_branch_idx - 3) % 12],
+    }
+    gj_pillars = [p for ch, p in branches_in_chart if ch in gj_targets]
+    if gj_pillars:
+        stars.append(_make_star("goujiao", gj_pillars))
 
     return SymbolicStarsOutput(stars=stars)
