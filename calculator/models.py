@@ -113,6 +113,11 @@ class SymbolicStarsOutput(BaseModel):
     stars: list[SymbolicStar]
 
 
+class AuxiliaryPillars(BaseModel):
+    tai_yuan: Pillar
+    ming_gong: Pillar
+
+
 # ── Calculator I/O ────────────────────────────────────────────────────────────
 
 
@@ -151,3 +156,4 @@ class ChartOutput(BaseModel):
     luck_pillars: LuckPillarsOutput | None = None
     interactions: InteractionsOutput | None = None
     symbolic_stars: SymbolicStarsOutput | None = None
+    auxiliary: AuxiliaryPillars | None = None
