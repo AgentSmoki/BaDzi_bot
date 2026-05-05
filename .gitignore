@@ -11,5 +11,3 @@ venv/
 
 # graphify intermediate / temp files (regenerated on every rebuild)
 graphify-out/.graphify_*
-# ...except .graphify_uncached.txt — committed so prose drift is visible in PR diffs
-!graphify-out/.graphify_uncached.txt
