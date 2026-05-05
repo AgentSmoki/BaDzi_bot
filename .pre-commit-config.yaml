@@ -27,3 +27,15 @@ repos:
       - id: detect-secrets
         args: [--baseline, .secrets.baseline]
         exclude: \.env\.example$
+
+  - repo: local
+    hooks:
+      - id: graphify-update
+        name: Update graphify code graph + report prose drift
+        entry: python3 scripts/graphify_update.py --quiet
+        language: system
+        pass_filenames: false
+        always_run: true
+        # Code graph rebuilt deterministically (tree-sitter, ~seconds, free).
+        # Prose drift is reported as warning only; never blocks commits.
+        # To refresh prose graph: /graphify . --update from Claude Code.

@@ -8,3 +8,6 @@ venv/
 .idea/
 .vscode/
 .mypy_cache/
+
+# graphify intermediate / temp files (regenerated on every rebuild)
+graphify-out/.graphify_*

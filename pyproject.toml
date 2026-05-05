@@ -79,6 +79,9 @@ dev = [
     "types-pytz",
     "types-dateparser",
     "types-pillow",
+    # Knowledge graph builder for the project — used by pre-commit hook
+    # (scripts/graphify_update.py) and `/graphify` skill.
+    "graphifyy",
 ]
 
 # ── Ruff ──────────────────────────────────────────────────────────────────────

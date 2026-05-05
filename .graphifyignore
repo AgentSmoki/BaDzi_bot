@@ -1,0 +1,8 @@
+# Patterns excluded from graphify knowledge graph extraction.
+# Same syntax as .gitignore.
+
+# 24 PNG hieroglyph assets — decorative, used for chart rendering, not knowledge.
+assets/hieroglyphs/
+
+# Database / migration artifacts (auto-generated, no semantic value).
+migrations/versions/
