@@ -9,6 +9,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 from bot.config import Settings, get_settings
 from bot.logging import configure_logging
 from bot.middlewares import DbSessionMiddleware, TracingMiddleware, UserMiddleware
+from bot.routers.birth_data import birth_data_router
 from bot.routers.start import start_router
 from db.engine import get_engine
 
@@ -34,6 +35,7 @@ def _build_dispatcher(settings: Settings) -> Dispatcher:
 
 def _include_routers(dispatcher: Dispatcher) -> None:
     dispatcher.include_router(start_router)
+    dispatcher.include_router(birth_data_router)
 
 
 async def _shutdown(bot: Bot, dispatcher: Dispatcher) -> None:
