@@ -16,6 +16,15 @@ def time_skip_kb() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def city_choice_kb(options: list[tuple[str, str]]) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for label, callback in options:
+        builder.button(text=label[:60], callback_data=callback)
+    builder.button(text="Не тот город — ввести заново", callback_data="city:retry")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
 def returning_user_kb(*, chart_id: uuid.UUID, chart_label: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="Добавить новую карту", callback_data="menu:calc")
@@ -56,6 +65,7 @@ def pricing_kb() -> InlineKeyboardMarkup:
 
 
 __all__ = [
+    "city_choice_kb",
     "main_menu_kb",
     "new_user_kb",
     "pricing_kb",

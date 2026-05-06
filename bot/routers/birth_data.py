@@ -8,7 +8,8 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from bot.keyboards import time_skip_kb
+from bot.keyboards import city_choice_kb, time_skip_kb
+from bot.services.geocoding import search_cities
 from bot.states import BirthDataForm
 
 logger = structlog.get_logger(__name__)
@@ -34,11 +35,19 @@ DATE_ACCEPTED = (
 )
 
 TIME_INVALID = "Не разобрала время. Формат — HH:MM, например 09:15 или 14:30."
-TIME_ACCEPTED = "Принято: {formatted}.\n\nДальше — город рождения."
+TIME_ACCEPTED = "Принято: {formatted}.\n\nТеперь город рождения."
 TIME_SKIPPED = (
     "Хорошо, посчитаю карту на полдень. Анализ будет упрощённым — без столпа часа.\n\n"
-    "Дальше — город рождения."
+    "Теперь город рождения."
 )
+
+CITY_PROMPT = "Назови город рождения. Можно по-русски или по-английски."
+CITY_NOT_FOUND = (
+    "Не нашла такого города. Проверь написание и попробуй ещё раз — "
+    "можно с уточнением региона, например «Тверь, Россия»."
+)
+CITY_CHOICES = "Нашла несколько вариантов — выбери свой:"
+CITY_ACCEPTED = "Принято: {name}.\n\nПоследний шаг — пол."
 
 
 def _parse_birth_date(text: str) -> date | None:
@@ -131,4 +140,62 @@ async def handle_time_skip(callback: CallbackQuery, state: FSMContext) -> None:
     )
     if isinstance(callback.message, Message):
         await callback.message.answer(TIME_SKIPPED)
+    await callback.answer()
+
+
+@birth_data_router.message(BirthDataForm.waiting_city, F.text)
+async def handle_city(message: Message, state: FSMContext) -> None:
+    query = (message.text or "").strip()
+    candidates = await search_cities(query, limit=3)
+    if not candidates:
+        await message.answer(CITY_NOT_FOUND)
+        return
+
+    await state.update_data(city_candidates=[c.to_dict() for c in candidates])
+    options = [(c.short_label(), f"city:{i}") for i, c in enumerate(candidates)]
+    await message.answer(CITY_CHOICES, reply_markup=city_choice_kb(options))
+
+
+@birth_data_router.callback_query(BirthDataForm.waiting_city, F.data == "city:retry")
+async def handle_city_retry(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.update_data(city_candidates=None)
+    if isinstance(callback.message, Message):
+        await callback.message.answer(CITY_PROMPT)
+    await callback.answer()
+
+
+@birth_data_router.callback_query(BirthDataForm.waiting_city, F.data.startswith("city:"))
+async def handle_city_choice(callback: CallbackQuery, state: FSMContext) -> None:
+    if not callback.data:
+        await callback.answer()
+        return
+    try:
+        idx = int(callback.data.split(":", 1)[1])
+    except ValueError:
+        await callback.answer()
+        return
+
+    data = await state.get_data()
+    candidates = data.get("city_candidates") or []
+    if idx < 0 or idx >= len(candidates):
+        await callback.answer("Этот вариант устарел, введи город заново.", show_alert=True)
+        return
+
+    chosen = candidates[idx]
+    await state.update_data(
+        city_name=chosen["display_name"],
+        latitude=chosen["latitude"],
+        longitude=chosen["longitude"],
+        timezone=chosen["timezone"],
+        city_candidates=None,
+    )
+    await state.set_state(BirthDataForm.waiting_gender)
+
+    logger.info(
+        "birth_data.city_accepted",
+        telegram_id=callback.from_user.id if callback.from_user else None,
+        timezone=chosen["timezone"],
+    )
+    if isinstance(callback.message, Message):
+        await callback.message.answer(CITY_ACCEPTED.format(name=chosen["display_name"]))
     await callback.answer()
