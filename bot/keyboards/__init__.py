@@ -10,6 +10,22 @@ def new_user_kb() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def gender_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Мужской", callback_data="gender:male")
+    builder.button(text="Женский", callback_data="gender:female")
+    builder.adjust(2)
+    return builder.as_markup()
+
+
+def confirm_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Рассчитать", callback_data="confirm:calc")
+    builder.button(text="Изменить", callback_data="confirm:restart")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
 def time_skip_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="Не знаю время", callback_data="time:skip")
@@ -66,6 +82,8 @@ def pricing_kb() -> InlineKeyboardMarkup:
 
 __all__ = [
     "city_choice_kb",
+    "confirm_kb",
+    "gender_kb",
     "main_menu_kb",
     "new_user_kb",
     "pricing_kb",

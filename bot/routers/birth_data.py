@@ -8,7 +8,7 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from bot.keyboards import city_choice_kb, time_skip_kb
+from bot.keyboards import city_choice_kb, confirm_kb, gender_kb, time_skip_kb
 from bot.services.geocoding import search_cities
 from bot.states import BirthDataForm
 
@@ -47,13 +47,31 @@ CITY_NOT_FOUND = (
     "можно с уточнением региона, например «Тверь, Россия»."
 )
 CITY_CHOICES = "Нашла несколько вариантов — выбери свой:"
-CITY_ACCEPTED = "Принято: {name}.\n\nПоследний шаг — пол."
+CITY_ACCEPTED = "Принято: {name}.\n\nПоследний шаг — твой пол."
+
+GENDER_PROMPT = "Выбери пол:"
+SUMMARY_TEMPLATE = (
+    "Проверь данные:\n\n"
+    "<b>Дата:</b> {date}\n"
+    "<b>Время:</b> {time}\n"
+    "<b>Город:</b> {city}\n"
+    "<b>Часовой пояс:</b> {timezone}\n"
+    "<b>Пол:</b> {gender}\n\n"
+    "Если всё верно — рассчитываю карту."
+)
+GENDER_LABELS = {"male": "мужской", "female": "женский"}
 
 
 def _parse_birth_date(text: str) -> date | None:
     if not YEAR_RE.search(text):
         return None
-    parsed: datetime | None = dateparser.parse(text, languages=["ru", "en"])
+    # DATE_ORDER=DMY: in en locale dateparser defaults to MM.DD.YYYY which is
+    # surprising for Russian users — force day-month-year for both locales.
+    parsed: datetime | None = dateparser.parse(
+        text,
+        languages=["ru", "en"],
+        settings={"DATE_ORDER": "DMY"},
+    )
     if parsed is None:
         return None
     return parsed.date()
@@ -197,5 +215,60 @@ async def handle_city_choice(callback: CallbackQuery, state: FSMContext) -> None
         timezone=chosen["timezone"],
     )
     if isinstance(callback.message, Message):
-        await callback.message.answer(CITY_ACCEPTED.format(name=chosen["display_name"]))
+        await callback.message.answer(
+            CITY_ACCEPTED.format(name=chosen["display_name"]),
+            reply_markup=gender_kb(),
+        )
     await callback.answer()
+
+
+@birth_data_router.callback_query(BirthDataForm.waiting_gender, F.data.startswith("gender:"))
+async def handle_gender(callback: CallbackQuery, state: FSMContext) -> None:
+    if not callback.data:
+        await callback.answer()
+        return
+    value = callback.data.split(":", 1)[1]
+    if value not in ("male", "female"):
+        await callback.answer()
+        return
+
+    await state.update_data(gender=value)
+    await state.set_state(BirthDataForm.confirm)
+
+    data = await state.get_data()
+    summary = _format_summary(data)
+
+    logger.info(
+        "birth_data.gender_accepted",
+        telegram_id=callback.from_user.id if callback.from_user else None,
+        gender=value,
+    )
+    if isinstance(callback.message, Message):
+        await callback.message.answer(summary, reply_markup=confirm_kb())
+    await callback.answer()
+
+
+def _format_summary(data: dict[str, str | float | bool | None]) -> str:
+    birth_time = data.get("birth_time")
+    has_time = bool(data.get("has_birth_time"))
+    if has_time and isinstance(birth_time, str):
+        time_str = birth_time[:5]
+    else:
+        time_str = "не указано (карта будет упрощённой)"
+
+    raw_date = data.get("birth_date")
+    date_str = (
+        date.fromisoformat(raw_date).strftime("%d.%m.%Y") if isinstance(raw_date, str) else "—"
+    )
+    gender_value = data.get("gender")
+    gender_label = GENDER_LABELS.get(gender_value, "—") if isinstance(gender_value, str) else "—"
+    city_name = data.get("city_name") if isinstance(data.get("city_name"), str) else "—"
+    tz = data.get("timezone") if isinstance(data.get("timezone"), str) else "—"
+
+    return SUMMARY_TEMPLATE.format(
+        date=date_str,
+        time=time_str,
+        city=city_name,
+        timezone=tz,
+        gender=gender_label,
+    )
