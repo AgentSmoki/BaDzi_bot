@@ -10,6 +10,12 @@ def new_user_kb() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def time_skip_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Не знаю время", callback_data="time:skip")
+    return builder.as_markup()
+
+
 def returning_user_kb(*, chart_id: uuid.UUID, chart_label: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="Добавить новую карту", callback_data="menu:calc")
@@ -54,5 +60,6 @@ __all__ = [
     "new_user_kb",
     "pricing_kb",
     "returning_user_kb",
+    "time_skip_kb",
     "topics_kb",
 ]
