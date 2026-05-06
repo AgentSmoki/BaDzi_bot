@@ -8,7 +8,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 
 from bot.config import Settings, get_settings
 from bot.logging import configure_logging
-from bot.middlewares import DbSessionMiddleware, TracingMiddleware
+from bot.middlewares import DbSessionMiddleware, TracingMiddleware, UserMiddleware
 from db.engine import get_engine
 
 logger = structlog.get_logger(__name__)
@@ -26,6 +26,7 @@ def _build_dispatcher(settings: Settings) -> Dispatcher:
     dispatcher = Dispatcher(storage=storage)
     dispatcher.update.outer_middleware(TracingMiddleware())
     dispatcher.update.outer_middleware(DbSessionMiddleware())
+    dispatcher.update.outer_middleware(UserMiddleware())
     _include_routers(dispatcher)
     return dispatcher
 
