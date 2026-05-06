@@ -49,7 +49,7 @@
 
 ### 1.5 Telegram Bot — базовая структура
 - [x] 1.5.1 bot/main.py — entry point, диспетчер, middleware, роутеры
-- [ ] 1.5.2 bot/middlewares/db_session.py — инъекция сессии БД
+- [x] 1.5.2 bot/middlewares/db_session.py — инъекция сессии БД
 - [ ] 1.5.3 bot/middlewares/user_middleware.py — get_or_create user
 - [ ] 1.5.4 bot/states.py — FSM состояния (BirthDataForm, ConsultationState)
 - [ ] 1.5.5 bot/keyboards/ — inline клавиатуры (главное меню, темы, тарифы)
