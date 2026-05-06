@@ -10,12 +10,13 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.keyboards import (
+    back_to_time_kb,
     city_choice_kb,
     confirm_kb,
     edit_menu_kb,
     gender_kb,
-    restart_only_kb,
-    time_skip_kb,
+    name_skip_kb,
+    time_step_kb,
 )
 from bot.services.birth_datetime import resolve as resolve_birth_datetime
 from bot.services.geocoding import search_cities
@@ -32,6 +33,8 @@ birth_data_router = Router(name="birth_data")
 YEAR_RE: Final[re.Pattern[str]] = re.compile(r"\b(18|19|20)\d{2}\b")
 # Permissive time separators: colon, dot, comma, dash, slash, space, "ч"/"h"
 TIME_RE: Final[re.Pattern[str]] = re.compile(r"^\s*(\d{1,2})\s*[:.,\-/\sчh]\s*(\d{2})\s*$")
+# 3 digits: HMM (e.g. 955 → 9:55). 4 digits: HHMM (e.g. 2355 → 23:55).
+TIME_PACKED_RE: Final[re.Pattern[str]] = re.compile(r"^\s*(\d{3,4})\s*$")
 HOUR_ONLY_RE: Final[re.Pattern[str]] = re.compile(r"^\s*(\d{1,2})\s*[чh]?\s*$")
 MIN_YEAR: Final = 1900
 
@@ -97,6 +100,13 @@ CALC_RESULT_FOOTER = (
 )
 CALC_FAILED = "Что-то пошло не так при расчёте. Попробуй ещё раз через /start."
 RESTART_PROMPT = "Хорошо, начинаем заново. " + DATE_PROMPT
+NAME_PROMPT = (
+    "Хочешь дать карте имя? Можно написать своё (например, «Я» или «Маша») "
+    "или нажать «Пропустить» — тогда карта будет показываться как "
+    "{day_master} {date}."
+)
+NAME_SAVED = "Сохранила: «{name}»."
+NAME_SKIPPED = "Хорошо, оставлю по умолчанию."
 
 EDIT_MENU_PROMPT = "Что хочешь поправить?"
 EDIT_PROMPTS = {
@@ -131,6 +141,13 @@ def _parse_birth_time(text: str) -> time | None:
         if 0 <= hours <= 23 and 0 <= minutes <= 59:
             return time(hours, minutes)
         return None
+    match = TIME_PACKED_RE.match(text)
+    if match is not None:
+        digits = match.group(1)
+        hours, minutes = int(digits[:-2]), int(digits[-2:])
+        if 0 <= hours <= 23 and 0 <= minutes <= 59:
+            return time(hours, minutes)
+        return None
     match = HOUR_ONLY_RE.match(text)
     if match is not None:
         hours = int(match.group(1))
@@ -152,15 +169,15 @@ async def handle_date(message: Message, state: FSMContext) -> None:
     text = message.text or ""
     parsed = _parse_birth_date(text)
     if parsed is None:
-        await message.answer(DATE_INVALID.format(text=text), reply_markup=restart_only_kb())
+        await message.answer(DATE_INVALID.format(text=text))
         return
 
     today = datetime.now().date()
     if parsed > today:
-        await message.answer(DATE_FUTURE.format(text=text), reply_markup=restart_only_kb())
+        await message.answer(DATE_FUTURE.format(text=text))
         return
     if parsed.year < MIN_YEAR:
-        await message.answer(DATE_TOO_OLD.format(text=text), reply_markup=restart_only_kb())
+        await message.answer(DATE_TOO_OLD.format(text=text))
         return
 
     await state.update_data(birth_date=parsed.isoformat())
@@ -175,7 +192,7 @@ async def handle_date(message: Message, state: FSMContext) -> None:
     await state.set_state(BirthDataForm.waiting_time)
     await message.answer(
         DATE_ACCEPTED.format(formatted=parsed.strftime("%d.%m.%Y")),
-        reply_markup=time_skip_kb(),
+        reply_markup=time_step_kb(),
     )
 
 
@@ -184,7 +201,7 @@ async def handle_time(message: Message, state: FSMContext) -> None:
     text = message.text or ""
     parsed = _parse_birth_time(text)
     if parsed is None:
-        await message.answer(TIME_INVALID.format(text=text), reply_markup=time_skip_kb())
+        await message.answer(TIME_INVALID.format(text=text), reply_markup=time_step_kb())
         return
 
     await state.update_data(birth_time=parsed.isoformat(), has_birth_time=True)
@@ -199,7 +216,7 @@ async def handle_time(message: Message, state: FSMContext) -> None:
     await state.set_state(BirthDataForm.waiting_city)
     await message.answer(
         TIME_ACCEPTED.format(formatted=parsed.strftime("%H:%M")),
-        reply_markup=restart_only_kb(),
+        reply_markup=back_to_time_kb(),
     )
 
 
@@ -217,7 +234,7 @@ async def handle_time_skip(callback: CallbackQuery, state: FSMContext) -> None:
         return
     await state.set_state(BirthDataForm.waiting_city)
     if isinstance(callback.message, Message):
-        await callback.message.answer(TIME_SKIPPED, reply_markup=restart_only_kb())
+        await callback.message.answer(TIME_SKIPPED, reply_markup=back_to_time_kb())
     await callback.answer()
 
 
@@ -226,7 +243,7 @@ async def handle_city(message: Message, state: FSMContext) -> None:
     query = (message.text or "").strip()
     candidates = await search_cities(query, limit=3)
     if not candidates:
-        await message.answer(CITY_NOT_FOUND.format(query=query), reply_markup=restart_only_kb())
+        await message.answer(CITY_NOT_FOUND.format(query=query), reply_markup=back_to_time_kb())
         return
 
     await state.update_data(city_candidates=[c.to_dict() for c in candidates])
@@ -348,7 +365,7 @@ async def handle_edit_date(callback: CallbackQuery, state: FSMContext) -> None:
 async def handle_edit_time(callback: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(BirthDataForm.waiting_time)
     if isinstance(callback.message, Message):
-        await callback.message.answer(EDIT_PROMPTS["time"], reply_markup=time_skip_kb())
+        await callback.message.answer(EDIT_PROMPTS["time"], reply_markup=time_step_kb())
     await callback.answer()
 
 
@@ -412,7 +429,7 @@ async def handle_confirm_calc(
 ) -> None:
     data = await state.get_data()
     try:
-        chart = await _calculate_and_persist(data, user=user, session=session)
+        result = await _calculate_and_persist(data, user=user, session=session)
     except Exception:
         logger.exception(
             "birth_data.calc_failed",
@@ -423,9 +440,42 @@ async def handle_confirm_calc(
         await callback.answer()
         return
 
+    chart_id = result["chart_id"]
+    day_master = result["day_master"]
+    date_str = result["date_str"]
+    if isinstance(callback.message, Message):
+        await callback.message.answer(_format_chart_summary(result))
+        await state.set_state(BirthDataForm.naming)
+        await state.update_data(chart_id=str(chart_id))
+        await callback.message.answer(
+            NAME_PROMPT.format(day_master=day_master, date=date_str),
+            reply_markup=name_skip_kb(),
+        )
+    await callback.answer()
+
+
+@birth_data_router.message(BirthDataForm.naming, F.text)
+async def handle_naming_input(message: Message, state: FSMContext, session: AsyncSession) -> None:
+    name = (message.text or "").strip()
+    if not name:
+        return
+    data = await state.get_data()
+    raw_id = data.get("chart_id")
+    if not isinstance(raw_id, str):
+        await state.clear()
+        return
+    import uuid as _uuid
+
+    await _chart_repo.update_name(session, _uuid.UUID(raw_id), name)
+    await state.clear()
+    await message.answer(NAME_SAVED.format(name=name))
+
+
+@birth_data_router.callback_query(BirthDataForm.naming, F.data == "name:skip")
+async def handle_naming_skip(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
     if isinstance(callback.message, Message):
-        await callback.message.answer(_format_chart_summary(chart))
+        await callback.message.answer(NAME_SKIPPED)
     await callback.answer()
 
 
@@ -463,7 +513,7 @@ async def _calculate_and_persist(
     chart_output = calculate_chart(chart_input)
     chart_data = chart_output.model_dump(mode="json")
 
-    await _chart_repo.create(
+    chart = await _chart_repo.create(
         session,
         user_id=user.id,
         birth_datetime_utc=resolved.utc_aware.replace(tzinfo=None),
@@ -472,11 +522,16 @@ async def _calculate_and_persist(
         longitude=lon,
         tz_offset=resolved.tz_offset_hours,
         chart_data=chart_data,
-        name=city_name,
+        name=None,
         has_birth_time=has_time,
     )
+    # city_name is no longer stored on Chart.name (the user names the chart in
+    # the next step) — we keep it in chart_data for record-keeping.
+    chart_data["city_name"] = city_name
 
     return {
+        "chart_id": chart.id,
+        "date_str": resolved.naive_local.strftime("%d.%m.%Y"),
         "pillars": chart_data["pillars"],
         "day_master": chart_data["day_master"],
         "element_balance": chart_data["element_balance"],

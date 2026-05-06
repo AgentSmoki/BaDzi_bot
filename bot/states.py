@@ -7,6 +7,7 @@ class BirthDataForm(StatesGroup):
     waiting_city = State()
     waiting_gender = State()
     confirm = State()
+    naming = State()
 
 
 class ConsultationState(StatesGroup):

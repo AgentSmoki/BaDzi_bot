@@ -59,3 +59,8 @@ class ChartRepository:
             sa.select(Chart).where(Chart.user_id == user_id).order_by(Chart.created_at.desc())
         )
         return list(result.scalars().all())
+
+    async def update_name(
+        self, session: AsyncSession, chart_id: uuid.UUID, name: str | None
+    ) -> None:
+        await session.execute(sa.update(Chart).where(Chart.id == chart_id).values(name=name))

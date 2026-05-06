@@ -10,21 +10,38 @@ def new_user_kb() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-_RESTART_LABEL = "Изменить"
-_RESTART_CB = "fsm:restart"
-
-
-def restart_only_kb() -> InlineKeyboardMarkup:
+def time_step_kb() -> InlineKeyboardMarkup:
+    """After date is accepted (or on time-invalid retry) — user is at time step."""
     builder = InlineKeyboardBuilder()
-    builder.button(text=_RESTART_LABEL, callback_data=_RESTART_CB)
+    builder.button(text="Не знаю время", callback_data="time:skip")
+    builder.button(text="Изменить дату", callback_data="edit:date")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def back_to_time_kb() -> InlineKeyboardMarkup:
+    """After time is accepted — user is at city step."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Изменить время", callback_data="edit:time")
+    return builder.as_markup()
+
+
+def city_choice_kb(options: list[tuple[str, str]]) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for label, callback in options:
+        builder.button(text=label[:60], callback_data=callback)
+    builder.button(text="Не тот город — ввести заново", callback_data="city:retry")
+    builder.button(text="Изменить время", callback_data="edit:time")
+    builder.adjust(1)
     return builder.as_markup()
 
 
 def gender_kb() -> InlineKeyboardMarkup:
+    """After city is accepted — user is at gender step."""
     builder = InlineKeyboardBuilder()
     builder.button(text="Мужской", callback_data="gender:male")
     builder.button(text="Женский", callback_data="gender:female")
-    builder.button(text=_RESTART_LABEL, callback_data=_RESTART_CB)
+    builder.button(text="Изменить город", callback_data="edit:city")
     builder.adjust(2, 1)
     return builder.as_markup()
 
@@ -48,30 +65,43 @@ def edit_menu_kb() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def time_skip_kb() -> InlineKeyboardMarkup:
+def name_skip_kb() -> InlineKeyboardMarkup:
+    """Used after the chart is calculated — user can name the chart or skip."""
     builder = InlineKeyboardBuilder()
-    builder.button(text="Не знаю время", callback_data="time:skip")
-    builder.button(text=_RESTART_LABEL, callback_data=_RESTART_CB)
-    builder.adjust(1)
+    builder.button(text="Пропустить", callback_data="name:skip")
     return builder.as_markup()
 
 
-def city_choice_kb(options: list[tuple[str, str]]) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    for label, callback in options:
-        builder.button(text=label[:60], callback_data=callback)
-    builder.button(text="Не тот город — ввести заново", callback_data="city:retry")
-    builder.button(text=_RESTART_LABEL, callback_data=_RESTART_CB)
-    builder.adjust(1)
-    return builder.as_markup()
+CHARTS_PER_PAGE = 10
 
 
-def returning_user_kb(*, chart_id: uuid.UUID, chart_label: str) -> InlineKeyboardMarkup:
+def returning_user_kb(
+    *,
+    charts: list[tuple[uuid.UUID, str]],
+    page: int = 0,
+) -> InlineKeyboardMarkup:
+    """charts: list of (chart_id, label) ordered newest-first."""
     builder = InlineKeyboardBuilder()
     builder.button(text="Добавить новую карту", callback_data="menu:calc")
-    builder.button(text=f"Открыть: {chart_label}", callback_data=f"chart:open:{chart_id}")
-    builder.button(text="Все мои карты", callback_data="menu:all_charts")
-    builder.adjust(1)
+
+    start = page * CHARTS_PER_PAGE
+    end = start + CHARTS_PER_PAGE
+    page_charts = charts[start:end]
+    for chart_id, label in page_charts:
+        builder.button(text=label[:60], callback_data=f"chart:open:{chart_id}")
+
+    rows = [1] + [1] * len(page_charts)
+    nav_buttons = 0
+    if page > 0:
+        builder.button(text="◀ Назад", callback_data=f"charts:page:{page - 1}")
+        nav_buttons += 1
+    if end < len(charts):
+        builder.button(text="Вперёд ▶", callback_data=f"charts:page:{page + 1}")
+        nav_buttons += 1
+    if nav_buttons:
+        rows.append(nav_buttons)
+
+    builder.adjust(*rows)
     return builder.as_markup()
 
 
@@ -106,15 +136,16 @@ def pricing_kb() -> InlineKeyboardMarkup:
 
 
 __all__ = [
+    "back_to_time_kb",
     "city_choice_kb",
     "confirm_kb",
     "edit_menu_kb",
     "gender_kb",
     "main_menu_kb",
+    "name_skip_kb",
     "new_user_kb",
     "pricing_kb",
-    "restart_only_kb",
     "returning_user_kb",
-    "time_skip_kb",
+    "time_step_kb",
     "topics_kb",
 ]
