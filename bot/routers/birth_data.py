@@ -9,7 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.keyboards import city_choice_kb, confirm_kb, gender_kb, time_skip_kb
+from bot.keyboards import city_choice_kb, confirm_kb, gender_kb, restart_only_kb, time_skip_kb
 from bot.services.birth_datetime import resolve as resolve_birth_datetime
 from bot.services.geocoding import search_cities
 from bot.states import BirthDataForm
@@ -135,15 +135,15 @@ async def handle_date(message: Message, state: FSMContext) -> None:
     text = message.text or ""
     parsed = _parse_birth_date(text)
     if parsed is None:
-        await message.answer(DATE_INVALID.format(text=text))
+        await message.answer(DATE_INVALID.format(text=text), reply_markup=restart_only_kb())
         return
 
     today = datetime.now().date()
     if parsed > today:
-        await message.answer(DATE_FUTURE.format(text=text))
+        await message.answer(DATE_FUTURE.format(text=text), reply_markup=restart_only_kb())
         return
     if parsed.year < MIN_YEAR:
-        await message.answer(DATE_TOO_OLD.format(text=text))
+        await message.answer(DATE_TOO_OLD.format(text=text), reply_markup=restart_only_kb())
         return
 
     await state.update_data(birth_date=parsed.isoformat())
@@ -176,7 +176,10 @@ async def handle_time(message: Message, state: FSMContext) -> None:
         telegram_id=message.from_user.id if message.from_user else None,
         time=parsed.isoformat(),
     )
-    await message.answer(TIME_ACCEPTED.format(formatted=parsed.strftime("%H:%M")))
+    await message.answer(
+        TIME_ACCEPTED.format(formatted=parsed.strftime("%H:%M")),
+        reply_markup=restart_only_kb(),
+    )
 
 
 @birth_data_router.callback_query(BirthDataForm.waiting_time, F.data == "time:skip")
@@ -189,7 +192,7 @@ async def handle_time_skip(callback: CallbackQuery, state: FSMContext) -> None:
         telegram_id=callback.from_user.id if callback.from_user else None,
     )
     if isinstance(callback.message, Message):
-        await callback.message.answer(TIME_SKIPPED)
+        await callback.message.answer(TIME_SKIPPED, reply_markup=restart_only_kb())
     await callback.answer()
 
 
@@ -198,7 +201,7 @@ async def handle_city(message: Message, state: FSMContext) -> None:
     query = (message.text or "").strip()
     candidates = await search_cities(query, limit=3)
     if not candidates:
-        await message.answer(CITY_NOT_FOUND.format(query=query))
+        await message.answer(CITY_NOT_FOUND.format(query=query), reply_markup=restart_only_kb())
         return
 
     await state.update_data(city_candidates=[c.to_dict() for c in candidates])
@@ -306,8 +309,8 @@ def _format_summary(data: dict[str, str | float | bool | None]) -> str:
     )
 
 
-@birth_data_router.callback_query(BirthDataForm.confirm, F.data == "confirm:restart")
-async def handle_confirm_restart(callback: CallbackQuery, state: FSMContext) -> None:
+@birth_data_router.callback_query(F.data == "fsm:restart")
+async def handle_fsm_restart(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
     await state.set_state(BirthDataForm.waiting_date)
     if isinstance(callback.message, Message):

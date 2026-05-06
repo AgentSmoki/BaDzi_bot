@@ -3,7 +3,7 @@ from dataclasses import asdict, dataclass
 from typing import Final
 
 import structlog
-from geopy.exc import GeocoderServiceError, GeocoderTimedOut
+from geopy.exc import GeocoderServiceError, GeocoderTimedOut, GeocoderUnavailable
 from geopy.geocoders import Nominatim
 from timezonefinder import TimezoneFinder
 
@@ -46,8 +46,8 @@ async def search_cities(name: str, limit: int = 3) -> list[CityCandidate]:
             limit=limit,
             language="ru",
         )
-    except (GeocoderTimedOut, GeocoderServiceError) as exc:
-        logger.warning("geocoding.error", query=name, error=str(exc))
+    except (GeocoderTimedOut, GeocoderServiceError, GeocoderUnavailable) as exc:
+        logger.warning("geocoding.error", query=name, error=str(exc), exc_type=type(exc).__name__)
         return []
 
     if not locations:
