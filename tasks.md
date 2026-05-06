@@ -52,7 +52,7 @@
 - [x] 1.5.2 bot/middlewares/db_session.py — инъекция сессии БД
 - [x] 1.5.3 bot/middlewares/user_middleware.py — get_or_create user
 - [x] 1.5.4 bot/states.py — FSM состояния (BirthDataForm, ConsultationState)
-- [ ] 1.5.5 bot/keyboards/ — inline клавиатуры (главное меню, темы, тарифы)
+- [x] 1.5.5 bot/keyboards/ — inline клавиатуры (главное меню, темы, тарифы)
 
 ### 1.6 FSM — Сбор данных рождения
 - [ ] 1.6.1 bot/routers/start.py — /start, приветствие Анастасии
