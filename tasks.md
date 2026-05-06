@@ -48,7 +48,7 @@
 - [x] 1.4.9 Тесты калькулятора (tests/unit/test_calculator/) — покрытие 80%+ (единственный модуль с тестами в MVP)
 
 ### 1.5 Telegram Bot — базовая структура
-- [ ] 1.5.1 bot/main.py — entry point, диспетчер, middleware, роутеры
+- [x] 1.5.1 bot/main.py — entry point, диспетчер, middleware, роутеры
 - [ ] 1.5.2 bot/middlewares/db_session.py — инъекция сессии БД
 - [ ] 1.5.3 bot/middlewares/user_middleware.py — get_or_create user
 - [ ] 1.5.4 bot/states.py — FSM состояния (BirthDataForm, ConsultationState)
