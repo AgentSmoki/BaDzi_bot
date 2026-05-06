@@ -28,30 +28,47 @@ class CityCandidate:
         parts = [p.strip() for p in self.display_name.split(",")]
         if len(parts) <= 2:
             return self.display_name
-        return f"{parts[0]}, {parts[-1]}"
+        # First two parts give "city, region" — much better than "city, country"
+        # for differentiating multiple matches with the same city name.
+        return f"{parts[0]}, {parts[1]}"
 
     def to_dict(self) -> dict[str, str | float]:
         return asdict(self)
 
 
 async def search_cities(name: str, limit: int = 3) -> list[CityCandidate]:
-    if len(name.strip()) < MIN_QUERY_LEN:
+    query = name.strip()
+    if len(query) < MIN_QUERY_LEN:
         return []
 
+    # Over-fetch so dedup-by-coords still leaves us with `limit` distinct cities.
+    candidates = await _search_once(query, limit * 3)
+    if not candidates and len(query) > 4:
+        # Typo fallback: drop last 2 chars. Helps with cases like "Волхограт"
+        # → "Волхогра" → still doesn't match → "Волхогр..." progressively.
+        # One retry only: more retries hammer Nominatim and rarely find the city.
+        truncated = query[:-2]
+        logger.info("geocoding.typo_retry", original=query, truncated=truncated)
+        candidates = await _search_once(truncated, limit * 3)
+
+    return _dedupe(candidates)[:limit]
+
+
+async def _search_once(query: str, limit: int) -> list[CityCandidate]:
     try:
         locations = await asyncio.to_thread(
             _geocoder.geocode,
-            name,
+            query,
             exactly_one=False,
             limit=limit,
             language="ru",
         )
     except (GeocoderTimedOut, GeocoderServiceError, GeocoderUnavailable) as exc:
-        logger.warning("geocoding.error", query=name, error=str(exc), exc_type=type(exc).__name__)
+        logger.warning("geocoding.error", query=query, error=str(exc), exc_type=type(exc).__name__)
         return []
 
     if not locations:
-        logger.info("geocoding.no_results", query=name)
+        logger.info("geocoding.no_results", query=query)
         return []
 
     candidates: list[CityCandidate] = []
@@ -68,3 +85,18 @@ async def search_cities(name: str, limit: int = 3) -> list[CityCandidate]:
             )
         )
     return candidates
+
+
+def _dedupe(candidates: list[CityCandidate]) -> list[CityCandidate]:
+    """Nominatim sometimes returns the same place twice (different OSM tags).
+    Collapse by coordinates rounded to ~100 metres so the user sees three
+    visually distinct options instead of three identical buttons."""
+    seen: set[tuple[float, float]] = set()
+    out: list[CityCandidate] = []
+    for cand in candidates:
+        key = (round(cand.latitude, 3), round(cand.longitude, 3))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(cand)
+    return out

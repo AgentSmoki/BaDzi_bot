@@ -6,11 +6,11 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 def new_user_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="Рассчитать карту", callback_data="menu:calc")
+    builder.button(text="Начнём", callback_data="menu:calc")
     return builder.as_markup()
 
 
-_RESTART_LABEL = "Начать заново"
+_RESTART_LABEL = "Изменить"
 _RESTART_CB = "fsm:restart"
 
 
@@ -32,8 +32,19 @@ def gender_kb() -> InlineKeyboardMarkup:
 def confirm_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="Рассчитать", callback_data="confirm:calc")
-    builder.button(text=_RESTART_LABEL, callback_data=_RESTART_CB)
+    builder.button(text="Изменить", callback_data="edit:menu")
     builder.adjust(1)
+    return builder.as_markup()
+
+
+def edit_menu_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Дату", callback_data="edit:date")
+    builder.button(text="Время", callback_data="edit:time")
+    builder.button(text="Город", callback_data="edit:city")
+    builder.button(text="Пол", callback_data="edit:gender")
+    builder.button(text="Отмена", callback_data="edit:cancel")
+    builder.adjust(2, 2, 1)
     return builder.as_markup()
 
 
@@ -97,6 +108,7 @@ def pricing_kb() -> InlineKeyboardMarkup:
 __all__ = [
     "city_choice_kb",
     "confirm_kb",
+    "edit_menu_kb",
     "gender_kb",
     "main_menu_kb",
     "new_user_kb",

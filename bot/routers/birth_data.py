@@ -9,7 +9,14 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.keyboards import city_choice_kb, confirm_kb, gender_kb, restart_only_kb, time_skip_kb
+from bot.keyboards import (
+    city_choice_kb,
+    confirm_kb,
+    edit_menu_kb,
+    gender_kb,
+    restart_only_kb,
+    time_skip_kb,
+)
 from bot.services.birth_datetime import resolve as resolve_birth_datetime
 from bot.services.geocoding import search_cities
 from bot.states import BirthDataForm
@@ -23,8 +30,9 @@ logger = structlog.get_logger(__name__)
 birth_data_router = Router(name="birth_data")
 
 YEAR_RE: Final[re.Pattern[str]] = re.compile(r"\b(18|19|20)\d{2}\b")
-TIME_RE: Final[re.Pattern[str]] = re.compile(r"^\s*(\d{1,2})[:.\- ](\d{2})\s*$")
-HOUR_ONLY_RE: Final[re.Pattern[str]] = re.compile(r"^\s*(\d{1,2})\s*$")
+# Permissive time separators: colon, dot, comma, dash, slash, space, "ч"/"h"
+TIME_RE: Final[re.Pattern[str]] = re.compile(r"^\s*(\d{1,2})\s*[:.,\-/\sчh]\s*(\d{2})\s*$")
+HOUR_ONLY_RE: Final[re.Pattern[str]] = re.compile(r"^\s*(\d{1,2})\s*[чh]?\s*$")
 MIN_YEAR: Final = 1900
 
 DATE_PROMPT = (
@@ -47,15 +55,16 @@ DATE_ACCEPTED = (
 )
 
 TIME_INVALID = (
-    "Не разобрала «{text}». Формат — ЧЧ:ММ, например 09:15 или 14:30. Можно и просто час: 14."
+    "Не разобрала «{text}». Можно так: 14:30, 14.30, 14,30, 14-30, 1430, или просто час: 14."
 )
-TIME_ACCEPTED = "Принято: {formatted}.\n\nТеперь город рождения."
+TIME_ACCEPTED = "Принято: {formatted}.\n\nНапиши свой город рождения:"
 TIME_SKIPPED = (
-    "Хорошо, посчитаю карту на полдень. Анализ будет упрощённым — без столпа часа.\n\n"
-    "Теперь город рождения."
+    "Хорошо. Без точного часа я анализирую только три столпа из четырёх — год, месяц "
+    "и день. Столп часа в анализе не появится.\n\n"
+    "Напиши свой город рождения:"
 )
 
-CITY_PROMPT = "Назови город рождения. Можно по-русски или по-английски."
+CITY_PROMPT = "Напиши свой город рождения:"
 CITY_NOT_FOUND = (
     "Не нашла «{query}». Похоже на опечатку — проверь написание и попробуй ещё раз. "
     "Можно с уточнением региона: «Тверь, Тверская область»."
@@ -75,19 +84,27 @@ SUMMARY_TEMPLATE = (
 )
 GENDER_LABELS = {"male": "мужской", "female": "женский"}
 
-CALC_RESULT_TEMPLATE = (
-    "Карта рассчитана.\n\n"
-    "<b>Четыре столпа:</b>\n"
-    "  Год: {year_stem}{year_branch}\n"
-    "  Месяц: {month_stem}{month_branch}\n"
-    "  День: {day_stem}{day_branch}\n"
-    "  Час: {hour_stem}{hour_branch}\n\n"
+CALC_RESULT_HEADER_FULL = "Карта рассчитана."
+CALC_RESULT_HEADER_NO_HOUR = "Карта рассчитана (без столпа часа — время неизвестно)."
+CALC_PILLARS_FULL = (
+    "<b>Четыре столпа:</b>\n  Год: {year}\n  Месяц: {month}\n  День: {day}\n  Час: {hour}"
+)
+CALC_PILLARS_NO_HOUR = "<b>Три столпа:</b>\n  Год: {year}\n  Месяц: {month}\n  День: {day}"
+CALC_RESULT_FOOTER = (
     "<b>Дневной мастер:</b> {day_master}\n"
     "<b>Баланс элементов:</b> {balance}\n\n"
     "Дальше я научусь интерпретировать эту карту словами — следующая большая фича."
 )
 CALC_FAILED = "Что-то пошло не так при расчёте. Попробуй ещё раз через /start."
 RESTART_PROMPT = "Хорошо, начинаем заново. " + DATE_PROMPT
+
+EDIT_MENU_PROMPT = "Что хочешь поправить?"
+EDIT_PROMPTS = {
+    "date": DATE_PROMPT,
+    "time": "Назови время рождения — например 14:30. Если не помнишь — нажми кнопку.",
+    "city": CITY_PROMPT,
+    "gender": "Выбери пол:",
+}
 
 _chart_repo = ChartRepository()
 
@@ -147,13 +164,15 @@ async def handle_date(message: Message, state: FSMContext) -> None:
         return
 
     await state.update_data(birth_date=parsed.isoformat())
-    await state.set_state(BirthDataForm.waiting_time)
-
     logger.info(
         "birth_data.date_accepted",
         telegram_id=message.from_user.id if message.from_user else None,
         date=parsed.isoformat(),
     )
+    if await _is_edit_mode(state):
+        await _back_to_confirm(message, state)
+        return
+    await state.set_state(BirthDataForm.waiting_time)
     await message.answer(
         DATE_ACCEPTED.format(formatted=parsed.strftime("%d.%m.%Y")),
         reply_markup=time_skip_kb(),
@@ -169,13 +188,15 @@ async def handle_time(message: Message, state: FSMContext) -> None:
         return
 
     await state.update_data(birth_time=parsed.isoformat(), has_birth_time=True)
-    await state.set_state(BirthDataForm.waiting_city)
-
     logger.info(
         "birth_data.time_accepted",
         telegram_id=message.from_user.id if message.from_user else None,
         time=parsed.isoformat(),
     )
+    if await _is_edit_mode(state):
+        await _back_to_confirm(message, state)
+        return
+    await state.set_state(BirthDataForm.waiting_city)
     await message.answer(
         TIME_ACCEPTED.format(formatted=parsed.strftime("%H:%M")),
         reply_markup=restart_only_kb(),
@@ -185,12 +206,16 @@ async def handle_time(message: Message, state: FSMContext) -> None:
 @birth_data_router.callback_query(BirthDataForm.waiting_time, F.data == "time:skip")
 async def handle_time_skip(callback: CallbackQuery, state: FSMContext) -> None:
     await state.update_data(birth_time=None, has_birth_time=False)
-    await state.set_state(BirthDataForm.waiting_city)
-
     logger.info(
         "birth_data.time_skipped",
         telegram_id=callback.from_user.id if callback.from_user else None,
     )
+    if await _is_edit_mode(state):
+        if isinstance(callback.message, Message):
+            await _back_to_confirm(callback.message, state)
+        await callback.answer()
+        return
+    await state.set_state(BirthDataForm.waiting_city)
     if isinstance(callback.message, Message):
         await callback.message.answer(TIME_SKIPPED, reply_markup=restart_only_kb())
     await callback.answer()
@@ -242,13 +267,17 @@ async def handle_city_choice(callback: CallbackQuery, state: FSMContext) -> None
         timezone=chosen["timezone"],
         city_candidates=None,
     )
-    await state.set_state(BirthDataForm.waiting_gender)
-
     logger.info(
         "birth_data.city_accepted",
         telegram_id=callback.from_user.id if callback.from_user else None,
         timezone=chosen["timezone"],
     )
+    if await _is_edit_mode(state):
+        if isinstance(callback.message, Message):
+            await _back_to_confirm(callback.message, state)
+        await callback.answer()
+        return
+    await state.set_state(BirthDataForm.waiting_gender)
     if isinstance(callback.message, Message):
         await callback.message.answer(
             CITY_ACCEPTED.format(name=chosen["display_name"]),
@@ -268,18 +297,74 @@ async def handle_gender(callback: CallbackQuery, state: FSMContext) -> None:
         return
 
     await state.update_data(gender=value)
-    await state.set_state(BirthDataForm.confirm)
-
-    data = await state.get_data()
-    summary = _format_summary(data)
-
     logger.info(
         "birth_data.gender_accepted",
         telegram_id=callback.from_user.id if callback.from_user else None,
         gender=value,
     )
     if isinstance(callback.message, Message):
-        await callback.message.answer(summary, reply_markup=confirm_kb())
+        await _back_to_confirm(callback.message, state)
+    await callback.answer()
+
+
+async def _is_edit_mode(state: FSMContext) -> bool:
+    """gender is the last field set in the linear flow — its presence in
+    FSM data uniquely identifies "user came from the edit menu, every other
+    field is already valid". Used by date/time/city handlers to decide
+    whether to advance to the next step or jump back to the summary."""
+    data = await state.get_data()
+    return bool(data.get("gender")) and bool(data.get("city_name"))
+
+
+async def _back_to_confirm(message: Message, state: FSMContext) -> None:
+    await state.set_state(BirthDataForm.confirm)
+    data = await state.get_data()
+    await message.answer(_format_summary(data), reply_markup=confirm_kb())
+
+
+@birth_data_router.callback_query(BirthDataForm.confirm, F.data == "edit:menu")
+async def handle_edit_menu(callback: CallbackQuery) -> None:
+    if isinstance(callback.message, Message):
+        await callback.message.answer(EDIT_MENU_PROMPT, reply_markup=edit_menu_kb())
+    await callback.answer()
+
+
+@birth_data_router.callback_query(BirthDataForm.confirm, F.data == "edit:cancel")
+async def handle_edit_cancel(callback: CallbackQuery, state: FSMContext) -> None:
+    if isinstance(callback.message, Message):
+        await _back_to_confirm(callback.message, state)
+    await callback.answer()
+
+
+@birth_data_router.callback_query(BirthDataForm.confirm, F.data == "edit:date")
+async def handle_edit_date(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.set_state(BirthDataForm.waiting_date)
+    if isinstance(callback.message, Message):
+        await callback.message.answer(EDIT_PROMPTS["date"])
+    await callback.answer()
+
+
+@birth_data_router.callback_query(BirthDataForm.confirm, F.data == "edit:time")
+async def handle_edit_time(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.set_state(BirthDataForm.waiting_time)
+    if isinstance(callback.message, Message):
+        await callback.message.answer(EDIT_PROMPTS["time"], reply_markup=time_skip_kb())
+    await callback.answer()
+
+
+@birth_data_router.callback_query(BirthDataForm.confirm, F.data == "edit:city")
+async def handle_edit_city(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.set_state(BirthDataForm.waiting_city)
+    if isinstance(callback.message, Message):
+        await callback.message.answer(EDIT_PROMPTS["city"])
+    await callback.answer()
+
+
+@birth_data_router.callback_query(BirthDataForm.confirm, F.data == "edit:gender")
+async def handle_edit_gender(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.set_state(BirthDataForm.waiting_gender)
+    if isinstance(callback.message, Message):
+        await callback.message.answer(EDIT_PROMPTS["gender"], reply_markup=gender_kb())
     await callback.answer()
 
 
@@ -289,7 +374,7 @@ def _format_summary(data: dict[str, str | float | bool | None]) -> str:
     if has_time and isinstance(birth_time, str):
         time_str = birth_time[:5]
     else:
-        time_str = "не указано (карта будет упрощённой)"
+        time_str = "не указано — столп часа в анализ не войдёт"
 
     raw_date = data.get("birth_date")
     date_str = (
@@ -349,7 +434,7 @@ async def _calculate_and_persist(
     *,
     user: User,
     session: AsyncSession,
-) -> dict[str, str | dict[str, str]]:
+) -> dict[str, object]:
     raw_date = data["birth_date"]
     raw_time = data.get("birth_time")
     has_time = bool(data.get("has_birth_time"))
@@ -395,10 +480,11 @@ async def _calculate_and_persist(
         "pillars": chart_data["pillars"],
         "day_master": chart_data["day_master"],
         "element_balance": chart_data["element_balance"],
+        "has_birth_time": has_time,
     }
 
 
-def _format_chart_summary(chart: dict[str, str | dict[str, str]]) -> str:
+def _format_chart_summary(chart: dict[str, object]) -> str:
     pillars = chart["pillars"]
     assert isinstance(pillars, list)
     year, month, day, hour = pillars[0], pillars[1], pillars[2], pillars[3]
@@ -407,15 +493,22 @@ def _format_chart_summary(chart: dict[str, str | dict[str, str]]) -> str:
     balance_str = ", ".join(f"{k} {v:.0%}" for k, v in balance.items())
     day_master = chart["day_master"]
     assert isinstance(day_master, str)
-    return CALC_RESULT_TEMPLATE.format(
-        year_stem=year["stem"],
-        year_branch=year["branch"],
-        month_stem=month["stem"],
-        month_branch=month["branch"],
-        day_stem=day["stem"],
-        day_branch=day["branch"],
-        hour_stem=hour["stem"],
-        hour_branch=hour["branch"],
-        day_master=day_master,
-        balance=balance_str,
-    )
+    has_time = bool(chart.get("has_birth_time"))
+
+    if has_time:
+        header = CALC_RESULT_HEADER_FULL
+        pillars_block = CALC_PILLARS_FULL.format(
+            year=f"{year['stem']}{year['branch']}",
+            month=f"{month['stem']}{month['branch']}",
+            day=f"{day['stem']}{day['branch']}",
+            hour=f"{hour['stem']}{hour['branch']}",
+        )
+    else:
+        header = CALC_RESULT_HEADER_NO_HOUR
+        pillars_block = CALC_PILLARS_NO_HOUR.format(
+            year=f"{year['stem']}{year['branch']}",
+            month=f"{month['stem']}{month['branch']}",
+            day=f"{day['stem']}{day['branch']}",
+        )
+    footer = CALC_RESULT_FOOTER.format(day_master=day_master, balance=balance_str)
+    return f"{header}\n\n{pillars_block}\n\n{footer}"
