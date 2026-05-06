@@ -1,5 +1,22 @@
+import uuid
+
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+
+def new_user_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Рассчитать карту", callback_data="menu:calc")
+    return builder.as_markup()
+
+
+def returning_user_kb(*, chart_id: uuid.UUID, chart_label: str) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Добавить новую карту", callback_data="menu:calc")
+    builder.button(text=f"Открыть: {chart_label}", callback_data=f"chart:open:{chart_id}")
+    builder.button(text="Все мои карты", callback_data="menu:all_charts")
+    builder.adjust(1)
+    return builder.as_markup()
 
 
 def main_menu_kb() -> InlineKeyboardMarkup:
@@ -32,4 +49,10 @@ def pricing_kb() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-__all__ = ["main_menu_kb", "pricing_kb", "topics_kb"]
+__all__ = [
+    "main_menu_kb",
+    "new_user_kb",
+    "pricing_kb",
+    "returning_user_kb",
+    "topics_kb",
+]
