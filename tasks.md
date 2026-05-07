@@ -112,10 +112,10 @@
 - [x] 1.10.7 БЛОК 6 «Влияние текущего года» — `BLOCK_TITLES[6]`, всегда с `include_temporal=True`.
 - [x] 1.10.8 `format_for_telegram()` — HTML-форматирование с `<b>` заголовками, опциональный `chart_label`, `_strip_exclaim()` (защита от `!` если LLM прорвал инструкцию). 11 тестов с mocked chat_with_fallback.
 
-### 1.11 TaskIQ инфраструктура
-- [ ] 1.11.1 tasks/broker.py — настроить TaskIQ broker (Redis backend)
-- [ ] 1.11.2 tasks/worker.py — конфигурация воркера, регистрация задач
-- [ ] 1.11.3 Запуск воркера в docker-compose (сервис `worker`)
+### 1.11 TaskIQ инфраструктура ✅ Закрыт 2026-05-07
+- [x] 1.11.1 [tasks/broker.py](tasks/broker.py) — `ListQueueBroker` поверх Redis с `RedisAsyncResultBackend` (TTL результатов 1ч). Single broker instance импортируется и producer'ом (handlers), и worker процессом.
+- [x] 1.11.2 [tasks/__init__.py](tasks/__init__.py) — package-level side-effect import регистрирует все task-модули на брокере. Первая реальная задача [tasks/consultation.py](tasks/consultation.py) — `run_consultation()`: полный pipeline LLM-ответа в worker процессе (load chart → route → compose_messages → chat_with_fallback → save Consultation → send_message), сделана для будущего использования из bot/routers при тяжёлых запросах (>30s) — handler сделает `kiq()` и сразу ответит, worker вышлет финальный текст пользователю отдельным сообщением.
+- [x] 1.11.3 [docker-compose.yml](docker-compose.yml) `worker` сервис — `python -m taskiq worker tasks.broker:broker`, тот же образ что и bot, depends_on db+redis. Уже подключён.
 
 ### 1.12 Монетизация и лимиты
 - [ ] 1.12.1 Redis rate limiter (счётчик вопросов/день для free)

@@ -121,6 +121,7 @@ ignore = [
 "bot/keyboards/**/*.py" = ["RUF001"]
 "bot/services/**/*.py" = ["RUF001"]
 "ai/**/*.py" = ["RUF001", "RUF002", "RUF003"]
+"tasks/**/*.py" = ["RUF001", "RUF002", "RUF003"]
 "tests/unit/test_ai/**/*.py" = ["RUF001", "RUF002", "RUF003"]
 "tests/unit/test_bot/**/*.py" = ["RUF001", "RUF002", "RUF003"]
 
