@@ -29,7 +29,7 @@ alwaysApply: true
 | AI провайдер | OpenRouter API | Единая точка для всех моделей |
 | AI основная | Kimi 2.6 (moonshotai) | Специализация на китайских текстах, последняя версия |
 | AI fallback | Claude 3.5 Sonnet | Резервная модель |
-| Рендеринг карты | Playwright (Headless Chrome) | HTML/CSS → PNG, точные иероглифы из 24 PNG-ассетов |
+| Рендеринг карты | CairoSVG + Pillow + ProcessPoolExecutor | Jinja2 → SVG → PNG, без headless-браузера (ADR-007) |
 | Астрономия | pyswisseph + JPL DE431 | Точность < 0.001", TST, 24 сезона |
 | Геокодирование | Google → Yandex → Nominatim (через aiohttp) | Fuzzy для опечаток + IANA таймзона |
 | Таймзоны | Google TimeZone API + timezonefinder fallback | Точная IANA-зона по lat/lon |
@@ -70,24 +70,19 @@ PostgreSQL | Redis | OpenRouter API  (Infrastructure)
 **Context:** Нужен один провайдер для Kimi (китайская метафизика), Claude (русский язык, глубина), gpt-image-1 (генерация карты).
 
 **Solution:** OpenRouter API как единая точка. Модели:
-- Базовая интерпретация + диалог: `moonshotai/kimi-2.6` (primary)
+- Базовая интерпретация + диалог: `moonshotai/kimi-k2.6` (primary)
 - Fallback: `anthropic/claude-3.5-sonnet`
 - Переключение модели без деплоя: Redis feature flag `llm:active_model`
 
 **Consequences:** Один API ключ. Простой фолбэк. Смена модели через /admin model.
 
-### ADR-003: Визуализация карты — Playwright HTML Rendering
+### ADR-003: Визуализация карты — CairoSVG (superseded by ADR-007)
 
-**Context:** Нужна красивая карта в стиле Mingli с иероглифами, цветами элементов, балансом. Генеративные AI-модели (gpt-image-1, DALL-E) катастрофически галлюцинируют китайские иероглифы — недопустимо для астрологического сервиса.
+**Status:** Superseded by ADR-007 в 1.7.10. Изначально планировался Playwright HTML→PNG, но прод-нагрузка показала bottleneck → миграция на CairoSVG. История решения сохранена для архива.
 
-**Solution:**
-1. 24 PNG-ассета иероглифов (10 стволов + 12 ветвей + 2 Инь/Ян) — готовы, хранятся в `assets/hieroglyphs/`
-2. Данные карты → Jinja2 HTML-шаблон (тёмная тема в стиле Mingli, CSS цвета элементов)
-3. Playwright headless Chromium → screenshot элемента → PNG bytes
-4. PNG → Yandex Object Storage → send_photo в Telegram
-5. Fallback: Pillow-композиция из 24 PNG-ассетов (без браузера)
+**Original context:** Нужна красивая карта в стиле Mingli с иероглифами, цветами элементов, балансом. Генеративные AI-модели (gpt-image-1, DALL-E) катастрофически галлюцинируют китайские иероглифы — недопустимо для астрологического сервиса.
 
-**Consequences:** 100% точность иероглифов. Красивый CSS-layout (градиенты, баланс элементов). Playwright работает в Docker headless без X11. Требует установки chromium в образе (fonts-noto-cjk для CJK шрифтов).
+**Current solution (после ADR-007):** Jinja2 SVG-шаблон → CairoSVG → PNG bytes. CJK-иероглифы из системных шрифтов (PingFang SC / Noto Sans SC); SVG-иконки элементов как fallback под эмодзи. Подробности в ADR-007.
 
 ### ADR-004: База знаний — KuzuDB Graph
 
@@ -129,9 +124,11 @@ PostgreSQL | Redis | OpenRouter API  (Infrastructure)
 
 **Context:** Playwright headless Chromium хорош для прототипа (1.7 MVP), но: bottleneck на 50+ параллельных запросах, 150 MB Chromium в Docker, ~50-150 ms на screenshot, RAM растёт линейно. Под прод-нагрузку не годится.
 
-**Solution:** Jinja2 → SVG-шаблон → CairoSVG → PNG bytes. Под нагрузку — `ProcessPoolExecutor` (Pillow GIL-bound). Playwright fallback оставляем 1-2 итерации для подстраховки.
+**Solution:** Jinja2 → SVG-шаблон → CairoSVG → PNG bytes. Под нагрузку — `ProcessPoolExecutor` в `ai/_render_pool.py` (CairoSVG GIL-bound). Async-фасад `render_chart_png_async()` в `ai/svg_renderer.py`. Размер пула: env `RENDER_POOL_SIZE` или `cpu_count() // 2`.
 
-**Consequences:** 5-10× быстрее, 60% меньше Docker-образа (без Chromium binary), +cairosvg/Pillow зависимости. SVG-вёрстка дольше пишется, чем HTML+CSS, но шаблоны стабильные. Миграция реализована в разделе 1.7.6-1.7.11.
+**Status:** Реализовано полностью в 1.7.6–1.7.11. Playwright удалён из deps, Dockerfile, runtime в 1.7.10. Бенчмарк (см. `doc/benchmarks/render.md`) на 4-core хосте: pool=4 даёт 2× rps на N=200 vs sequential.
+
+**Consequences:** Docker-образ -150 MB (без Chromium binary), -10 системных libs (libnss3, libatk*, libxkbcommon0, libgbm1, libasound2 и т.д.). SVG-вёрстка дольше пишется, чем HTML+CSS, но шаблоны стабильные. Единственный render-путь — никаких runtime branches на Playwright/SVG.
 
 ### ADR-008: Payments — ЮKassa везде, готовность к Telegram Stars
 

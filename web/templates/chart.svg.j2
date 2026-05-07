@@ -9,32 +9,41 @@
       .card-head-empty { fill: #c5beaa; }
       .border      { stroke: #cbc0a3; stroke-width: 1; fill: none; }
       .ru-text     { font-family: "Inter", "Helvetica Neue", "Helvetica", Arial, "PingFang SC", "Noto Sans SC", sans-serif; fill: #3d2f18; }
-      .label-sm    { font-size: 14px; fill: #ffffff; font-weight: 600; letter-spacing: 1px; }
-      .ru-meta     { font-size: 14px; fill: #6e5832; }
-      .ru-sub      { font-size: 13px; fill: #8a7250; }
-      .ru-mute     { font-size: 14px; fill: #a99c81; }
-      .title       { font-family: "Inter", "Helvetica Neue", sans-serif; font-size: 28px; font-weight: 700; fill: #2d1f10; }
-      .subtitle    { font-size: 16px; fill: #6e5832; }
+      .label-sm    { font-size: 16px; fill: #ffffff; font-weight: 600; letter-spacing: 1px; }
+      .ru-meta     { font-size: 16px; fill: #6e5832; }
+      .ru-sub      { font-size: 14px; fill: #8a7250; }
+      .ru-mute     { font-size: 16px; fill: #a99c81; }
+      .title       { font-family: "Inter", "Helvetica Neue", sans-serif; font-size: 32px; font-weight: 700; fill: #2d1f10; }
+      .subtitle    { font-size: 18px; fill: #6e5832; }
       .glyph       { font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Noto Serif SC", "Songti SC", serif; font-weight: 700; text-anchor: middle; }
       .stem-char   { font-size: 110px; }
       .branch-char { font-size: 100px; }
+      /* Shadow copy of every large CJK glyph — drawn first, with an
+         offset and a dark fill, so the coloured glyph above it reads as
+         slightly raised off the card. Defined late so its `fill` wins
+         over the .el-* class on the same <text>. */
+      .glyph-shadow { fill: #1a1208 !important; opacity: 0.45; }
       .hidden-char { font-size: 30px; fill: #8a7250; }
       .hidden-stem { font-weight: 700; }
-      .hidden-yy   { font-size: 11px; fill: #8a7250; }
-      .ten-god     { font-size: 22px; fill: #4a3a20; }
+      .hidden-yy   { font-size: 13px; fill: #8a7250; }
+      .ten-god     { font-size: 26px; fill: #4a3a20; }
       .placeholder { font-size: 90px; fill: #c5beb0; text-anchor: middle; }
-      .footer      { font-size: 13px; fill: #8a7250; text-anchor: middle; letter-spacing: 1.5px; }
-      .balance-label  { font-family: "Inter", sans-serif; font-size: 16px; fill: #3d2f18; }
-      .balance-glyph  { font-family: "PingFang SC", "Noto Sans SC", serif; font-size: 22px; font-weight: 700; }
-      .balance-pct    { font-family: "Inter", sans-serif; font-size: 14px; fill: #6e5832; }
-      .role-label  { font-family: "Inter", sans-serif; font-size: 15px; font-weight: 600; fill: #3d2f18; }
-      .role-label-dm { fill: #6e5832; font-size: 16px; font-weight: 700; }
+      .footer      { font-size: 14px; fill: #8a7250; text-anchor: middle; letter-spacing: 1.5px; }
+      .balance-label  { font-family: "Inter", sans-serif; font-size: 19px; fill: #3d2f18; }
+      .balance-glyph  { font-family: "PingFang SC", "Noto Sans SC", serif; font-size: 26px; font-weight: 700; }
+      .balance-pct    { font-family: "Inter", sans-serif; font-size: 17px; fill: #6e5832; }
+      .role-label  { font-family: "Inter", sans-serif; font-size: 18px; font-weight: 600; fill: #3d2f18; }
+      .role-label-dm { fill: #6e5832; font-size: 20px; font-weight: 700; }
       .wuxing-emoji { font-family: "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji", sans-serif; font-size: 60px; text-anchor: middle; }
       .wuxing-emoji-dm { font-size: 78px; }
       .dm-stem-big { font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Songti SC", serif; font-weight: 900; font-size: 56px; }
-      .dm-name-big { font-family: "Inter", "Helvetica Neue", sans-serif; font-size: 26px; font-weight: 600; fill: #2d1f10; }
-      .arrow-line  { stroke: #b0a587; stroke-width: 2.5; fill: none; }
-      .arrow-ctrl  { stroke: #c46c4a; stroke-width: 1.6; fill: none; stroke-dasharray: 5 4; opacity: 0.85; }
+      .dm-name-big { font-family: "Inter", "Helvetica Neue", sans-serif; font-size: 32px; font-weight: 600; fill: #2d1f10; }
+      .arrow-line  { stroke-width: 3; fill: none; stroke-linecap: round; opacity: 0.92; }
+      .arrow-ctrl  { stroke-width: 1.8; fill: none; stroke-linecap: round; stroke-dasharray: 5 5; opacity: 0.78; }
+      .arrow-tip-gen  { fill: #a89066; stroke: #a89066; stroke-width: 1; stroke-linejoin: round; }
+      .arrow-tip-ctrl { fill: #c46c4a; stroke: #c46c4a; stroke-width: 0.8; stroke-linejoin: round; opacity: 0.92; }
+      .legend-line { stroke: #a89066; stroke-width: 2.5; fill: none; stroke-linecap: round; }
+      .legend-ctrl { stroke: #c46c4a; stroke-width: 1.6; fill: none; stroke-dasharray: 5 4; opacity: 0.85; }
       .el-wood    { fill: #5fa86a; }
       .el-fire    { fill: #d04a3a; }
       .el-earth   { fill: #a06030; }
@@ -47,14 +56,19 @@
       .el-bg-water  { fill: #3a78c4; }
     ]]></style>
 
-    <!-- Arrowhead for generation cycle (filled muted gold) -->
-    <marker id="gen-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b0a587"/>
-    </marker>
-    <!-- Arrowhead for control cycle (smaller, terracotta) -->
-    <marker id="ctrl-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#c46c4a"/>
-    </marker>
+    <!-- Arrowheads are drawn as plain <path> shapes in the body of the
+         document with vertex coordinates computed in Python (no SVG
+         transforms). CairoSVG silently drops orient="auto" on <marker>
+         and inconsistently applies transform="rotate(...)" on <polygon>,
+         so we hand it absolute geometry. -->
+
+    <!-- Tighter shadow for the wuxing arrowheads — adds volume so the
+         calligraphic tip lifts off the canvas. CairoSVG has good support
+         for feDropShadow at small stdDeviation; on large glyphs we use a
+         duplicate-text technique instead because blur quality degrades. -->
+    <filter id="tip-shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0.5" dy="1" stdDeviation="0.6" flood-color="#3a2810" flood-opacity="0.55"/>
+    </filter>
 
     <!-- Element icons as reusable symbols (no Chinese glyphs) -->
     <symbol id="ic-wood" viewBox="-30 -30 60 60">
@@ -112,8 +126,10 @@
     <rect class="card-head" x="0" y="20" width="270" height="16"/>
     <text x="135" y="24" class="label-sm" text-anchor="middle">{{ p.label }}</text>
     <text x="135" y="62" class="ru-text ru-meta" text-anchor="middle">{{ p.stem_yin_yang }}</text>
+    <text x="138" y="205" class="glyph stem-char glyph-shadow">{{ p.stem }}</text>
     <text x="135" y="200" class="glyph stem-char el-{{ p.stem_el }}">{{ p.stem }}</text>
     <text x="135" y="248" class="ru-text ru-meta" text-anchor="middle">{{ p.branch_yin_yang }}</text>
+    <text x="138" y="385" class="glyph branch-char glyph-shadow">{{ p.branch }}</text>
     <text x="135" y="380" class="glyph branch-char el-{{ p.branch_el }}">{{ p.branch }}</text>
     <text x="135" y="420" class="ru-text ru-meta" text-anchor="middle">{{ p.branch_animal }}</text>
     <line x1="20" y1="445" x2="250" y2="445" class="border"/>
@@ -132,43 +148,77 @@
   </g>
   {% endfor %}
 
-  <!-- Господин дня strip -->
+  <!-- Господин дня (narrow card, left) ─ Wuxing (wide card, right) ───────── -->
+
+  <!-- Господин дня: narrow column on the left -->
   <g transform="translate(40, 700)">
-    <rect class="card" x="0" y="0" width="1120" height="100" rx="6"/>
-    <text x="24" y="28" class="ru-text ru-sub" style="letter-spacing: 1.2px;">ГОСПОДИН ДНЯ</text>
-    <text x="1100" y="28" class="ru-text ru-sub" text-anchor="end">{{ chart_kind }}</text>
-    <line x1="20" y1="42" x2="1100" y2="42" class="border"/>
-    <text x="36" y="84" class="dm-stem-big el-{{ dm_element_class }}">{{ day_master }}</text>
-    <text x="106" y="80" class="dm-name-big">{{ day_master_ru }}</text>
+    <rect class="card" x="0" y="0" width="300" height="440" rx="6"/>
+    <text x="24" y="32" class="ru-text ru-sub" style="letter-spacing: 1.2px;">ГОСПОДИН ДНЯ</text>
+    <line x1="20" y1="48" x2="280" y2="48" class="border"/>
+    <text x="155" y="248" class="glyph stem-char glyph-shadow" style="font-size: 180px;">{{ day_master }}</text>
+    <text x="150" y="240" class="glyph stem-char el-{{ dm_element_class }}" style="font-size: 180px;">{{ day_master }}</text>
+    <text x="150" y="325" class="ru-text dm-name-big" text-anchor="middle">{{ day_master_ru }}</text>
+    <line x1="40" y1="370" x2="260" y2="370" class="border"/>
+    <text x="150" y="408" class="ru-text ru-sub" text-anchor="middle">{{ chart_kind }}</text>
   </g>
 
-  <!-- Wuxing wheel: pentagon, day master on top, generation + control arrows -->
-  <g transform="translate(40, 820)">
-    <rect class="card" x="0" y="0" width="1120" height="380" rx="6"/>
-    <text x="40" y="36" class="ru-text ru-sub">ЦИКЛ У-СИН</text>
+  <!-- Wuxing wheel: wide card on the right -->
+  <g transform="translate(360, 700)">
+    <rect class="card" x="0" y="0" width="800" height="440" rx="6"/>
+    <text x="32" y="32" class="ru-text ru-sub">ЦИКЛ У-СИН</text>
 
-    <!-- Legend -->
-    <g transform="translate(820, 32)">
-      <line x1="0" y1="0" x2="30" y2="0" class="arrow-line" marker-end="url(#gen-arrow)"/>
-      <text x="38" y="4" class="ru-text ru-sub">порождение</text>
-      <line x1="160" y1="0" x2="190" y2="0" class="arrow-ctrl" marker-end="url(#ctrl-arrow)"/>
-      <text x="200" y="4" class="ru-text ru-sub">контроль</text>
+    <!-- Legend (absolute coords inside the wuxing card — no nested
+         transform, since CairoSVG sometimes drops them on polygons). -->
+    <g transform="translate(530, 32)">
+      <line x1="0" y1="0" x2="24" y2="0" class="legend-line"/>
+      <!-- Same calligraphic silhouette as the wheel arrows (length=22,
+           half_w=7 for gen, length=18, half_w=5.5 for ctrl), drawn flat
+           horizontally (tangent (1,0), perpendicular (0,1)). -->
+      <path d="M 30,0 Q 19.8,-4.6 8,-7 L 8,7 Q 19.8,4.6 30,0 Z" class="arrow-tip-gen"/>
+      <text x="42" y="4" class="ru-text ru-sub">порождение</text>
+      <line x1="140" y1="0" x2="166" y2="0" class="legend-ctrl"/>
+      <path d="M 170,0 Q 161.6,-3.6 152,-5.5 L 152,5.5 Q 161.6,3.6 170,0 Z" class="arrow-tip-ctrl"/>
+      <text x="180" y="4" class="ru-text ru-sub">контроль</text>
     </g>
 
-    <!-- Pentagon centred in card (card width 1120, centre 560) -->
-    <g transform="translate(560, 220)">
+    <!-- Pentagon centred (card width 800, centre x=400; vertical centre y=255
+         leaves ≥40px above for the top role label and ≥40px below for the two
+         bottom labels — both relative to the 440-tall card). -->
+    <g transform="translate(400, 255)">
+      <!-- Each arrow paints with its own start→end colour gradient — the
+           energy reads as flowing INTO the destination element instead of
+           anonymous gold or grey computer lines. Inline gradient because
+           positions are unique per arrow. -->
+      <defs>
+        {% for ar in wuxing.arrows_ctrl %}
+        <linearGradient id="ctrl-grad-{{ loop.index }}" gradientUnits="userSpaceOnUse"
+                        x1="{{ ar.x1 }}" y1="{{ ar.y1 }}" x2="{{ ar.x2 }}" y2="{{ ar.y2 }}">
+          <stop offset="0%" stop-color="{{ ar.src_color }}" stop-opacity="0.65"/>
+          <stop offset="100%" stop-color="{{ ar.dst_color }}" stop-opacity="0.85"/>
+        </linearGradient>
+        {% endfor %}
+        {% for ar in wuxing.arrows_gen %}
+        <linearGradient id="gen-grad-{{ loop.index }}" gradientUnits="userSpaceOnUse"
+                        x1="{{ ar.x1 }}" y1="{{ ar.y1 }}" x2="{{ ar.x2 }}" y2="{{ ar.y2 }}">
+          <stop offset="0%" stop-color="{{ ar.src_color }}"/>
+          <stop offset="100%" stop-color="{{ ar.dst_color }}"/>
+        </linearGradient>
+        {% endfor %}
+      </defs>
       {% for ar in wuxing.arrows_ctrl %}
-      <line x1="{{ ar.x1 }}" y1="{{ ar.y1 }}" x2="{{ ar.x2 }}" y2="{{ ar.y2 }}"
-            class="arrow-ctrl" marker-end="url(#ctrl-arrow)"/>
+      <path d="{{ ar.d }}" class="arrow-ctrl"
+            stroke="url(#ctrl-grad-{{ loop.index }})"/>
+      <path d="{{ ar.tip_ctrl_d }}" class="arrow-tip-ctrl" filter="url(#tip-shadow)"/>
       {% endfor %}
       {% for ar in wuxing.arrows_gen %}
-      <line x1="{{ ar.x1 }}" y1="{{ ar.y1 }}" x2="{{ ar.x2 }}" y2="{{ ar.y2 }}"
-            class="arrow-line" marker-end="url(#gen-arrow)"/>
+      <path d="{{ ar.d }}" class="arrow-line"
+            stroke="url(#gen-grad-{{ loop.index }})"/>
+      <path d="{{ ar.tip_gen_d }}" class="arrow-tip-gen" filter="url(#tip-shadow)"/>
       {% endfor %}
       {% for el in wuxing.elements %}
-      {% set ic_r = 32 if el.is_dm else 28 %}
+      {% set ic_r = 36 if el.is_dm else 32 %}
       {% if el.is_dm %}
-      <circle cx="{{ el.cx }}" cy="{{ el.cy }}" r="48" fill="none" stroke="#c69853" stroke-width="2.5" stroke-dasharray="5 4"/>
+      <circle cx="{{ el.cx }}" cy="{{ el.cy }}" r="54" fill="none" stroke="#c69853" stroke-width="2.5" stroke-dasharray="5 4"/>
       {% endif %}
       <!-- Coloured element disc + white SVG glyph: rendered unconditionally so
            the wheel still reads correctly even when the emoji font on the
@@ -180,7 +230,7 @@
            width="{{ ic_r * 2 }}" height="{{ ic_r * 2 }}"/>
       <!-- Emoji on top: when the font is available it covers the glyph; when
            it isn't, the white SVG icon underneath is what the user sees. -->
-      <text x="{{ el.cx }}" y="{{ el.cy + (24 if el.is_dm else 18) }}"
+      <text x="{{ el.cx }}" y="{{ el.cy + (26 if el.is_dm else 20) }}"
             class="wuxing-emoji{% if el.is_dm %} wuxing-emoji-dm{% endif %}">{{ el.emoji }}</text>
       <text x="{{ el.label_cx }}" y="{{ el.label_cy }}"
             class="ru-text role-label{% if el.is_dm %} role-label-dm{% endif %}"
@@ -189,17 +239,17 @@
     </g>
   </g>
 
-  <!-- Balance bars -->
-  <g transform="translate(40, 1220)">
-    <rect class="card" x="0" y="0" width="1120" height="160" rx="6"/>
-    <text x="20" y="32" class="ru-text ru-sub">БАЛАНС ЭЛЕМЕНТОВ</text>
+  <!-- Balance bars: wider strip, more breathing room -->
+  <g transform="translate(40, 1160)">
+    <rect class="card" x="0" y="0" width="1120" height="220" rx="6"/>
+    <text x="24" y="32" class="ru-text ru-sub" style="letter-spacing: 1.2px;">БАЛАНС ЭЛЕМЕНТОВ</text>
     {% for row in balance %}
-    {% set y = 50 + loop.index0 * 22 %}
-    <text x="20" y="{{ y + 8 }}" class="balance-glyph el-{{ row.el_class }}">{{ row.glyph }}</text>
-    <text x="56" y="{{ y + 8 }}" class="balance-label">{{ row.name_ru }}</text>
-    <rect x="180" y="{{ y - 4 }}" width="850" height="14" fill="#eee5cd" rx="3"/>
-    <rect x="180" y="{{ y - 4 }}" width="{{ 8.5 * row.pct_int }}" height="14" class="el-bg-{{ row.el_class }}" rx="3"/>
-    <text x="1095" y="{{ y + 8 }}" class="balance-pct" text-anchor="end">{{ row.pct_int }}%</text>
+    {% set y = 58 + loop.index0 * 30 %}
+    <text x="24" y="{{ y + 10 }}" class="balance-glyph el-{{ row.el_class }}">{{ row.glyph }}</text>
+    <text x="60" y="{{ y + 10 }}" class="balance-label">{{ row.name_ru }}</text>
+    <rect x="200" y="{{ y - 2 }}" width="830" height="16" fill="#eee5cd" rx="3"/>
+    <rect x="200" y="{{ y - 2 }}" width="{{ 8.3 * row.pct_int }}" height="16" class="el-bg-{{ row.el_class }}" rx="3"/>
+    <text x="1095" y="{{ y + 10 }}" class="balance-pct" text-anchor="end">{{ row.pct_int }}%</text>
     {% endfor %}
   </g>
 

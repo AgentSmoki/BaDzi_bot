@@ -66,24 +66,34 @@
 - [x] 1.7.1 ai/card_renderer.py v1 — Playwright HTML→PNG (legacy, deprecated после A.1.4)
 - [x] 1.7.2 web/templates/chart.html v1 — тёмная тема (legacy)
 - [x] 1.7.4 Отправка фото в Telegram (BufferedInputFile в `handle_confirm_calc` и `chart:open`)
-- [ ] 1.7.6 ai/svg_renderer.py — Jinja2 → SVG → CairoSVG → PNG pipeline
-- [ ] 1.7.7 web/templates/chart.svg.j2 v2 — light Mingli grid + цвета стихий
-- [ ] 1.7.8 web/static/wuxing-base.svg — SVG У-син круга с динамической подсветкой ДМ
-- [ ] 1.7.9 ProcessPoolExecutor pool для рендера (масштаб 50+ rps)
-- [ ] 1.7.10 Удалить Playwright из deps + Chromium из Docker-образа (после стабилизации)
-- [ ] 1.7.11 Бенчмарк: SVG vs Playwright на 50/200 параллельных рендерах
+- [x] 1.7.6 ai/svg_renderer.py — Jinja2 → SVG → CairoSVG → PNG pipeline (RenderRequest, render_chart_png/svg, _build_context)
+- [x] 1.7.7 web/templates/chart.svg.j2 v2 — light Mingli grid + цвета стихий (после Wave A polish)
+- [x] 1.7.8 У-син круг с динамической подсветкой ДМ — реализован inline в `_wuxing_wheel()` (пентагон radius 130, безье-стрелки порождения/контроля). Отдельный `web/static/wuxing-base.svg` не понадобился: вёрстка генерируется из данных, не из статичного ассета.
+- [x] 1.7.9 ProcessPoolExecutor pool для рендера (`ai/_render_pool.py` + `render_chart_png_async`, размер из `RENDER_POOL_SIZE` или `cpu_count() // 2`)
+- [x] 1.7.10 Удалить Playwright из deps (pyproject.toml), Chromium из Dockerfile, legacy `_render_via_playwright` из `card_renderer.py`, `chart.html` шаблон, `playwright_timeout` из `bot/config.py`
+- [x] 1.7.11 Бенчмарк sequential vs pool — на 4-core хосте N=200 даёт 2× rps (5.1 vs 2.5). Запуск: `RENDER_POOL_SIZE=4 python -m scripts.bench_render`. Результат в [doc/benchmarks/render.md](doc/benchmarks/render.md)
 
 Отложено в 1.16 (production deploy):
 - [ ] 1.7.3 Загрузка PNG в Yandex Object Storage (aioboto3 + хеш-кэш)
 - [ ] 1.7.5 Fallback: Pillow-композиция из 24 PNG-ассетов если CairoSVG недоступен
 
-### 1.8 AI Оркестратор (OpenRouter)
-- [ ] 1.8.1 ai/orchestrator.py — OpenRouter клиент (httpx async)
-- [ ] 1.8.2 Скопировать системный промпт Анастасии в ai/prompts/anastasia_system.md
-- [ ] 1.8.3 ai/router.py — семантический маршрутизатор (simple/normal/complex)
-- [ ] 1.8.4 ai/context.py — управление контекстом (история в Redis TTL 24ч)
-- [ ] 1.8.5 ai/fallback.py — фолбэк Kimi → Claude Sonnet
-- [ ] 1.8.6 ai/temporal_context.py — карты текущего года/месяца/дня для временных вопросов
+### 1.8 AI Оркестратор (OpenRouter) ✅ Закрыт 2026-05-07
+- [x] 1.8.1 [ai/orchestrator.py](ai/orchestrator.py) — OpenRouter клиент (httpx async, ChatMessage/ChatResult Pydantic, иерархия исключений RateLimitError/UpstreamError/OrchestratorError, structlog telemetry, lazy singleton client). 15 unit-тестов с httpx.MockTransport.
+- [x] 1.8.2 [ai/prompts/anastasia_system.md](ai/prompts/anastasia_system.md) (39k chars / 927 строк) + [ai/prompts/__init__.py](ai/prompts/__init__.py) с `load_system_prompt()` через `lru_cache`. 4 теста.
+- [x] 1.8.3 [ai/router.py](ai/router.py) — pure-функция `route(text) -> RouteDecision` (frozen dataclass). Cyrillic-aware (`ё→е`), word-boundary матчинг через regex. Интенты: simple/normal/complex с разными max_tokens (4096/8192/12000). 17 тестов.
+- [x] 1.8.4 [ai/context.py](ai/context.py) — `HistoryStore` поверх Redis. Per-user история, TTL 24h, lpush/ltrim/expire в pipeline. Bounded HISTORY_MAX_MESSAGES=20. Толерантна к corrupt-entries. 8 тестов на fakeredis.
+- [x] 1.8.5 [ai/fallback.py](ai/fallback.py) — `chat_with_fallback()`: primary Kimi K2.6 → fallback Claude 3.5 Sonnet на 429/5xx. НЕ ретраит на других 4xx (caller bug). 6 тестов.
+- [x] 1.8.6 [ai/temporal_context.py](ai/temporal_context.py) — `render_chart_block()`, `render_temporal_block()`, `get_current_bazi()` (Москва UTC+3 по умолчанию), `compose_messages()` собирающий system + history + chart + temporal + question. 9 тестов.
+
+**Live-проверка K2.6** (12.09.1999 23:55 Волжский reference): latency 55s, $0.028/запрос, completion 2870 tokens (включая ~2000 reasoning + 870 финальный текст). Качественный ответ Анастасии, корректное опознавание ДМ/Печати/такта 乙亥.
+
+**Конфиг:** default_llm_model=`moonshotai/kimi-k2.6` (thinking), llm_timeout=420s, max_output_tokens=8192. Дубли в `.env` (LLM_TIMEOUT и MAX_OUTPUT_TOKENS появлялись дважды) убраны.
+
+**Не сделано в 1.8 (по плану и в 1.10/1.13):**
+- Интеграция в bot-роутеры (1.10/1.13) — позже
+- KuzuDB RAG (1.9) — отдельный блок
+- Langfuse telemetry — позже
+- /reset команда для clear history — позже в 1.13
 
 ### 1.9 База знаний KuzuDB (RAG для MVP)
 - [ ] 1.9.1 knowledge/schema.py — схема граф-узлов KuzuDB (Element, Stem, Branch, Rule, Interpretation)
@@ -155,6 +165,37 @@
   - Каскадный priority: 化 → 从 → 一气 → 月令-special → 正格.
   - Отложенные на v3 (Determinism Low/Very Low): 拱禄, 飞天禄马, 倒冲, 邀禄, 两神成象, 子辰双美 — требуют экспертного слоя.
   - 元辰 / 勾绞 / 空亡 — реализованы в symbolic_stars.py как Шэнь Ша (Block A коммита 18672cf).
+
+### 2.1.6 ✅ Воспроизводимость калькулятора (закрыт 2026-05-07)
+**Итог:** калькулятор детерминирован сам по себе (1000/1000 одинаковых результатов в одном процессе и между процессами). «Плавание» в MASTER.md полностью объяснено двумя входными переменными:
+- `tz=3.0, early_rat=False` → `壬子/戊辰/癸酉/己卯`
+- `tz=3.0, early_rat=True` → `庚子/丁卯/癸酉/己卯`
+- `tz=4.0, early_rat=False` → `辛亥/丁卯/癸酉/己卯`
+
+В России до 2011 действовало DST, поэтому **корректный tz_offset для 12.09.1999 = 4.0** (pytz возвращает это для Europe/Volgograd / Europe/Moscow). `bot/services/birth_datetime.resolve()` уже DST-aware. Регрессионные тесты: [tests/unit/test_calculator/test_determinism.py](tests/unit/test_calculator/test_determinism.py) и [tests/unit/test_bot/test_birth_datetime.py](tests/unit/test_bot/test_birth_datetime.py).
+
+Отдельный вопрос **точности** алгоритма (наш расчёт даёт день `丁卯`, а классический эталон `丁亥`) — отдельная задача 2.1.7.
+
+- [x] **2.1.6** Воспроизводимый расчёт. Сейчас `calculate_chart()` для одного и того же `ChartInput` (12.09.1999 23:55 Волжский UTC+3, female) выдаёт **разные пиллары между вызовами**: то `辛亥/丁卯/癸酉/己卯`, то `壬子/戊辰/癸酉/己卯`, то канонические `庚子/丁亥/癸酉/己卯` (MASTER.md). Это блокирует:
+  - доверие пользователей (одна и та же дата — разная карта);
+  - тестирование (snapshot-тесты могут флажить случайно);
+  - аналитику (распределение пилларов в БД ломается).
+
+  **Гипотезы причины** (требуют исследования):
+  1. **Глобальное состояние pyswisseph.** `swe.set_ephe_path()` или `swe.set_topo()` ставится один раз и переиспользует значение между запусками — но если другой код (в т.ч. тесты) в той же сессии ставит другие значения, последующие вызовы дают drift.
+  2. **Цзе Ци transition при 23:55.** Если `solar_terms.py` использует floating-point равенство для определения границы сезона/часа, mid-night transitions могут попадать то в один день, то в другой при разных погрешностях `swe.calc_ut()`.
+  3. **Граница дня с early_rat.** Без указания `early_rat=False`, fallback может различаться. `ChartInput` имеет default `early_rat=False`, но если где-то в pipeline это поле теряется/перезатирается → разные дни.
+  4. **TST + DST в Волжский 1999.** В сентябре 1999 в Волжский был летний UTC+4 (MSK+1). Если `tz_offset=3.0` → расчёт UTC момента сместится на час → попадёт в другие сутки → другой день pillar.
+  5. **timezonefinder cache** — если он в одном вызове вернёт `Europe/Volgograd` (UTC+4 в сентябре 99), а в другом `Europe/Moscow` (UTC+3), то tz_offset получит разные значения. Но в тесте мы передаём явный `tz_offset=3.0` — это исключает гипотезу.
+  6. **Concurrent state в HTTP-геокодере.** Если геокодер возвращает разные координаты Волжский между вызовами (из-за rate limit / fallback), то `swe.set_topo` ставит разные lat/lon → пограничные часы могут давать разные ветви.
+
+  **План отладки (когда возьмёмся):**
+  - Написать тест: 1000 раз вызвать `calculate_chart()` с одинаковым `ChartInput`, собрать distinct pillars. Должен быть ровно 1.
+  - Если флажит — добавить `print()` промежуточных значений в `pillars.calculate_pillars()`: `swe_julday`, `tst_naive`, day_index, hour_branch.
+  - Найти первое расхождение, сузить до конкретного модуля, фиксить.
+  - Добавить к фиксу regression-тест.
+
+  **Когда вернёмся:** **сразу после Wave A полностью закрывается** (визуальные регрессии + UX bundle), но **до 1.8 AI оркестратора**. Без воспроизводимого расчёта запускать AI-консультации бессмысленно — карта может между двумя вопросами пользователя поменяться.
 
 ### 2.2 AI — расширение
 - [ ] 2.2.1 Qwen-3.6 как дополнительная модель для верификации (через OpenRouter)

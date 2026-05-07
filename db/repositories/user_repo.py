@@ -1,6 +1,7 @@
 import uuid
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import User
@@ -41,21 +42,26 @@ class UserRepository:
         first_name: str,
         username: str | None = None,
     ) -> tuple[User, bool]:
-        # SELECT FOR UPDATE prevents race condition on concurrent /start
-        result = await session.execute(
-            sa.select(User).where(User.telegram_id == telegram_id).with_for_update(skip_locked=True)
+        # Postgres-specific upsert keeps two concurrent /start handlers from
+        # both racing to INSERT and one losing to UniqueViolationError. The
+        # SELECT-then-INSERT approach with FOR UPDATE SKIP LOCKED used to
+        # silently let one handler skip the lock and re-insert.
+        stmt = (
+            pg_insert(User)
+            .values(telegram_id=telegram_id, first_name=first_name, username=username)
+            .on_conflict_do_nothing(index_elements=[User.telegram_id])
+            .returning(User.id)
         )
-        user = result.scalar_one_or_none()
-        if user is not None:
-            return user, False
+        result = await session.execute(stmt)
+        inserted_id = result.scalar_one_or_none()
+        if inserted_id is not None:
+            user = await session.get(User, inserted_id)
+            assert user is not None
+            return user, True
 
-        user = await self.create(
-            session,
-            telegram_id=telegram_id,
-            first_name=first_name,
-            username=username,
-        )
-        return user, True
+        # Row already existed — fetch it. Safe because telegram_id is unique.
+        existing = await session.execute(sa.select(User).where(User.telegram_id == telegram_id))
+        return existing.scalar_one(), False
 
     async def mark_free_question_used(self, session: AsyncSession, user_id: uuid.UUID) -> None:
         await session.execute(

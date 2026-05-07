@@ -21,7 +21,7 @@ from bot.keyboards import (
 )
 from bot.services.birth_datetime import resolve as resolve_birth_datetime
 from bot.services.geocoding import search_cities
-from bot.services.menu import send_main_menu
+from bot.services.menu import GREETING_AFTER_NAMING, send_main_menu
 from bot.states import BirthDataForm
 from calculator import calculate_chart
 from calculator.models import ChartInput, ChartOutput
@@ -135,6 +135,21 @@ async def _consume_buttons(callback: CallbackQuery) -> None:
         logger.debug("consume_buttons.skip", error=str(exc), exc_type=type(exc).__name__)
 
 
+async def _swallow_user_message(message: Message) -> None:
+    """Delete the user's text input so the chat shows only the bot's
+    edit-in-place anchor. Telegram silently rejects deletes older than 48h
+    or without delete-message permission — those failures are logged at
+    debug level and ignored."""
+    try:
+        await message.delete()
+    except Exception as exc:
+        logger.debug(
+            "swallow_user_message.skip",
+            error=str(exc),
+            exc_type=type(exc).__name__,
+        )
+
+
 async def _step(
     *,
     bot: Bot,
@@ -218,6 +233,7 @@ async def handle_calc(callback: CallbackQuery, state: FSMContext, bot: Bot) -> N
 @birth_data_router.message(BirthDataForm.waiting_date, F.text)
 async def handle_date(message: Message, state: FSMContext, bot: Bot) -> None:
     text = message.text or ""
+    await _swallow_user_message(message)
     parsed = _parse_birth_date(text)
     if parsed is None:
         await _step(
@@ -259,6 +275,7 @@ async def handle_date(message: Message, state: FSMContext, bot: Bot) -> None:
 @birth_data_router.message(BirthDataForm.waiting_time, F.text)
 async def handle_time(message: Message, state: FSMContext, bot: Bot) -> None:
     text = message.text or ""
+    await _swallow_user_message(message)
     parsed = _parse_birth_time(text)
     if parsed is None:
         await _step(
@@ -312,6 +329,7 @@ async def handle_time_skip(callback: CallbackQuery, state: FSMContext, bot: Bot)
 @birth_data_router.message(BirthDataForm.waiting_city, F.text)
 async def handle_city(message: Message, state: FSMContext, bot: Bot) -> None:
     query = (message.text or "").strip()
+    await _swallow_user_message(message)
     candidates = await search_cities(query, limit=3)
     if not candidates:
         await _step(
@@ -616,6 +634,7 @@ async def handle_naming_input(
     bot: Bot,
 ) -> None:
     name = (message.text or "").strip()
+    await _swallow_user_message(message)
     if not name:
         return
     data = await state.get_data()
@@ -628,7 +647,7 @@ async def handle_naming_input(
     await _chart_repo.update_name(session, _uuid.UUID(raw_id), name)
     await _step(bot=bot, chat_id=message.chat.id, state=state, text=NAME_SAVED.format(name=name))
     await state.clear()
-    await send_main_menu(message, user, session, state=state)
+    await send_main_menu(message, user, session, state=state, greeting=GREETING_AFTER_NAMING)
 
 
 @birth_data_router.callback_query(BirthDataForm.naming, F.data == "name:skip")
@@ -642,7 +661,9 @@ async def handle_naming_skip(
     if isinstance(callback.message, Message):
         await _step(bot=bot, chat_id=callback.message.chat.id, state=state, text=NAME_SKIPPED)
         await state.clear()
-        await send_main_menu(callback.message, user, session, state=state)
+        await send_main_menu(
+            callback.message, user, session, state=state, greeting=GREETING_AFTER_NAMING
+        )
     await callback.answer()
 
 

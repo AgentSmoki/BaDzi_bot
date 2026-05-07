@@ -55,13 +55,21 @@ def test_svg_wuxing_wheel_has_icons_arrows_and_emoji_overlay() -> None:
     """Pentagon must emit:
     - 5 `<use xlink:href="#ic-...">` references (one per element, always-visible
       SVG icon underneath the emoji);
-    - 5 generation arrows around the perimeter + 1 in the legend;
-    - 5 control arrows across the inner star + 1 in the legend;
-    - exactly one emoji marked as `wuxing-emoji-dm` (the day master)."""
+    - 5 generation arrowheads around the perimeter + 1 in the legend;
+    - 5 control arrowheads across the inner star + 1 in the legend;
+    - 5 generation gradients + 5 control gradients (one inline gradient per
+      arrow, painting the stroke as a colour transition between elements);
+    - exactly one emoji marked as `wuxing-emoji-dm` (the day master).
+
+    Arrowheads are <polygon> elements with explicit rotate() — markers
+    were removed because CairoSVG ignores ``orient="auto"`` and ends up
+    pointing every head to the right (see git history in ai/svg_renderer.py)."""
     svg = render_chart_svg(_anastasia_chart())
     assert svg.count('xlink:href="#ic-') == 5
-    assert svg.count('marker-end="url(#gen-arrow)"') == 6
-    assert svg.count('marker-end="url(#ctrl-arrow)"') == 6
+    assert svg.count('class="arrow-tip-gen"') == 6
+    assert svg.count('class="arrow-tip-ctrl"') == 6
+    assert svg.count('id="gen-grad-') == 5
+    assert svg.count('id="ctrl-grad-') == 5
     assert 'class="wuxing-emoji wuxing-emoji-dm"' in svg
 
 

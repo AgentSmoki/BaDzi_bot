@@ -1,0 +1,102 @@
+"""Per-user dialogue history backed by Redis.
+
+Layout: each user gets a Redis list at key ``chat:{user_id}:history``
+with one JSON-encoded message per element (LPUSH front, LTRIM tail).
+TTL is reset on every write so an active conversation never expires
+mid-session, while idle ones drop out after 24h.
+
+The store is pure infrastructure — it doesn't know about Anastasia,
+the calculator, or routing. The orchestrator/composer (1.8.6) decides
+which messages get persisted and in what order. Typically: every
+user turn AND every assistant reply.
+"""
+
+from __future__ import annotations
+
+import json
+import time
+from typing import Final
+
+import redis.asyncio as redis_async
+import structlog
+
+from ai.orchestrator import ChatMessage
+from bot.config import get_settings
+
+logger = structlog.get_logger(__name__)
+
+HISTORY_TTL_SECONDS: Final = 24 * 60 * 60
+HISTORY_MAX_MESSAGES: Final = 20
+HISTORY_KEY_PREFIX: Final = "chat:"
+HISTORY_KEY_SUFFIX: Final = ":history"
+
+
+def _key(user_id: int) -> str:
+    return f"{HISTORY_KEY_PREFIX}{user_id}{HISTORY_KEY_SUFFIX}"
+
+
+class HistoryStore:
+    """Async Redis-backed history. Construct once per process; share
+    across handlers via dependency injection (db_session-style middleware
+    in the bot)."""
+
+    def __init__(self, client: redis_async.Redis) -> None:
+        self._r = client
+
+    @classmethod
+    def from_settings(cls) -> HistoryStore:
+        """Convenience factory — connects to ``settings.redis_url``."""
+        settings = get_settings()
+        client: redis_async.Redis = redis_async.from_url(  # type: ignore[no-untyped-call]
+            settings.redis_url,
+            encoding="utf-8",
+            decode_responses=True,
+        )
+        return cls(client)
+
+    async def append(self, user_id: int, message: ChatMessage) -> None:
+        """Append one message to the user's history. Trims to the
+        last ``HISTORY_MAX_MESSAGES`` so memory pressure stays bounded
+        even on long conversations. TTL is refreshed on every write."""
+        payload = json.dumps(
+            {"role": message.role, "content": message.content, "ts": time.time()},
+            ensure_ascii=False,
+        )
+        key = _key(user_id)
+        # LPUSH so newest-first; LTRIM keeps the freshest N entries.
+        # EXPIRE inside the same pipeline = atomic refresh.
+        async with self._r.pipeline(transaction=True) as pipe:
+            pipe.lpush(key, payload)
+            pipe.ltrim(key, 0, HISTORY_MAX_MESSAGES - 1)
+            pipe.expire(key, HISTORY_TTL_SECONDS)
+            await pipe.execute()
+
+    async def get(self, user_id: int, *, limit: int = HISTORY_MAX_MESSAGES) -> list[ChatMessage]:
+        """Return the user's history oldest→newest, ready to splice
+        into a new request. Returns an empty list if there's nothing
+        cached or if the entry has expired."""
+        key = _key(user_id)
+        # LRANGE 0..N-1 is newest-first because we LPUSH; reverse for
+        # chronological order so the LLM reads like a transcript.
+        raw_items: list[str] = await self._r.lrange(key, 0, limit - 1)  # type: ignore[misc]
+        if not raw_items:
+            return []
+        messages: list[ChatMessage] = []
+        for raw in reversed(raw_items):
+            try:
+                data = json.loads(raw)
+                messages.append(ChatMessage(role=data["role"], content=data["content"]))
+            except (json.JSONDecodeError, KeyError, TypeError) as exc:
+                # Tolerate one bad entry without breaking the whole
+                # conversation — just log and skip.
+                logger.warning("history.skip_corrupt_entry", user_id=user_id, error=str(exc))
+                continue
+        return messages
+
+    async def clear(self, user_id: int) -> None:
+        """Drop the conversation. Used by /reset and admin commands."""
+        await self._r.delete(_key(user_id))
+
+    async def aclose(self) -> None:
+        """Idempotent shutdown — release the Redis connection pool."""
+        await self._r.aclose()

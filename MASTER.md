@@ -75,7 +75,7 @@ AI-бот в Telegram, который:
 | Компонент        | Технология                             |
 | ---------------- | -------------------------------------- |
 | AI провайдер     | OpenRouter API (единая точка)          |
-| Основная модель  | Kimi 2.6 (moonshotai/kimi-2.6)        |
+| Основная модель  | Kimi K2.6 (moonshotai/kimi-k2.6)      |
 | Резервная модель | Claude 3.5 Sonnet (anthropic)          |
 | Рендеринг карты  | Playwright (Headless Chrome HTML→PNG)  |
 | База знаний      | KuzuDB (embedded graph database)       |
@@ -287,31 +287,96 @@ BaDzi_bot/
 
 ## Прогресс разработки
 
-**Последний коммит:** `00354bc` (2026-05-07)
-**Тесты:** 369/369 ✓ покрытие 97%
-**Линтеры:** ruff ✓, ruff-format ✓, mypy strict ✓, pre-commit ✓
+**Последний коммит:** `47af9f9` (2026-05-07; HEAD на момент старта сессии)
+**Незакоммиченные изменения:** ⚠️ да — вся работа сессии 2026-05-07 (третья половина) + завершение 1.7 (1.7.9–1.7.11 + фикс стрелок У-син) ниже не закоммичена; если откроете новый диалог, **первым делом посмотрите `git status` и `git diff` чтобы не потерять контекст**.
+**Тесты:** 374/374 ✓ покрытие 98%
+**Линтеры:** ruff ✓, ruff-format ✓, mypy strict ✓ (53 файла)
 
-### ⚠️ Известные проблемы (на момент 2026-05-07, до фикса)
+### ✅ Сессия 2026-05-07 (пятая половина) — 2.1.6 закрыт + раздел 1.8 (AI Оркестратор) полностью
 
-После последней волны UX (`00354bc`) при живом тестировании в Telegram пользователь видит регрессии в карте:
+**2.1.6 — детерминированность калькулятора:** калькулятор сам по себе детерминирован (1000/1000 одинаковых результатов в одном процессе и между процессами). Все три «плавающих» комбинации в MASTER объяснены парой `(tz_offset, early_rat)` — DST-aware tz_offset для 1999 = 4.0, не 3.0; код через `bot/services/birth_datetime.resolve()` использует pytz, что корректно. Зафиксировано в [tests/unit/test_calculator/test_determinism.py](tests/unit/test_calculator/test_determinism.py) и [tests/unit/test_bot/test_birth_datetime.py](tests/unit/test_bot/test_birth_datetime.py).
 
-1. **Emoji в круге У-син не отображаются.** На локальном `cairosvg.svg2png()` (macOS) Apple Color Emoji 🌳🔥⛰⚙💧 рендерятся в цвете — это подтверждено выводом в `/tmp/v8.png`. Но в полученной из бота карте у пользователя они отсутствуют либо рисуются как пустые. **Гипотезы:**
-   - Кэш Jinja2 шаблонов не обновился — бот мог не подхватить новый `chart.svg.j2` без рестарта (хотя бот рестартовали).
-   - У пользователя другой запуск/инстанс бота, где emoji-шрифт не доступен.
-   - При вызове через `asyncio.to_thread` контекст шрифтов отличается от прямого вызова.
-   - Проверить: запустить рендер из бота с дампом SVG в файл, сравнить с прямым вызовом.
-2. **«Расположение шрифтов съехало».** Полоса «Господин дня» / соседние блоки по словам пользователя выглядят неаккуратно (вероятно: позиционирование `dm-stem-big` поехало после увеличения карты до 1400 px, либо новый шрифт не подхватывается). Нужны свежие скриншоты в новом диалоге.
-3. **Чат может всё ещё накапливаться** на некоторых путях. `_step` редактирует FSM-якорь, но нужно проверить:
-   - Что после photo (handle_confirm_calc) `fsm_msg_id=None` корректно сбрасывается перед naming-промптом.
-   - Что после `state.clear()` в `handle_naming_*` следующий `send_main_menu(state=state)` правильно заводит новый якорь.
-   - Что повторный `/start` не пытается отредактировать сообщение из прошлой сессии (state очищается, ОК).
-4. **Удаление дублей карт уже работает** в `list_unique_by_user`, но нужно подтвердить визуально: после повторного создания идентичной карты в «Мои карты» виден только один экземпляр.
+**Раздел 1.8 (AI Оркестратор) — все 6 подзадач закрыты:**
 
-**Точки входа для отладки:**
-- `ai/svg_renderer.py` — `_build_context` + `_wuxing_wheel`
-- `web/templates/chart.svg.j2` — секция wuxing wheel + `.dm-stem-big` в strip
-- `bot/routers/birth_data.py` — `_step` helper и FSM-msg_id треккинг
-- Прямой тест: `python -c "from ai.svg_renderer import render_chart_png ..."` + сравнение с `bot.main` runtime-выводом
+| Подзадача | Файл | Содержание | Тестов |
+|-----------|------|-----------|--------|
+| 1.8.1 | [ai/orchestrator.py](ai/orchestrator.py) | httpx async, ChatMessage/Result, RateLimit/Upstream/Orchestrator errors, lazy singleton, structlog telemetry | 15 |
+| 1.8.2 | [ai/prompts/](ai/prompts/) | 39k anastasia_system.md + lru_cache loader | 4 |
+| 1.8.3 | [ai/router.py](ai/router.py) | simple/normal/complex с cyrillic word-boundary матчингом | 17 |
+| 1.8.4 | [ai/context.py](ai/context.py) | Redis history, TTL 24h, max 20 msgs, bounded | 8 |
+| 1.8.5 | [ai/fallback.py](ai/fallback.py) | Kimi → Claude на 429/5xx | 6 |
+| 1.8.6 | [ai/temporal_context.py](ai/temporal_context.py) | chart_block + current bazi + compose_messages | 9 |
+
+**Live-валидация на reference карте** (12.09.1999 23:55 Волжский):
+- latency 55s · cost $0.028 · completion 2870 tokens (включая reasoning)
+- Опознан 丁 Дин-огонь, Косая Печать в дне+часе, такт 乙亥 (2018-2028)
+- Стиль выдержан (тёплый, без !), тексту хватает 8192 max_tokens
+
+**Конфиг изменён:** `DEFAULT_LLM_MODEL=moonshotai/kimi-k2.6` (thinking), `LLM_TIMEOUT=420`, `MAX_OUTPUT_TOKENS=8192`. Дубли в `.env` починены. Per-file ignores RUF001/002/003 для `ai/` и `tests/test_ai|test_bot/` (русские keywords/промты — намеренно).
+
+**Стек:** ruff ✓, mypy strict ✓ (59 файлов), pytest **442/442** ✓ покрытие 98.21%.
+
+### ✅ Сессия 2026-05-07 (четвёртая половина) — закрытие раздела 1.7 (Wave A → done)
+
+**Что сделано в этом блоке:**
+
+| # | Задача | Файлы | Содержание |
+|---|--------|-------|------------|
+| 1 | **Fix arrows У-син** | [ai/svg_renderer.py](ai/svg_renderer.py), [web/templates/chart.svg.j2](web/templates/chart.svg.j2) | DM имеет halo radius 54 (а не 36) — стрелки начинаются/заканчиваются с pad от halo, не от disc. Маркеры укрупнены (gen 14×11, ctrl 12×10) — направление читается. Bulge_ctrl 14→8 — звезда из контрольных дуг чище. |
+| 2 | **1.7.9 ProcessPoolExecutor** | [ai/_render_pool.py](ai/_render_pool.py) (new), [ai/svg_renderer.py](ai/svg_renderer.py), [ai/card_renderer.py](ai/card_renderer.py) | Lazy pool, размер `RENDER_POOL_SIZE` env или `cpu_count() // 2`. Async-фасад `render_chart_png_async()`. `card_renderer.render_chart_png` теперь идёт через pool. `close_browser()` шатдаунит pool. |
+| 3 | **1.7.11 Benchmark** | [scripts/bench_render.py](scripts/bench_render.py) (new), [doc/benchmarks/render.md](doc/benchmarks/render.md) (new) | Sequential vs pool на эталонной карте, N=50/200. На 4-core хосте pool=4 даёт 2× rps на N=200 (5.1 vs 2.5). |
+| 4 | **1.7.10 Drop Playwright** | [pyproject.toml](pyproject.toml), [Dockerfile](Dockerfile), [ai/card_renderer.py](ai/card_renderer.py), [bot/config.py](bot/config.py), [.cursor/rules/vision.mdc](.cursor/rules/vision.mdc), `web/templates/chart.html` (deleted) | `playwright==1.52.0` снят. Chromium-libs (libnss3, libatk*, libxkb…) убраны из Dockerfile (-150 MB образа). `card_renderer.py` сжат до wrapper'а вокруг `render_chart_png_async`. ADR-003 помечен superseded, ADR-007 → status: реализовано полностью. |
+
+**Линтеры/тесты после блока:** ruff ✓ (53 файла), mypy strict ✓, pytest 374/374 ✓ покрытие 98.21%.
+
+**Итог по разделу 1.7:** все пункты `[x]` (1.7.1, 1.7.2, 1.7.4, 1.7.6, 1.7.7, 1.7.8, 1.7.9, 1.7.10, 1.7.11). Открыты только 1.7.3 (PNG → Yandex S3) и 1.7.5 (Pillow fallback) — корректно отложены в 1.16 production deploy.
+
+### ✅ Сессия 2026-05-07 (третья половина) — фикс визуальных регрессий + overhaul раскладки
+
+**Бот сейчас:** запущен локально (PID 88772, см. `ps aux | grep bot.main`) с `BAZI_DEBUG_DUMP_SVG=1` — каждый рендер пишет SVG в `/tmp/last_chart.svg` для отладки. Старые карты пользователя удалены из БД для чистого ре-теста.
+
+#### Закрытые баги
+
+| # | Что починили | Файл | Решение |
+|---|--------------|------|---------|
+| 1 | **Эмодзи 🌳🔥⛰⚙💧 в У-син не отображаются у пользователя** (хотя на macOS прямой `cairosvg.svg2png()` рендерил ОК) | [web/templates/chart.svg.j2](web/templates/chart.svg.j2) | Overlay-стратегия: под каждым эмодзи всегда лежит цветной диск (`circle.el-bg-{el}`) + белая SVG-иконка `<use xlink:href="#ic-{el}">`. Если эмодзи-шрифт сработал — закроет иконку; если нет (⛰/⚙ text-presentation, или Pango в `asyncio.to_thread` не нашёл колор-fallback) — иконка видна. |
+| 2 | **Hidden stems во всех 4 столпах пустые** | то же | Та же шрифтовая проблема. После overlay-фикса + регрессионного теста подтверждено что SVG содержит 6 hidden-stem `<text>` для эталонной карты. |
+| 3 | **Стрелки порождения/контроля не отображаются** | [web/templates/chart.svg.j2](web/templates/chart.svg.j2), [ai/svg_renderer.py](ai/svg_renderer.py) | Прямые `<line>` заменены на `<path d="M ... Q cx,cy ...">` (квадратичные дуги Безье); порождение бовает наружу, контроль вовнутрь. Inline `<linearGradient>` per arrow красит штрих от цвета source-элемента к target. Каллиграфические teardrop-marker'ы (`gen-arrow`, `ctrl-arrow`). Эталон в `/tmp/v15-arrows.png`. |
+| 4 | **Race condition в `UserMiddleware.get_or_create`** — два параллельных `/start` валились с `UniqueViolationError: users_telegram_id_key` | [db/repositories/user_repo.py](db/repositories/user_repo.py) | Переписано на Postgres-specific upsert: `INSERT ... ON CONFLICT (telegram_id) DO NOTHING RETURNING id`. Если строка существовала — fallback SELECT. Старый `SELECT FOR UPDATE SKIP LOCKED + INSERT` снят как небезопасный (skip_locked позволял second handler пропустить лок и снова INSERT). |
+| 5 | **Сообщения пользователя остаются в чате** (хотел: ввёл `12091999` → исчезло, остался только bot anchor с следующим шагом) | [bot/routers/birth_data.py](bot/routers/birth_data.py) | Добавлен helper `_swallow_user_message(message)`, вызывается в `handle_date`/`handle_time`/`handle_city`/`handle_naming_input` сразу после извлечения текста. Telegram silently rejects deletes старше 48h или без permission — обрабатывается через `try/except` с debug-логом. |
+| 6 | **Раскладка перекомпонована**: «Господин дня» был широкой полоской на всю ширину (1120px), пользователь хотел узкий слева + У-син шире | [web/templates/chart.svg.j2](web/templates/chart.svg.j2) | ГД-карточка 300×440 слева, У-СИН-карточка 800×440 справа (увеличены отступы между элементами: radius 100→130, label_dist 145→180), Balance 1120×220 ниже с воздухом между строк. Канвас 1200×1400 без изменений. |
+| 7 | **Top role-label «Личность, друзья» наезает на DM-эмодзи** | [ai/svg_renderer.py](ai/svg_renderer.py) `_wuxing_wheel` | `label_cy -= 22` (было `-= 8`) — top label получает дополнительный 14-px зазор. Pentagon center в карточке at y=255 (внутри 440-tall card), геометрия проверена: top label visual top at y=43 (под header «ЦИКЛ У-СИН» на y=32), bottom labels visual bottom at y=403 (margin 37px от bottom card border). |
+| 8 | **Текст «С возвращением, Богдан…» сразу после naming** | [bot/services/menu.py](bot/services/menu.py), [bot/routers/birth_data.py](bot/routers/birth_data.py) | Добавлена константа `GREETING_AFTER_NAMING = "Что планируете дальше?"`. `send_main_menu(..., greeting=...)` теперь принимает override. `handle_naming_input`/`handle_naming_skip` передают этот override. |
+| 9 | **Регрессионных тестов рендерера не было** | [tests/unit/test_ai/test_svg_renderer.py](tests/unit/test_ai/test_svg_renderer.py) | 5 snapshot-тестов на эталонной карте Анастасии: hidden_stems непустые, 5 SVG-иконок + 5 gen-gradients + 5 ctrl-gradients + 6+6 marker-end (5 в пентагоне + 1 в легенде), xlink-namespace объявлен, `render_chart_png` возвращает валидный PNG-header, элементы получают цветовой класс. |
+
+#### Диагностический инструмент
+
+**`BAZI_DEBUG_DUMP_SVG=1`** в [ai/svg_renderer.py:144-147](ai/svg_renderer.py#L144) — env-flag, при котором каждый рендер пишет последний SVG в `/tmp/last_chart.svg`. Без переменной — поведение не меняется. Использовался в этой сессии чтобы доказать что бот генерирует структурно-корректный SVG (и проблема была именно в шрифтовом рендере).
+
+#### Backlog (новое)
+
+**🔥 [tasks.md](tasks.md) пункт 2.1.6 — недетерминированность калькулятора.** При прогоне `calculate_chart()` на одинаковом `ChartInput` (12.09.1999 23:55 Волжский UTC+3, female) выдаёт **разные пиллары**: `辛亥/丁卯/癸酉/己卯`, `壬子/戊辰/癸酉/己卯`, или канонические `庚子/丁亥/癸酉/己卯` (MASTER.md эталон). Описаны 6 гипотез причин (глобальное состояние pyswisseph, Цзе Ци border, early_rat, DST в Волжский 1999, кэш timezonefinder, конкурентный геокодер) и план отладки. **Когда возьмёмся:** сразу после Wave A полностью закроется (live-проверка раскладки + стрелок), но **до 1.8 AI оркестратора** — без воспроизводимого расчёта запускать AI-консультации бессмысленно (карта может между двумя вопросами поменяться).
+
+#### Остаются на следующую сессию
+
+1. **Live-проверка свежей раскладки и стрелок** в Telegram. Бот уже перезапущен с фиксами (PID 88772). Сделать /start от @Bogman108, добавить новую карту, подтвердить что:
+   - Введённые сообщения пользователя `12091999`/`2355`/`Волжский` исчезают (фикс 5);
+   - В пентагоне видны изогнутые стрелки с градиентом по элементам (фикс 3);
+   - После имени бот пишет «Что планируете дальше?» вместо «С возвращением» (фикс 8);
+   - Двойной /start не падает (фикс 4).
+2. **Закоммитить эту сессию.** Логические группы: (a) рендер + раскладка + тесты; (b) FSM swallow + race-fix; (c) docs (MASTER + tasks). Можно одним коммитом или тремя — на ваш вкус.
+3. **Калькулятор 2.1.6** — фикс недетерминированности (см. backlog выше).
+4. После — **раздел 1.8 «AI Оркестратор» (Wave B)**: orchestrator/router/context/fallback/temporal-context. Подробнее в [tasks.md](tasks.md#1.8) и в секции «🔜 Следующая сессия».
+
+**Точки входа для отладки и продолжения:**
+- [ai/svg_renderer.py](ai/svg_renderer.py) — `_build_context`, `_wuxing_wheel` (radius 130, label_dist 180, bezier arcs); `BAZI_DEBUG_DUMP_SVG=1` для дампа.
+- [web/templates/chart.svg.j2](web/templates/chart.svg.j2) — раскладка ГД-узкий-слева + У-СИН-широкий-справа + Balance-расширенный; inline `<linearGradient>` per arrow.
+- [bot/routers/birth_data.py](bot/routers/birth_data.py) — FSM с `_swallow_user_message` и `GREETING_AFTER_NAMING`.
+- [bot/services/menu.py](bot/services/menu.py) — `send_main_menu(greeting=...)`.
+- [db/repositories/user_repo.py](db/repositories/user_repo.py) — `get_or_create` через `pg_insert(...).on_conflict_do_nothing(...)`.
+- [tests/unit/test_ai/test_svg_renderer.py](tests/unit/test_ai/test_svg_renderer.py) — snapshot-тесты эталонной карты.
+- `/tmp/last_chart.svg` — последний рендер из бота (если был запуск с `BAZI_DEBUG_DUMP_SVG=1`).
+- `/tmp/v15-arrows.png` — последний эталонный рендер прямой генерации.
 
 ### ✅ Сессия 2026-05-07 (вторая половина) — Wave A: карта v2 + UX bundle
 
@@ -383,12 +448,15 @@ BaDzi_bot/
 
 ### 🔜 Следующая сессия — стартовать с
 
-**Сначала — пофиксить регрессии визуала** (см. «Известные проблемы» выше):
-1. Воспроизвести проблему с emoji в карте: получить SVG-дамп от runtime-бота, сравнить с прямым `cairosvg.svg2png()`.
-2. Проверить расположение шрифтов в полосе «Господин дня» после изменений 1400-px холста.
-3. Live-тест полного потока с свежими скриншотами от пользователя.
+**0. Подобрать незакоммиченную работу.** Сессия 2026-05-07 (третья половина) НЕ закоммичена — `git status` покажет правки в `ai/svg_renderer.py`, `web/templates/chart.svg.j2`, `bot/routers/birth_data.py`, `bot/services/menu.py`, `db/repositories/user_repo.py`, `tests/unit/test_ai/test_svg_renderer.py`, `MASTER.md`, `tasks.md`. Прочитать секцию «Сессия 2026-05-07 (третья половина)» выше — там вся карта правок.
 
-**После фикса — раздел 1.8 «AI Оркестратор» (Wave B):**
+**1. Live-проверка фиксов в Telegram.** Бот запущен (PID 88772 на момент закрытия сессии) с `BAZI_DEBUG_DUMP_SVG=1`. Старые карты юзера 545371253 удалены из БД. Сделать /start, проверить пункты из чек-листа в «Остаются на следующую сессию».
+
+**2. Закоммитить сессию** (если live-тест ОК). Логические группы перечислены выше.
+
+**3. Калькулятор 2.1.6 — недетерминированность.** **Это блокер для AI-оркестратора:** запускать LLM-консультации поверх нестабильного calculate_chart() бессмысленно. См. tasks.md → 2.1.6.
+
+**После 2.1.6 — раздел 1.8 «AI Оркестратор» (Wave B):**
 - [ ] **1.8.1** `ai/orchestrator.py` — OpenRouter клиент (httpx async)
 - [ ] **1.8.2** Скопировать промпт Анастасии в `ai/prompts/anastasia_system.md`
 - [ ] **1.8.3** `ai/router.py` — семантический маршрутизатор (simple/normal/complex)
@@ -404,11 +472,13 @@ BaDzi_bot/
 
 ### 🧭 Что читать первым при возобновлении
 
-1. **MASTER.md** (этот файл) — общий статус и прогресс.
-2. **[tasks.md](tasks.md)** — backlog с `[x]` отметками выполненных задач.
-3. **[.cursor/rules/vision.mdc](.cursor/rules/vision.mdc)** + **[conventions.mdc](.cursor/rules/conventions.mdc)** + **[workflow.mdc](.cursor/rules/workflow.mdc)** — обязательное чтение перед бизнес-кодом.
-4. **doc/research/** — справочники по Бацзы для дальнейших задач калькулятора.
-5. `git log --oneline -10` — последние коммиты для быстрой ориентации.
+1. **`git status` + `git diff --stat`** — увидеть незакоммиченные правки сессии 2026-05-07 (третья половина). HEAD = `47af9f9`, но рабочее дерево содержит фиксы из последней сессии.
+2. **MASTER.md** (этот файл) — общий статус, прогресс, секция «Сессия 2026-05-07 (третья половина)» с разбором каждой правки.
+3. **[tasks.md](tasks.md)** — backlog с `[x]` отметками + новый пункт **2.1.6 КРИТИЧНО** про недетерминированность калькулятора.
+4. **`/tmp/last_chart.svg` и `/tmp/v15-arrows.png`** — последний рендер из бота (если бот всё ещё запущен) и последний эталон прямой генерации.
+5. **[.cursor/rules/vision.mdc](.cursor/rules/vision.mdc)** + **[conventions.mdc](.cursor/rules/conventions.mdc)** + **[workflow.mdc](.cursor/rules/workflow.mdc)** — обязательное чтение перед бизнес-кодом.
+6. **doc/research/** — справочники по Бацзы для дальнейших задач калькулятора.
+7. `git log --oneline -10` — последние коммиты для быстрой ориентации.
 
 ---
 

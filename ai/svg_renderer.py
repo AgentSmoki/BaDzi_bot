@@ -5,8 +5,14 @@ headless browser, no Chromium, no fonts loaded over the network — the
 template references system CJK fonts (PingFang SC on macOS, Noto Sans SC
 on Linux Docker) and falls back to serif if neither is available.
 
-This module is the primary path; ai/card_renderer.py keeps a Playwright
-fallback for the duration of the migration (ADR-007).
+Primary entry points:
+- ``render_chart_png`` / ``render_chart_svg`` — synchronous, suitable
+  for tests, scripts, and pool workers.
+- ``render_chart_png_async`` — schedules the sync render in the shared
+  ProcessPoolExecutor (ai/_render_pool.py); use this from handlers.
+
+Per ADR-007 this is the only render path — the Playwright fallback was
+retired in 1.7.10.
 """
 
 import math
@@ -161,6 +167,16 @@ def render_chart_svg(req: RenderRequest) -> str:
     return svg
 
 
+async def render_chart_png_async(req: RenderRequest, *, scale: float = 1.0) -> bytes:
+    """Async wrapper that runs ``render_chart_png`` in the shared
+    ProcessPoolExecutor. Use this from the bot/web handlers — the sync
+    function is only meant for tests, scripts, and pool workers."""
+    from ai._render_pool import run_in_pool
+
+    result: bytes = await run_in_pool(render_chart_png, req, scale=scale)
+    return result
+
+
 def _build_context(req: RenderRequest) -> dict[str, object]:
     chart = req.chart
     # Always render four columns. Hour pillar becomes a muted placeholder when
@@ -263,6 +279,56 @@ _ELEMENT_EMOJI: Final[dict[str, str]] = {
     "metal": "⚙",
     "water": "💧",
 }
+# Element colours mirror the .el-{el} CSS rules so the arrow gradients
+# transition smoothly from one element's signature colour into the next.
+_ELEMENT_COLOR: Final[dict[str, str]] = {
+    "wood": "#5fa86a",
+    "fire": "#d04a3a",
+    "earth": "#a06030",
+    "metal": "#7a8190",
+    "water": "#3a78c4",
+}
+
+
+def _tip_path(
+    end_x: float,
+    end_y: float,
+    tux: float,
+    tuy: float,
+    pux: float,
+    puy: float,
+    *,
+    length: float,
+    half_w: float,
+    concavity: float = 0.32,
+) -> str:
+    """Return an SVG ``d`` attribute for a calligraphic-brush arrowhead.
+
+    Long, narrow triangle (tip at ``(end_x, end_y)``, base offset
+    *length* px backward along the tangent and spread ``half_w`` px to
+    either side) with quadratic-Bezier *concave* sides. The
+    ``concavity`` factor pulls each side's mid-point toward the
+    arrowhead's centre axis by ``concavity * half_w`` — that's what
+    gives the silhouette the swept-in look of a Chinese ink-brush
+    stroke instead of a generic triangle.
+    """
+    base_cx = end_x - length * tux
+    base_cy = end_y - length * tuy
+    bl_x = base_cx + half_w * pux
+    bl_y = base_cy + half_w * puy
+    br_x = base_cx - half_w * pux
+    br_y = base_cy - half_w * puy
+    inset = concavity * half_w
+    mid_left_x = (end_x + bl_x) / 2 - inset * pux
+    mid_left_y = (end_y + bl_y) / 2 - inset * puy
+    mid_right_x = (end_x + br_x) / 2 + inset * pux
+    mid_right_y = (end_y + br_y) / 2 + inset * puy
+    return (
+        f"M {end_x:.1f},{end_y:.1f} "
+        f"Q {mid_left_x:.1f},{mid_left_y:.1f} {bl_x:.1f},{bl_y:.1f} "
+        f"L {br_x:.1f},{br_y:.1f} "
+        f"Q {mid_right_x:.1f},{mid_right_y:.1f} {end_x:.1f},{end_y:.1f} Z"
+    )
 
 
 def _wuxing_wheel(dm_class: str) -> dict[str, object]:
@@ -275,9 +341,9 @@ def _wuxing_wheel(dm_class: str) -> dict[str, object]:
       whichever element the day master is)
     - icon_radius: radius of the element circle, exposed for the template
     """
-    radius = 100
+    radius = 130
     icon_radius = 36
-    label_dist = 145
+    label_dist = 180
 
     dm_idx = _GENERATION_ORDER.index(dm_class)
     cycle = list(_GENERATION_ORDER[dm_idx:]) + list(_GENERATION_ORDER[:dm_idx])
@@ -296,7 +362,9 @@ def _wuxing_wheel(dm_class: str) -> dict[str, object]:
 
         if i == 0:
             anchor = "middle"
-            label_cy -= 8  # sits cleanly above the top circle
+            # The top label sits above a 78px DM emoji on a 64px disc, so it
+            # needs a generous gap to avoid clipping into the glyph itself.
+            label_cy -= 22
         elif i in (1, 2):
             anchor = "start"
         else:
@@ -316,27 +384,98 @@ def _wuxing_wheel(dm_class: str) -> dict[str, object]:
             }
         )
 
-    def _segment(i: int, j: int, head_pad: int = 12) -> dict[str, float]:
-        """Vector from coords[i] to coords[j], shortened on both ends so it
-        starts/ends just outside the element circles, with extra room for an
-        arrowhead at the destination."""
+    # The day master sits inside a 54-px dashed halo (template draws it on
+    # top of the 36-px element disc); every other element only has its
+    # 32-px disc. Arrows have to clear the *visible* edge — including that
+    # halo — otherwise the arrowhead lands under the emoji and the eye
+    # can't tell which way energy is flowing.
+    dm_outer_radius = 54
+    other_outer_radius = 32
+
+    def _arc(
+        i: int, j: int, *, bulge: float, outward: bool, base_pad: int = 12
+    ) -> dict[str, object]:
+        """A quadratic-Bezier arc from element *i* to element *j*.
+
+        Endpoints are pulled back from each element's *outer* edge (54-px
+        halo around the day master, 32-px disc for the others) by
+        ``base_pad`` so the arrowhead lands clearly in empty canvas. The
+        control point is offset perpendicular to the chord so the curve
+        bows either *outward* (away from the pentagon centre — used by
+        the generation cycle along the perimeter) or *inward* (used by
+        the control cycle that crosses through the middle).
+
+        Returns the path's `d` attribute plus endpoint coordinates (so the
+        template can render an inline `<linearGradient>` aligned with the
+        arrow) and the source/destination element ids for stroke colours.
+        """
         sx, sy = coords[i]
         dx, dy = coords[j]
         vx, vy = dx - sx, dy - sy
         dist = math.sqrt(vx * vx + vy * vy) or 1.0
         ux, uy = vx / dist, vy / dist
+        src_outer = dm_outer_radius if cycle[i] == dm_class else other_outer_radius
+        dst_outer = dm_outer_radius if cycle[j] == dm_class else other_outer_radius
+        start_x = sx + ux * (src_outer + base_pad)
+        start_y = sy + uy * (src_outer + base_pad)
+        end_x = dx - ux * (dst_outer + base_pad)
+        end_y = dy - uy * (dst_outer + base_pad)
+        # Midpoint of the (shortened) chord
+        mx = (start_x + end_x) / 2
+        my = (start_y + end_y) / 2
+        # Offset midpoint along the radial direction (toward or away from
+        # pentagon centre at the origin) to bow the curve.
+        md = math.sqrt(mx * mx + my * my) or 1.0
+        nx, ny = mx / md, my / md
+        if not outward:
+            nx, ny = -nx, -ny
+        ctrl_x = mx + nx * bulge
+        ctrl_y = my + ny * bulge
+        # Tangent at end of a quadratic Bezier is parallel to (end - control).
+        tdx = end_x - ctrl_x
+        tdy = end_y - ctrl_y
+        tlen = math.hypot(tdx, tdy) or 1.0
+        # Unit tangent, plus its perpendicular (rotate 90° CCW in SVG
+        # coords, where +y is down).
+        tux, tuy = tdx / tlen, tdy / tlen
+        pux, puy = -tuy, tux
+        # Truncate the line stroke a few pixels into the arrowhead so the
+        # head fully overlaps the bow's tip — without this, a stroke wider
+        # than the head's silhouette pokes out the sides at the join.
+        line_trim = 6.0 if outward else 5.0
+        line_end_x = end_x - line_trim * tux
+        line_end_y = end_y - line_trim * tuy
+        path_d = (
+            f"M {start_x:.1f},{start_y:.1f} "
+            f"Q {ctrl_x:.1f},{ctrl_y:.1f} {line_end_x:.1f},{line_end_y:.1f}"
+        )
+        # Build the arrowhead as a calligraphic-brush <path> whose vertex
+        # coordinates are computed in Python — no SVG transforms, no
+        # markers (CairoSVG ignores orient="auto" and applies
+        # transform="rotate(...)" inconsistently on polygons/paths).
+        gen_d = _tip_path(end_x, end_y, tux, tuy, pux, puy, length=22, half_w=7.0)
+        ctrl_d = _tip_path(end_x, end_y, tux, tuy, pux, puy, length=18, half_w=5.5)
         return {
-            "x1": round(sx + ux * (icon_radius + 4), 1),
-            "y1": round(sy + uy * (icon_radius + 4), 1),
-            "x2": round(dx - ux * (icon_radius + head_pad), 1),
-            "y2": round(dy - uy * (icon_radius + head_pad), 1),
+            "d": path_d,
+            "x1": round(start_x, 1),
+            "y1": round(start_y, 1),
+            "x2": round(end_x, 1),
+            "y2": round(end_y, 1),
+            "tip_gen_d": gen_d,
+            "tip_ctrl_d": ctrl_d,
+            "src": cycle[i],
+            "dst": cycle[j],
+            "src_color": _ELEMENT_COLOR[cycle[i]],
+            "dst_color": _ELEMENT_COLOR[cycle[j]],
         }
 
-    # Generation cycle: pentagon perimeter, clockwise (Wood→Fire→Earth→Metal→Water)
-    arrows_gen = [_segment(i, (i + 1) % 5) for i in range(5)]
-    # Control cycle: skips one vertex, drawing the inner 5-pointed star
-    # (Wood→Earth→Water→Fire→Metal→Wood relative to the day master).
-    arrows_ctrl = [_segment(i, (i + 2) % 5) for i in range(5)]
+    # Generation cycle: pentagon perimeter, clockwise (Wood→Fire→Earth→Metal→Water).
+    # Bowed outward so the arcs trace the outer ring of energy flow.
+    arrows_gen = [_arc(i, (i + 1) % 5, bulge=22, outward=True) for i in range(5)]
+    # Control cycle: skips one vertex, drawing the inner 5-pointed star.
+    # Almost-straight chords (bulge=8 inward) so the star reads cleanly
+    # instead of a tangle of curves crossing the centre.
+    arrows_ctrl = [_arc(i, (i + 2) % 5, bulge=8, outward=False) for i in range(5)]
 
     return {
         "elements": elements,

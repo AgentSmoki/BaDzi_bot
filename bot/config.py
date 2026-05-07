@@ -28,10 +28,17 @@ class Settings(BaseSettings):
 
     # ── AI (OpenRouter) ───────────────────────────────────────────────────────
     openrouter_api_key: SecretStr
-    default_llm_model: str = "moonshotai/kimi-2.6"
+    # Kimi K2.6 is a *thinking* model: it spends a chunk of the
+    # output budget on internal reasoning before producing the user-
+    # facing answer. We pay for that reasoning in latency (10-60s)
+    # and tokens, but it gives noticeably deeper Bazi readings. Bot
+    # UX is built around this — the long llm_timeout below and the
+    # generous max_tokens budgets in ai/router.py both assume
+    # thinking-class costs.
+    default_llm_model: str = "moonshotai/kimi-k2.6"
     fallback_llm_model: str = "anthropic/claude-3.5-sonnet"
-    llm_timeout: int = 30
-    max_output_tokens: int = 4096
+    llm_timeout: int = 180
+    max_output_tokens: int = 8192
 
     # ── Swiss Ephemeris ───────────────────────────────────────────────────────
     swiss_ephemeris_path: Path = Path("/usr/share/swisseph")
@@ -64,8 +71,7 @@ class Settings(BaseSettings):
     admin_basic_auth_user: str = "admin"
     admin_basic_auth_password: SecretStr
 
-    # ── Playwright (card rendering) ───────────────────────────────────────────
-    playwright_timeout: int = 30000
+    # ── Card rendering ────────────────────────────────────────────────────────
     hieroglyphs_path: Path = Path("./assets/hieroglyphs")
 
     # ── Feature flags (initial values; runtime override via Redis) ────────────

@@ -16,6 +16,7 @@ from db.models import Chart, User
 from db.repositories.chart_repo import ChartRepository
 
 GREETING_RETURNING_USER = "С возвращением, {name}. Что вас интересует сегодня?"
+GREETING_AFTER_NAMING = "Что планируете дальше?"
 
 _chart_repo = ChartRepository()
 
@@ -44,6 +45,8 @@ async def send_main_menu(
     user: User,
     session: AsyncSession,
     state: FSMContext | None = None,
+    *,
+    greeting: str | None = None,
 ) -> None:
     """Drop the user back into the returning-user menu after some action
     (named a chart, came back from a sub-flow). Lists all their charts,
@@ -51,13 +54,18 @@ async def send_main_menu(
     of an otherwise identical chart, for example, doesn't earn its own
     button.
 
+    `greeting` overrides the default `GREETING_RETURNING_USER` prompt.
+    Pass `GREETING_AFTER_NAMING` from naming-completion handlers so the
+    user doesn't see the same return-greeting twice in a row.
+
     When `state` is given, the new message id is saved as the FSM anchor
     so the next inline button click can edit this card in place rather
     than appending another bubble below.
     """
     charts = await _chart_repo.list_unique_by_user(session, user.id)
+    text = greeting or GREETING_RETURNING_USER.format(name=user.first_name)
     sent = await message.answer(
-        GREETING_RETURNING_USER.format(name=user.first_name),
+        text,
         reply_markup=returning_user_kb(charts=charts_to_buttons(charts)),
     )
     if state is not None:
