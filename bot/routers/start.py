@@ -20,25 +20,31 @@ start_router = Router(name="start")
 _chart_repo = ChartRepository()
 
 GREETING_NEW_USER = (
-    "Здравствуй, {name}. Меня зовут Анастасия — я консультант по древнекитайской "
+    "Здравствуйте, {name}. Меня зовут Анастасия — я консультант по древнекитайской "
     "системе Ба Цзы.\n\n"
-    "Эта система читает карту твоего рождения как карту местности: показывает сильные "
+    "Эта система читает карту вашего рождения как карту местности: показывает сильные "
     "стороны, ритмы судьбы, благоприятные годы и узкие места.\n\n"
     "<blockquote>Мастер ЭдоХа:\n"
     "<i>БаЦзы — это наука о том как оказаться в нужное время, месте с правильными "
     "людьми.</i></blockquote>\n\n"
     "Расчёт карты и базовое прочтение бесплатно — я помогаю увидеть рисунок, "
-    "по которому идёт твоя жизнь.\n\n"
-    "Чтобы начать — укажи данные твоего рождения, которые помнишь: дата, время и город.\n\n"
+    "по которому идёт ваша жизнь.\n\n"
+    "Чтобы начать — укажите данные вашего рождения, которые помните: дата, время и город.\n\n"
     "Начнём?"
 )
 
-GREETING_RETURNING_USER = "С возвращением, {name}. Что тебя интересует сегодня?"
+GREETING_RETURNING_USER = "С возвращением, {name}. Что вас интересует сегодня?"
 
 
 def _format_chart_label(chart: Chart) -> str:
-    """User-set name wins; otherwise show day-master + date for quick recognition."""
-    if chart.name:
+    """User-set name wins; otherwise show day-master + date.
+
+    Legacy charts created before the naming flow had Chart.name auto-set to
+    the city's full address (e.g. "Волжский, Волгоградская область, Россия").
+    A name with commas almost certainly came from there, so treat it as
+    auto-generated and fall through to day-master + date for clarity.
+    """
+    if chart.name and "," not in chart.name:
         return chart.name
     date_str = chart.birth_datetime_original.strftime("%d.%m.%Y")
     day_master = chart.chart_data.get("day_master", "?") if chart.chart_data else "?"
@@ -54,7 +60,7 @@ def _format_chart_view(chart: Chart) -> str:
     balance = data.get("element_balance") or {}
     has_time = bool(chart.has_birth_time)
 
-    title = chart.name or _format_chart_label(chart)
+    title = _format_chart_label(chart)
     date_str = chart.birth_datetime_original.strftime("%d.%m.%Y")
     time_str = chart.birth_datetime_original.strftime("%H:%M") if has_time else "—"
 

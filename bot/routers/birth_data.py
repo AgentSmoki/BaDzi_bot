@@ -32,6 +32,8 @@ logger = structlog.get_logger(__name__)
 birth_data_router = Router(name="birth_data")
 
 YEAR_RE: Final[re.Pattern[str]] = re.compile(r"\b(18|19|20)\d{2}\b")
+# Packed numeric date — 8 digits, DDMMYYYY: 12091999 → 12.09.1999.
+PACKED_DATE_RE: Final[re.Pattern[str]] = re.compile(r"^\s*(\d{2})(\d{2})(\d{4})\s*$")
 # Permissive time separators: colon, dot, comma, dash, slash, space, "ч"/"h"
 TIME_RE: Final[re.Pattern[str]] = re.compile(r"^\s*(\d{1,2})\s*[:.,\-/\sчh]\s*(\d{2})\s*$")
 # 3 digits: HMM (e.g. 955 → 9:55). 4 digits: HHMM (e.g. 2355 → 23:55).
@@ -40,45 +42,45 @@ HOUR_ONLY_RE: Final[re.Pattern[str]] = re.compile(r"^\s*(\d{1,2})\s*[чh]?\s*$")
 MIN_YEAR: Final = 1900
 
 DATE_PROMPT = (
-    "Назови дату своего рождения.\n\n"
-    "Можно цифрами (15.07.1990, 1990-07-15) или словами (15 июля 1990)."
+    "Назовите дату вашего рождения.\n\n"
+    "Можно цифрами (15.07.1990, 1990-07-15, 15071990) или словами (15 июля 1990)."
 )
 DATE_INVALID = (
-    "Не разобрала «{text}». Можно цифрами (15.07.1990), словами (15 июля 1990) "
-    "или ISO (1990-07-15). Главное — год должен быть."
+    "Не разобрала «{text}». Можно цифрами (15.07.1990), словами (15 июля 1990), "
+    "ISO (1990-07-15) или сплошным числом (15071990). Главное — год должен быть."
 )
-DATE_FUTURE = "«{text}» — дата в будущем. Нужна твоя дата рождения."
+DATE_FUTURE = "«{text}» — дата в будущем. Нужна ваша дата рождения."
 DATE_TOO_OLD = (
     f"«{{text}}» раньше {MIN_YEAR} года — я с такими датами не работаю. "
-    "Проверь, правильно ли указан год."
+    "Проверьте, правильно ли указан год."
 )
 DATE_ACCEPTED = (
     "Принято: {formatted}.\n\n"
     "Теперь время рождения — час и минуты, например 14:30. "
-    "Если время неизвестно — нажми кнопку ниже."
+    "Если время неизвестно — нажмите кнопку ниже."
 )
 
 TIME_INVALID = (
     "Не разобрала «{text}». Можно так: 14:30, 14.30, 14,30, 14-30, 1430, или просто час: 14."
 )
-TIME_ACCEPTED = "Принято: {formatted}.\n\nНапиши свой город рождения:"
+TIME_ACCEPTED = "Принято: {formatted}.\n\nНапишите ваш город рождения:"
 TIME_SKIPPED = (
     "Хорошо. Без точного часа я анализирую только три столпа из четырёх — год, месяц "
     "и день. Столп часа в анализе не появится.\n\n"
-    "Напиши свой город рождения:"
+    "Напишите ваш город рождения:"
 )
 
-CITY_PROMPT = "Напиши свой город рождения:"
+CITY_PROMPT = "Напишите ваш город рождения:"
 CITY_NOT_FOUND = (
-    "Не нашла «{query}». Похоже на опечатку — проверь написание и попробуй ещё раз. "
+    "Не нашла «{query}». Похоже на опечатку — проверьте написание и попробуйте ещё раз. "
     "Можно с уточнением региона: «Тверь, Тверская область»."
 )
-CITY_CHOICES = "Нашла несколько вариантов — выбери свой:"
-CITY_ACCEPTED = "Принято: {name}.\n\nПоследний шаг — твой пол."
+CITY_CHOICES = "Нашла несколько вариантов — выберите свой:"
+CITY_ACCEPTED = "Принято: {name}.\n\nПоследний шаг — ваш пол."
 
-GENDER_PROMPT = "Выбери пол:"
+GENDER_PROMPT = "Выберите пол:"
 SUMMARY_TEMPLATE = (
-    "Проверь данные:\n\n"
+    "Проверьте данные:\n\n"
     "<b>Дата:</b> {date}\n"
     "<b>Время:</b> {time}\n"
     "<b>Город:</b> {city}\n"
@@ -102,25 +104,44 @@ CALC_RESULT_FOOTER = (
 CALC_FAILED = "Что-то пошло не так при расчёте. Попробуй ещё раз через /start."
 RESTART_PROMPT = "Хорошо, начинаем заново. " + DATE_PROMPT
 NAME_PROMPT = (
-    "Хочешь дать карте имя? Можно написать своё (например, «Я» или «Маша») "
+    "Хотите дать карте имя? Можно написать своё (например, «Я» или «Маша») "
     "или нажать «Пропустить» — тогда карта будет показываться как "
     "{day_master} {date}."
 )
 NAME_SAVED = "Сохранила: «{name}»."
 NAME_SKIPPED = "Хорошо, оставлю по умолчанию."
 
-EDIT_MENU_PROMPT = "Что хочешь поправить?"
+EDIT_MENU_PROMPT = "Что хотите поправить?"
 EDIT_PROMPTS = {
     "date": DATE_PROMPT,
-    "time": "Назови время рождения — например 14:30. Если не помнишь — нажми кнопку.",
+    "time": "Назовите время рождения — например 14:30. Если не помните — нажмите кнопку.",
     "city": CITY_PROMPT,
-    "gender": "Выбери пол:",
+    "gender": "Выберите пол:",
 }
 
 _chart_repo = ChartRepository()
 
 
+async def _consume_buttons(callback: CallbackQuery) -> None:
+    """Strip the inline keyboard from the message that triggered this callback
+    so the chat doesn't accumulate stale FSM-step buttons. Telegram refuses
+    to edit messages older than 48 hours or already-edited markup — that's
+    fine, log at debug level so the failure stays visible without spamming."""
+    if not isinstance(callback.message, Message):
+        return
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception as exc:
+        logger.debug("consume_buttons.skip", error=str(exc), exc_type=type(exc).__name__)
+
+
 def _parse_birth_date(text: str) -> date | None:
+    packed = PACKED_DATE_RE.match(text)
+    if packed is not None:
+        try:
+            return date(int(packed.group(3)), int(packed.group(2)), int(packed.group(1)))
+        except ValueError:
+            return None
     if not YEAR_RE.search(text):
         return None
     # DATE_ORDER=DMY: in en locale dateparser defaults to MM.DD.YYYY which is
@@ -159,6 +180,7 @@ def _parse_birth_time(text: str) -> time | None:
 
 @birth_data_router.callback_query(F.data == "menu:calc")
 async def handle_calc(callback: CallbackQuery, state: FSMContext) -> None:
+    await _consume_buttons(callback)
     await state.set_state(BirthDataForm.waiting_date)
     if isinstance(callback.message, Message):
         await callback.message.answer(DATE_PROMPT)
@@ -223,6 +245,7 @@ async def handle_time(message: Message, state: FSMContext) -> None:
 
 @birth_data_router.callback_query(BirthDataForm.waiting_time, F.data == "time:skip")
 async def handle_time_skip(callback: CallbackQuery, state: FSMContext) -> None:
+    await _consume_buttons(callback)
     await state.update_data(birth_time=None, has_birth_time=False)
     logger.info(
         "birth_data.time_skipped",
@@ -254,6 +277,7 @@ async def handle_city(message: Message, state: FSMContext) -> None:
 
 @birth_data_router.callback_query(BirthDataForm.waiting_city, F.data == "city:retry")
 async def handle_city_retry(callback: CallbackQuery, state: FSMContext) -> None:
+    await _consume_buttons(callback)
     await state.update_data(city_candidates=None)
     if isinstance(callback.message, Message):
         await callback.message.answer(CITY_PROMPT)
@@ -265,6 +289,7 @@ async def handle_city_choice(callback: CallbackQuery, state: FSMContext) -> None
     if not callback.data:
         await callback.answer()
         return
+    await _consume_buttons(callback)
     try:
         idx = int(callback.data.split(":", 1)[1])
     except ValueError:
@@ -313,6 +338,7 @@ async def handle_gender(callback: CallbackQuery, state: FSMContext) -> None:
     if value not in ("male", "female"):
         await callback.answer()
         return
+    await _consume_buttons(callback)
 
     await state.update_data(gender=value)
     logger.info(
@@ -342,6 +368,7 @@ async def _back_to_confirm(message: Message, state: FSMContext) -> None:
 
 @birth_data_router.callback_query(BirthDataForm.confirm, F.data == "edit:menu")
 async def handle_edit_menu(callback: CallbackQuery) -> None:
+    await _consume_buttons(callback)
     if isinstance(callback.message, Message):
         await callback.message.answer(EDIT_MENU_PROMPT, reply_markup=edit_menu_kb())
     await callback.answer()
@@ -349,6 +376,7 @@ async def handle_edit_menu(callback: CallbackQuery) -> None:
 
 @birth_data_router.callback_query(BirthDataForm.confirm, F.data == "edit:cancel")
 async def handle_edit_cancel(callback: CallbackQuery, state: FSMContext) -> None:
+    await _consume_buttons(callback)
     if isinstance(callback.message, Message):
         await _back_to_confirm(callback.message, state)
     await callback.answer()
@@ -356,6 +384,7 @@ async def handle_edit_cancel(callback: CallbackQuery, state: FSMContext) -> None
 
 @birth_data_router.callback_query(BirthDataForm.confirm, F.data == "edit:date")
 async def handle_edit_date(callback: CallbackQuery, state: FSMContext) -> None:
+    await _consume_buttons(callback)
     await state.set_state(BirthDataForm.waiting_date)
     if isinstance(callback.message, Message):
         await callback.message.answer(EDIT_PROMPTS["date"])
@@ -364,6 +393,7 @@ async def handle_edit_date(callback: CallbackQuery, state: FSMContext) -> None:
 
 @birth_data_router.callback_query(BirthDataForm.confirm, F.data == "edit:time")
 async def handle_edit_time(callback: CallbackQuery, state: FSMContext) -> None:
+    await _consume_buttons(callback)
     await state.set_state(BirthDataForm.waiting_time)
     if isinstance(callback.message, Message):
         await callback.message.answer(EDIT_PROMPTS["time"], reply_markup=time_step_kb())
@@ -372,6 +402,7 @@ async def handle_edit_time(callback: CallbackQuery, state: FSMContext) -> None:
 
 @birth_data_router.callback_query(BirthDataForm.confirm, F.data == "edit:city")
 async def handle_edit_city(callback: CallbackQuery, state: FSMContext) -> None:
+    await _consume_buttons(callback)
     await state.set_state(BirthDataForm.waiting_city)
     if isinstance(callback.message, Message):
         await callback.message.answer(EDIT_PROMPTS["city"])
@@ -380,6 +411,7 @@ async def handle_edit_city(callback: CallbackQuery, state: FSMContext) -> None:
 
 @birth_data_router.callback_query(BirthDataForm.confirm, F.data == "edit:gender")
 async def handle_edit_gender(callback: CallbackQuery, state: FSMContext) -> None:
+    await _consume_buttons(callback)
     await state.set_state(BirthDataForm.waiting_gender)
     if isinstance(callback.message, Message):
         await callback.message.answer(EDIT_PROMPTS["gender"], reply_markup=gender_kb())
@@ -414,6 +446,7 @@ def _format_summary(data: dict[str, str | float | bool | None]) -> str:
 
 @birth_data_router.callback_query(F.data == "fsm:restart")
 async def handle_fsm_restart(callback: CallbackQuery, state: FSMContext) -> None:
+    await _consume_buttons(callback)
     await state.clear()
     await state.set_state(BirthDataForm.waiting_date)
     if isinstance(callback.message, Message):
@@ -428,6 +461,7 @@ async def handle_confirm_calc(
     user: User,
     session: AsyncSession,
 ) -> None:
+    await _consume_buttons(callback)
     data = await state.get_data()
     try:
         result = await _calculate_and_persist(data, user=user, session=session)
@@ -491,6 +525,7 @@ async def handle_naming_input(message: Message, state: FSMContext, session: Asyn
 
 @birth_data_router.callback_query(BirthDataForm.naming, F.data == "name:skip")
 async def handle_naming_skip(callback: CallbackQuery, state: FSMContext) -> None:
+    await _consume_buttons(callback)
     await state.clear()
     if isinstance(callback.message, Message):
         await callback.message.answer(NAME_SKIPPED)
