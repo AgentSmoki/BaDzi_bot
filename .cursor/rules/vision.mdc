@@ -31,7 +31,8 @@ alwaysApply: true
 | AI fallback | Claude 3.5 Sonnet | Резервная модель |
 | Рендеринг карты | Playwright (Headless Chrome) | HTML/CSS → PNG, точные иероглифы из 24 PNG-ассетов |
 | Астрономия | pyswisseph + JPL DE431 | Точность < 0.001", TST, 24 сезона |
-| Геокодирование | geopy (Nominatim) + timezonefinder | Город → координаты → таймзона |
+| Геокодирование | Google → Yandex → Nominatim (через aiohttp) | Fuzzy для опечаток + IANA таймзона |
+| Таймзоны | Google TimeZone API + timezonefinder fallback | Точная IANA-зона по lat/lon |
 | Мониторинг | Langfuse (self-hosted) | LLM cost, latency, quality, traces |
 | Логирование | structlog | JSON-логи с trace_id |
 | Линтинг | ruff + mypy (strict) | Статическая типизация, форматирование |

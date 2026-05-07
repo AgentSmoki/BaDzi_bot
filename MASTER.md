@@ -5,8 +5,8 @@
 
 **Разработчик:** Богдан
 **Дата старта:** март 2026
-**Статус:** 🚧 Этап 2.1 завершён (2026-05-05), 369/369 тестов ✓ покрытие 98%
-**Версия документа:** 3.2
+**Статус:** 🚧 Разделы 1.5 и 1.6 закрыты (2026-05-07). Расчёт карты доступен из Telegram, end-to-end FSM собирает данные → Calculator → БД → ответ. 369/369 тестов ✓ покрытие 97%.
+**Версия документа:** 3.3
 
 ---
 
@@ -83,13 +83,13 @@ AI-бот в Telegram, который:
 
 ### Астрономическое ядро
 
-| Компонент        | Технология                          |
-| ---------------- | ----------------------------------- |
-| Swiss Ephemeris  | pyswisseph (JPL DE431)              |
-| Геокодирование   | geopy (Nominatim) + GeoNames        |
-| Таймзоны         | timezonefinder + TZ Database (IANA) |
-| DST история      | pytz                                |
-| Equation of Time | Jean Meeus / NOAA                   |
+| Компонент        | Технология                                                |
+| ---------------- | --------------------------------------------------------- |
+| Swiss Ephemeris  | pyswisseph (JPL DE431)                                    |
+| Геокодирование   | Google Geocoding → Yandex HTTP Geocoder → Nominatim chain |
+| Таймзоны         | Google TimeZone API + timezonefinder fallback (IANA)      |
+| DST история      | pytz                                                      |
+| Equation of Time | Jean Meeus / NOAA                                         |
 
 ### Инфраструктура и DevOps
 
@@ -276,9 +276,36 @@ BaDzi_bot/
 
 ## Прогресс разработки
 
-**Последний коммит:** `269c515` (2026-05-05)
-**Тесты:** 369/369 ✓ покрытие 98%
+**Последний коммит:** `ecbe1b8` (2026-05-07)
+**Тесты:** 369/369 ✓ покрытие 97%
 **Линтеры:** ruff ✓, ruff-format ✓, mypy strict ✓, pre-commit ✓
+
+### ✅ Сессия 2026-05-06 / 07 — разделы 1.5, 1.6 + калькулятор-фасад
+
+| Задача | Файлы | Коммит | Содержание |
+|--------|-------|--------|------------|
+| 1.5.1 | `bot/main.py` | `6a123b1` | Entry point: aiogram Bot + Dispatcher + RedisStorage для FSM, polling |
+| 1.5.2 | `bot/middlewares/db_session.py` | `c5e3705` | Инъекция `AsyncSession` через `session_scope()` |
+| 1.5.3 | `bot/middlewares/user_middleware.py` | `d662ab2` | `get_or_create` пользователя с FOR UPDATE SKIP LOCKED |
+| 1.5.4 | `bot/states.py` | `7e78a7e` | FSM `BirthDataForm` + `ConsultationState` |
+| 1.5.5 | `bot/keyboards/__init__.py` | `bbfcf88` | Inline-клавиатуры (главное меню, темы, тарифы) |
+| 1.6.1 | `bot/routers/start.py` | `2c1ad40` | `/start` с веткой по картам (Variant B), цитата мастера ЭдоХа |
+| 1.6.2 | `bot/routers/birth_data.py` | `afcee2b` | FSM шаг 1: дата (dateparser, DATE_ORDER=DMY) |
+| 1.6.3 | + | `23c0211` | FSM шаг 2: время с опцией «не знаю» |
+| 1.6.4 | `bot/services/geocoding.py` | `1d86fe2` | FSM шаг 3: город + inline-выбор top-3 |
+| 1.6.5 | + | `6f50472` | FSM шаг 4: пол + summary для подтверждения |
+| 1.6.6 | `calculator/__init__.py` (facade) | `0508928` | Подтверждение → Calculator → БД (chart_data JSONB), все 2.1 расширения сохраняются |
+
+### 🔧 Ключевые правки и улучшения
+
+- **Calculator facade** ([calculator/__init__.py](calculator/__init__.py)) — `calculate_chart()` оркеструет все модули: pillars, hidden_stems, ten_gods, element_balance, true_solar_time, luck_pillars, interactions, symbolic_stars, auxiliary, structures. Всё сохраняется в `Chart.chart_data` JSONB.
+- **Геокодер чейн** Google → Yandex → Nominatim ([bot/services/geocoding.py](bot/services/geocoding.py)) — Google и Yandex умеют fuzzy («Волхоград» → «Волгоград»), Nominatim как страховка. Nominatim CA-fix через Apple `Install Certificates.command`. Yandex требует HTTP-заголовок `Referer` чтобы пускать в HTTP-Geocoder API (иначе `403 Invalid api key`).
+- **Календарь карт** — после расчёта пользователь даёт имя карте (или пропускает → показ как `{ДМ} {дата}`). Returning-user kb выводит ВСЕ карты юзера (10 на страницу, ◀/▶ пагинация). `chart:open:{uuid}` хендлер выводит полную сводку из JSONB.
+- **Контекстный «Изменить»** — на каждом шаге FSM кнопка переименовывается («Изменить дату» / «Время» / «Город»). На confirm-шаге — picker с выбором поля для surgical edit.
+- **Час без времени** — когда `has_birth_time=False`, столп часа из noon-fallback скрыт в выводе, заголовок «Карта рассчитана (без столпа часа)».
+- **Время — лёгкий парсинг**: `23:55`, `23.55`, `23,55`, `23-55`, `1430`, `2355`, `955`, голый час `14`, `14ч`. 5+ цифр отвергается.
+- **Дата — DD.MM.YYYY**: `dateparser` с `settings={"DATE_ORDER": "DMY"}` чтобы `12.09.1999` парсилось как 12 сентября.
+- **uvloop удалён** — у него SSL-handshake bug на macOS, валил коннект к Telegram. aiogram теперь использует штатный asyncio.
 
 ### ✅ Сессия 2026-05-05 — раздел 2.1 «Калькулятор — расширение» закрыт
 
@@ -302,10 +329,14 @@ BaDzi_bot/
 
 ### 🔜 Следующая сессия — стартовать с
 
-**Раздел 2.2 — AI расширение:**
-- [ ] **2.2.1** Qwen-3.6 как дополнительная модель верификации (через OpenRouter)
-- [ ] **2.2.2** `ai/synthesis.py` — синтез ответов Kimi + Qwen
-- [ ] **2.2.3** Маршрутизатор сложных запросов: Kimi + Qwen + синтез
+**Раздел 1.7 — Визуальная карта (Playwright HTML→PNG):**
+- [ ] **1.7.1** `ai/card_renderer.py` — рендеринг карты через Playwright (HTML/CSS → PNG screenshot)
+- [ ] **1.7.2** Jinja2 HTML-шаблон карты (тёмная тема Mingli, цвета элементов, 4 столпа + баланс)
+- [ ] **1.7.3** Загрузка PNG в Yandex Object Storage (aioboto3, кэш по hash данных карты)
+- [ ] **1.7.4** Отправка фото в Telegram (send_photo по pre-signed URL)
+- [ ] **1.7.5** Fallback: Pillow-композиция из 24 PNG-ассетов если Playwright недоступен
+
+**После 1.7 — раздел 1.8 «AI Оркестратор»** для базовой интерпретации.
 
 ### ⏭️ Отложено на v3 (Determinism Low/Very Low)
 
