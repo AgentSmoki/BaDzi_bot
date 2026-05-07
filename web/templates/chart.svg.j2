@@ -19,6 +19,8 @@
       .stem-char   { font-size: 110px; }
       .branch-char { font-size: 100px; }
       .hidden-char { font-size: 30px; fill: #8a7250; }
+      .hidden-stem { font-weight: 700; }
+      .hidden-yy   { font-size: 11px; fill: #8a7250; }
       .ten-god     { font-size: 22px; fill: #4a3a20; }
       .placeholder { font-size: 90px; fill: #c5beb0; text-anchor: middle; }
       .footer      { font-size: 13px; fill: #8a7250; text-anchor: middle; letter-spacing: 1.5px; }
@@ -28,6 +30,7 @@
       .role-label  { font-family: "Inter", sans-serif; font-size: 14px; font-weight: 600; fill: #3d2f18; }
       .role-label-dm { fill: #6e5832; font-size: 15px; }
       .arrow-line  { stroke: #b0a587; stroke-width: 2.5; fill: none; }
+      .arrow-ctrl  { stroke: #c46c4a; stroke-width: 1.6; fill: none; stroke-dasharray: 5 4; opacity: 0.85; }
       .el-wood    { fill: #5fa86a; }
       .el-fire    { fill: #d04a3a; }
       .el-earth   { fill: #a06030; }
@@ -40,9 +43,13 @@
       .el-bg-water  { fill: #3a78c4; }
     ]]></style>
 
-    <!-- Arrowhead for generation cycle -->
+    <!-- Arrowhead for generation cycle (filled muted gold) -->
     <marker id="gen-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#b0a587"/>
+    </marker>
+    <!-- Arrowhead for control cycle (smaller, terracotta) -->
+    <marker id="ctrl-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#c46c4a"/>
     </marker>
 
     <!-- Element icons as reusable symbols (no Chinese glyphs) -->
@@ -106,10 +113,17 @@
     <text x="135" y="380" class="glyph branch-char el-{{ p.branch_el }}">{{ p.branch }}</text>
     <text x="135" y="420" class="ru-text ru-meta" text-anchor="middle">{{ p.branch_animal }}</text>
     <line x1="20" y1="445" x2="250" y2="445" class="border"/>
-    <text x="135" y="478" class="ru-text ru-sub" text-anchor="middle">скрытые</text>
-    <text x="135" y="510" class="glyph hidden-char">{{ p.hidden_str }}</text>
-    <line x1="20" y1="525" x2="250" y2="525" class="border"/>
-    <text x="135" y="555" class="glyph ten-god">{{ p.ten_god_stem }}</text>
+    <text x="135" y="465" class="ru-text ru-sub" text-anchor="middle">скрытые</text>
+    {% if p.hidden_list %}
+      {% for hs in p.hidden_list %}
+      <text x="{{ hs.x }}" y="500" class="glyph hidden-stem el-{{ hs.el }}" style="font-size: 32px;">{{ hs.char }}</text>
+      <text x="{{ hs.x }}" y="520" class="ru-text hidden-yy" text-anchor="middle">{{ hs.yin_yang }}</text>
+      {% endfor %}
+    {% else %}
+      <text x="135" y="500" class="glyph hidden-char">—</text>
+    {% endif %}
+    <line x1="20" y1="535" x2="250" y2="535" class="border"/>
+    <text x="135" y="563" class="glyph ten-god">{{ p.ten_god_stem }}</text>
     {% endif %}
   </g>
   {% endfor %}
@@ -128,9 +142,23 @@
     <rect class="card" x="0" y="0" width="1120" height="380" rx="6"/>
     <text x="40" y="36" class="ru-text ru-sub">ЦИКЛ У-СИН</text>
 
+    <!-- Legend: solid arrow = generation, dashed = control -->
+    <g transform="translate(820, 32)">
+      <line x1="0" y1="0" x2="30" y2="0" class="arrow-line" marker-end="url(#gen-arrow)"/>
+      <text x="38" y="4" class="ru-text ru-sub">порождение</text>
+      <line x1="160" y1="0" x2="190" y2="0" class="arrow-ctrl" marker-end="url(#ctrl-arrow)"/>
+      <text x="200" y="4" class="ru-text ru-sub">контроль</text>
+    </g>
+
     <g transform="translate(280, 220)">
-      <!-- Generation arrows (drawn under circles so circles cover line ends) -->
-      {% for ar in wuxing.arrows %}
+      <!-- Control arrows first so they sit visually behind the generation cycle -->
+      {% for ar in wuxing.arrows_ctrl %}
+      <line x1="{{ ar.x1 }}" y1="{{ ar.y1 }}" x2="{{ ar.x2 }}" y2="{{ ar.y2 }}"
+            class="arrow-ctrl" marker-end="url(#ctrl-arrow)"/>
+      {% endfor %}
+
+      <!-- Generation arrows (clockwise pentagon perimeter) -->
+      {% for ar in wuxing.arrows_gen %}
       <line x1="{{ ar.x1 }}" y1="{{ ar.y1 }}" x2="{{ ar.x2 }}" y2="{{ ar.y2 }}"
             class="arrow-line" marker-end="url(#gen-arrow)"/>
       {% endfor %}

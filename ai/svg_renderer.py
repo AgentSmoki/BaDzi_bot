@@ -203,6 +203,22 @@ def _build_pillars(chart: ChartOutput, has_birth_time: bool) -> list[dict[str, o
         hidden = chart.hidden_stems.get(pillar.name, [])
         ten_gods_for_pillar = chart.ten_gods.get(pillar.name, [])
         ten_god_stem = ten_gods_for_pillar[0] if ten_gods_for_pillar else ""
+        # Position 1-3 hidden stems horizontally inside the pillar (270 wide).
+        # Empty list keeps the slot but renders an em-dash.
+        pillar_w = 270
+        if not hidden:
+            hidden_list: list[dict[str, object]] = []
+        else:
+            slot_w = pillar_w / len(hidden)
+            hidden_list = [
+                {
+                    "char": stem,
+                    "el": _STEM_ELEMENT[stem],
+                    "yin_yang": _STEM_YIN_YANG_RU[stem],
+                    "x": round(slot_w * (idx + 0.5), 1),
+                }
+                for idx, stem in enumerate(hidden)
+            ]
         pillars_data.append(
             {
                 "empty": False,
@@ -215,7 +231,7 @@ def _build_pillars(chart: ChartOutput, has_birth_time: bool) -> list[dict[str, o
                 "branch_yin_yang": _BRANCH_YIN_YANG_RU[pillar.branch],
                 "branch_animal": _BRANCH_ANIMAL_RU[pillar.branch],
                 "ten_god_stem": ten_god_stem,
-                "hidden_str": "·".join(hidden) if hidden else "—",
+                "hidden_list": hidden_list,
                 "is_day": pillar.name == "day",
             }
         )
@@ -285,20 +301,31 @@ def _wuxing_wheel(dm_class: str) -> dict[str, object]:
             }
         )
 
-    arrows: list[dict[str, float]] = []
-    for i in range(5):
+    def _segment(i: int, j: int, head_pad: int = 12) -> dict[str, float]:
+        """Vector from coords[i] to coords[j], shortened on both ends so it
+        starts/ends just outside the element circles, with extra room for an
+        arrowhead at the destination."""
         sx, sy = coords[i]
-        dx, dy = coords[(i + 1) % 5]
+        dx, dy = coords[j]
         vx, vy = dx - sx, dy - sy
         dist = math.sqrt(vx * vx + vy * vy) or 1.0
         ux, uy = vx / dist, vy / dist
-        arrows.append(
-            {
-                "x1": round(sx + ux * (icon_radius + 4), 1),
-                "y1": round(sy + uy * (icon_radius + 4), 1),
-                "x2": round(dx - ux * (icon_radius + 12), 1),
-                "y2": round(dy - uy * (icon_radius + 12), 1),
-            }
-        )
+        return {
+            "x1": round(sx + ux * (icon_radius + 4), 1),
+            "y1": round(sy + uy * (icon_radius + 4), 1),
+            "x2": round(dx - ux * (icon_radius + head_pad), 1),
+            "y2": round(dy - uy * (icon_radius + head_pad), 1),
+        }
 
-    return {"elements": elements, "arrows": arrows, "icon_radius": icon_radius}
+    # Generation cycle: pentagon perimeter, clockwise (Wood→Fire→Earth→Metal→Water)
+    arrows_gen = [_segment(i, (i + 1) % 5) for i in range(5)]
+    # Control cycle: skips one vertex, drawing the inner 5-pointed star
+    # (Wood→Earth→Water→Fire→Metal→Wood relative to the day master).
+    arrows_ctrl = [_segment(i, (i + 2) % 5) for i in range(5)]
+
+    return {
+        "elements": elements,
+        "arrows_gen": arrows_gen,
+        "arrows_ctrl": arrows_ctrl,
+        "icon_radius": icon_radius,
+    }
