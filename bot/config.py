@@ -38,6 +38,8 @@ class Settings(BaseSettings):
 
     # ── Geocoding ─────────────────────────────────────────────────────────────
     geocoding_provider: GeocodingProvider = "nominatim"
+    google_geocoder_api_key: SecretStr | None = None
+    yandex_geocoder_api_key: SecretStr | None = None
 
     # ── KuzuDB (knowledge graph) ──────────────────────────────────────────────
     kuzu_db_path: Path = Path("./knowledge/kuzu_db")
