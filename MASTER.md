@@ -292,6 +292,48 @@ BaDzi_bot/
 **Тесты:** 374/374 ✓ покрытие 98%
 **Линтеры:** ruff ✓, ruff-format ✓, mypy strict ✓ (53 файла)
 
+### ✅ Сессия 2026-05-07 (шестая половина) — разделы 1.10 + 1.13 (базовая интерпретация + диалог)
+
+**Что сделано:**
+
+| # | Файл | Содержание |
+|---|------|-----------|
+| 1.10 | [ai/base_interpretation.py](ai/base_interpretation.py) | Генератор 6 блоков одним вызовом `chat_with_fallback`. Pydantic `BaseInterpretation`, парсер `parse_blocks` (regex tolerant к регистру/порядку), `format_for_telegram` с `<b>` заголовками + `_strip_exclaim` (защита от `!` если LLM прорвал style guide). 11 unit-тестов. |
+| 1.13 | [bot/routers/consultation.py](bot/routers/consultation.py) | `handle_ask_pressed` → загрузка Chart + FSM → ввод вопроса. `handle_question` → router (1.8.3) → compose_messages (1.8.6) → chat_with_fallback (1.8.5) с `ChatAction.TYPING` индикатором каждые 4 сек → save Consultation (1.5 модель). `handle_reset` (`/reset` → clear history). 7 тестов handler'а через MagicMock + fakeredis. |
+| middleware | [bot/middlewares/history.py](bot/middlewares/history.py) | `HistoryMiddleware(store)` — инжектит singleton `HistoryStore` через `data["history_store"]`. Создаётся при старте бота, aclose при shutdown. |
+| main | [bot/main.py](bot/main.py) | Подключён `consultation_router`, добавлен `HistoryMiddleware`, `_shutdown` теперь закрывает OpenRouter client + history store. |
+
+**Поток консультации (после нажатия "Задать вопрос"):**
+
+```
+menu:ask → handle_ask_pressed
+  ├─ resolve active chart (FSM chart_id или latest)
+  ├─ если карты нет → "сначала постройте"
+  └─ FSM → ConsultationState.waiting_question, ждёт текст
+
+[user пишет вопрос]
+
+ConsultationState.waiting_question + F.text → handle_question
+  ├─ chart = ChartOutput.model_validate(chart.chart_data)
+  ├─ decision = route(question)  (intent / temperature / max_tokens / temporal?)
+  ├─ history = await history_store.get(telegram_id)  (last 20 msgs, TTL 24h)
+  ├─ now_chart = get_current_bazi() if temporal else None
+  ├─ messages = compose_messages(system + history + chart + temporal? + question)
+  ├─ asyncio.create_task(_keep_typing(message))  ← каждые 4 сек ChatAction.TYPING
+  ├─ result = await chat_with_fallback(...)  ← Kimi K2.6 → Claude on 429/5xx
+  ├─ message.answer(result.text, reply_markup=after_answer_kb)
+  ├─ history_store.append(user msg + assistant msg)
+  └─ ConsultationRepository.create(model, tokens, cost_usd, latency_ms, trace_id)
+```
+
+**Стек:** ruff ✓, mypy strict ✓ (62 файла), pytest **460/460** ✓ покрытие 98.21%.
+
+**Не сделано в 1.10/1.13 (ожидает других разделов):**
+- KuzuDB RAG в context (1.9 — отдельный блок)
+- TaskIQ для долгих запросов (1.11 — добавим если LLM-latency станет проблемой)
+- Rate limiting / монетизация / 1 free question (1.12)
+- Live-проверка в Telegram под пользователем — кнопка `Задать вопрос` теперь рабочая, требует ручного теста в боте
+
 ### ✅ Сессия 2026-05-07 (пятая половина) — 2.1.6 закрыт + раздел 1.8 (AI Оркестратор) полностью
 
 **2.1.6 — детерминированность калькулятора:** калькулятор сам по себе детерминирован (1000/1000 одинаковых результатов в одном процессе и между процессами). Все три «плавающих» комбинации в MASTER объяснены парой `(tz_offset, early_rat)` — DST-aware tz_offset для 1999 = 4.0, не 3.0; код через `bot/services/birth_datetime.resolve()` использует pytz, что корректно. Зафиксировано в [tests/unit/test_calculator/test_determinism.py](tests/unit/test_calculator/test_determinism.py) и [tests/unit/test_bot/test_birth_datetime.py](tests/unit/test_bot/test_birth_datetime.py).

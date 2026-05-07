@@ -102,15 +102,15 @@
 - [ ] 1.9.4 ai/graph_search.py — RAG-поиск по KuzuDB (концепты из вопроса → подграф)
 - [ ] 1.9.5 Интеграция graph_search в orchestrator.py
 
-### 1.10 Базовая интерпретация (6 блоков, всегда бесплатно)
-- [ ] 1.10.1 ai/base_interpretation.py — генерация 6 блоков через Kimi K2 (использует orchestrator из 1.8)
-- [ ] 1.10.2 Блок 1: Баланс элементов (чего не хватает / в избытке)
-- [ ] 1.10.3 Блок 2: Господин Дня — описание личности
-- [ ] 1.10.4 Блок 3: Реализация по кругу порождения от ГД
-- [ ] 1.10.5 Блок 4: Идеальный партнёр (компенсация дисбаланса)
-- [ ] 1.10.6 Блок 5: Сильные стороны по всей карте
-- [ ] 1.10.7 Блок 6: Влияние текущего года на карту
-- [ ] 1.10.8 Форматирование ответа в стиле Анастасии (без "!", 1000-2000 символов)
+### 1.10 Базовая интерпретация (6 блоков, всегда бесплатно) ✅ Закрыт 2026-05-07
+- [x] 1.10.1 [ai/base_interpretation.py](ai/base_interpretation.py) — генератор 6 блоков одним вызовом `chat_with_fallback`. Pydantic `BaseInterpretation`, `InterpretationResult` (с usage/cost/trace_id), парсер `parse_blocks` через regex заголовков (tolerant к регистру/пунктуации/порядку). Auto-temporal context для блока 6.
+- [x] 1.10.2 БЛОК 1 «Баланс пяти стихий» — заголовок в `BLOCK_TITLES[1]`, инструкция в `_INSTRUCTION` промпта.
+- [x] 1.10.3 БЛОК 2 «Господин Дня — личность» — `BLOCK_TITLES[2]`.
+- [x] 1.10.4 БЛОК 3 «Реализация по кругу порождения» — `BLOCK_TITLES[3]`.
+- [x] 1.10.5 БЛОК 4 «Идеальный партнёр» — `BLOCK_TITLES[4]`.
+- [x] 1.10.6 БЛОК 5 «Сильные стороны карты» — `BLOCK_TITLES[5]`.
+- [x] 1.10.7 БЛОК 6 «Влияние текущего года» — `BLOCK_TITLES[6]`, всегда с `include_temporal=True`.
+- [x] 1.10.8 `format_for_telegram()` — HTML-форматирование с `<b>` заголовками, опциональный `chart_label`, `_strip_exclaim()` (защита от `!` если LLM прорвал инструкцию). 11 тестов с mocked chat_with_fallback.
 
 ### 1.11 TaskIQ инфраструктура
 - [ ] 1.11.1 tasks/broker.py — настроить TaskIQ broker (Redis backend)
@@ -125,12 +125,13 @@
 - [ ] 1.12.5 Логика: 1 бесплатный вопрос для новых пользователей
 - [ ] 1.12.6 После оплаты: обновить Subscription в БД
 
-### 1.13 Консультация — диалог с Анастасией
-- [ ] 1.13.1 bot/routers/consultation.py — кнопка "Задать вопрос", ввод вопроса
-- [ ] 1.13.2 Формирование контекста LLM (промпт + карта + история + KuzuDB граф из 1.9)
-- [ ] 1.13.3 Детектор временных вопросов (regex) → подгрузка temporal context
-- [ ] 1.13.4 TaskIQ для долгих запросов (>30 сек) с "Звёзды считают..." (использует 1.11)
-- [ ] 1.13.5 Сохранение Consultation в БД (токены, стоимость, trace_id)
+### 1.13 Консультация — диалог с Анастасией ✅ Закрыт 2026-05-07
+- [x] 1.13.1 [bot/routers/consultation.py](bot/routers/consultation.py) — `handle_ask_pressed` (callback `menu:ask` → загружает Chart, переводит FSM в `ConsultationState.waiting_question`), `handle_question` (полный pipeline LLM-ответа), `handle_reset` (`/reset` → `HistoryStore.clear`). Inline-клавиатуры «Ещё вопрос / В меню».
+- [x] 1.13.2 Формирование контекста — через `compose_messages()` из 1.8.6: system_prompt (Анастасия 39k) + history (Redis из 1.8.4) + chart_block + опциональный temporal_block + question. KuzuDB граф (1.9) подключим позже — сейчас работает на full system prompt без RAG.
+- [x] 1.13.3 Детектор временных вопросов — через `route()` из 1.8.3 (regex word-boundary матчинг по 16 keywords: `сейчас/год/месяц/период/ближайш/текущ/...`); `RouteDecision.needs_temporal_context` → `get_current_bazi()` подмешивается в `compose_messages`.
+- [x] 1.13.4 Typing-индикатор: `_keep_typing()` async-task шлёт `ChatAction.TYPING` каждые 4 сек пока ждём LLM (Telegram декаит индикатор за ~5 сек, нужен refresh). TaskIQ-broker для рассылок добавим в 1.11; для синхронного дилогового UX `ChatAction.TYPING` достаточно.
+- [x] 1.13.5 Сохранение в `Consultation` — `ConsultationRepository.create()` со всеми полями: model_used, prompt_tokens, completion_tokens, cost_usd (Decimal), latency_ms, trace_id, topic=intent. Ошибка LLM → пользователю «Анастасия не смогла ответить», history не пополняется (никаких полу-ходов).
+- [x] **Bonus:** [bot/middlewares/history.py](bot/middlewares/history.py) — `HistoryMiddleware(store)` инжектит singleton `HistoryStore` в каждый handler через `data["history_store"]`. Lifecycle: создаётся в `bot/main.py` при старте, `aclose()` при shutdown. 7 тестов handler'а через MagicMock + fakeredis.
 
 ### 1.14 Мониторинг
 - [ ] 1.14.1 monitoring/langfuse.py — Langfuse клиент и helpers
