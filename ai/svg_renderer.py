@@ -10,6 +10,7 @@ fallback for the duration of the migration (ADR-007).
 """
 
 import math
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -139,6 +140,12 @@ def render_chart_png(req: RenderRequest, *, scale: float = 1.0) -> bytes:
     on its own, so 1.0 is fine.
     """
     svg = _jinja_env.get_template("chart.svg.j2").render(_build_context(req))
+    # BAZI_DEBUG_DUMP_SVG=1 dumps the exact SVG the bot just rendered so it can
+    # be diffed against direct-call output when investigating regressions.
+    if os.environ.get("BAZI_DEBUG_DUMP_SVG") == "1":
+        # /tmp is intentional: developer-only diagnostic, gated behind an env
+        # flag, never enabled in production.
+        Path("/tmp/last_chart.svg").write_text(svg, encoding="utf-8")  # noqa: S108
     png: bytes = cairosvg.svg2png(
         bytestring=svg.encode("utf-8"),
         output_width=int(_CANVAS_W * scale),

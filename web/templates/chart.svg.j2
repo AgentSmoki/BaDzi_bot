@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1400" width="1200" height="1400">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1200 1400" width="1200" height="1400">
   <defs>
     <style type="text/css"><![CDATA[
       .bg          { fill: #faf6ec; }
@@ -166,9 +166,20 @@
             class="arrow-line" marker-end="url(#gen-arrow)"/>
       {% endfor %}
       {% for el in wuxing.elements %}
+      {% set ic_r = 32 if el.is_dm else 28 %}
       {% if el.is_dm %}
       <circle cx="{{ el.cx }}" cy="{{ el.cy }}" r="48" fill="none" stroke="#c69853" stroke-width="2.5" stroke-dasharray="5 4"/>
       {% endif %}
+      <!-- Coloured element disc + white SVG glyph: rendered unconditionally so
+           the wheel still reads correctly even when the emoji font on the
+           runtime can't draw colour glyphs (Pango/Cairo on Linux containers,
+           background threads on macOS, etc). -->
+      <circle cx="{{ el.cx }}" cy="{{ el.cy }}" r="{{ ic_r }}" class="el-bg-{{ el.el }}"/>
+      <use xlink:href="#ic-{{ el.el }}"
+           x="{{ el.cx - ic_r }}" y="{{ el.cy - ic_r }}"
+           width="{{ ic_r * 2 }}" height="{{ ic_r * 2 }}"/>
+      <!-- Emoji on top: when the font is available it covers the glyph; when
+           it isn't, the white SVG icon underneath is what the user sees. -->
       <text x="{{ el.cx }}" y="{{ el.cy + (24 if el.is_dm else 18) }}"
             class="wuxing-emoji{% if el.is_dm %} wuxing-emoji-dm{% endif %}">{{ el.emoji }}</text>
       <text x="{{ el.label_cx }}" y="{{ el.label_cy }}"
