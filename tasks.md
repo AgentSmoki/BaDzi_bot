@@ -62,12 +62,20 @@
 - [x] 1.6.5 FSM шаг 4: пол + сводка для подтверждения
 - [x] 1.6.6 Подтверждение данных + кнопка "Рассчитать" (вызов Calculator из 1.4) + сохранение Chart в БД
 
-### 1.7 Визуальная карта (Playwright HTML→PNG)
-- [x] 1.7.1 ai/card_renderer.py — рендеринг карты через Playwright (lazy singleton browser)
-- [x] 1.7.2 web/templates/chart.html — Jinja2 шаблон в тёмной Mingli-теме, цвета элементов, 4/3 столпа + баланс
-- [ ] 1.7.3 Загрузка PNG в Yandex Object Storage (aioboto3, кэш по hash) — отложено до prod-деплоя
+### 1.7 Визуальная карта (v1 → v2 Pillow + CairoSVG)
+- [x] 1.7.1 ai/card_renderer.py v1 — Playwright HTML→PNG (legacy, deprecated после A.1.4)
+- [x] 1.7.2 web/templates/chart.html v1 — тёмная тема (legacy)
 - [x] 1.7.4 Отправка фото в Telegram (BufferedInputFile в `handle_confirm_calc` и `chart:open`)
-- [ ] 1.7.5 Fallback: Pillow-композиция из 24 PNG-ассетов если Playwright недоступен — отложено
+- [ ] 1.7.6 ai/svg_renderer.py — Jinja2 → SVG → CairoSVG → PNG pipeline
+- [ ] 1.7.7 web/templates/chart.svg.j2 v2 — light Mingli grid + цвета стихий
+- [ ] 1.7.8 web/static/wuxing-base.svg — SVG У-син круга с динамической подсветкой ДМ
+- [ ] 1.7.9 ProcessPoolExecutor pool для рендера (масштаб 50+ rps)
+- [ ] 1.7.10 Удалить Playwright из deps + Chromium из Docker-образа (после стабилизации)
+- [ ] 1.7.11 Бенчмарк: SVG vs Playwright на 50/200 параллельных рендерах
+
+Отложено в 1.16 (production deploy):
+- [ ] 1.7.3 Загрузка PNG в Yandex Object Storage (aioboto3 + хеш-кэш)
+- [ ] 1.7.5 Fallback: Pillow-композиция из 24 PNG-ассетов если CairoSVG недоступен
 
 ### 1.8 AI Оркестратор (OpenRouter)
 - [ ] 1.8.1 ai/orchestrator.py — OpenRouter клиент (httpx async)
@@ -166,21 +174,69 @@
 
 ---
 
-## Этап 3 — Визуализация (Q3 2026)
-
-- [ ] 3.1 FastAPI — HTML-страницы карты (Jinja2 + HTMX)
-- [ ] 3.2 Chart.js radar charts (10 Божеств, баланс элементов)
-- [ ] 3.3 Telegram Mini App интеграция
-- [ ] 3.4 Уникальные токены для ссылок на карты (TTL)
-- [ ] 3.5 Встроенный чат с Анастасией в Mini App
-
----
-
 ## Этап 4 — Рост (Q4 2026)
 
 - [ ] 4.1 Ежедневный прогноз (TaskIQ рассылка)
 - [ ] 4.2 Реферальная программа
 - [ ] 4.3 Мультиязычность (EN, UA, KZ)
-- [ ] 4.4 Ректификация часа рождения
 - [ ] 4.5 pgvector — векторная память для долгосрочных консультаций
 - [ ] 4.6 A/B тесты монетизации
+- *4.4 (ректификация) перенесена в 5.6 — будет реализована в Mini App*
+
+---
+
+## Этап 5 — Mini App PRO (заменяет старый Этап 3)
+
+> Гибридная архитектура (ADR-006): PNG-карта в чате — бесплатно;
+> интерактивные периоды, столпы удачи, ректификация — Mini App PRO.
+
+### 5.1 Scaffold (FastAPI + initData security)
+- [ ] 5.1.1 web/main.py — FastAPI app, mount static/templates, lifespan
+- [ ] 5.1.2 dev tunnel (cloudflared / ngrok) для https://localhost
+- [ ] 5.1.3 Регистрация Mini App в @BotFather (webapp URL)
+- [ ] 5.1.4 web/security.py — HMAC-SHA256 валидация Telegram initData
+- [ ] 5.1.5 FastAPI dependency get_current_user из validated initData
+- [ ] 5.1.6 web/routes/chart.py — GET /chart/{id} с проверкой ownership
+
+### 5.2 Static chart view (parity с PNG)
+- [ ] 5.2.1 GET /chart/{id} → HTML c теми же 4 столпами + У-син круг
+- [ ] 5.2.2 web/static/js/chart_canvas.js — Canvas API render
+- [ ] 5.2.3 themeParams sync (light/dark) с Telegram WebApp
+- [ ] 5.2.4 Адаптивная вёрстка mobile-first
+
+### 5.3 Interactive period slider (PRO Lvl 2)
+- [ ] 5.3.1 GET /chart/{id}/with-period?year=&month=&day=&hour=
+- [ ] 5.3.2 UI: 4 слайдера / стрелочки ▲▼ для года/месяца/дня/часа
+- [ ] 5.3.3 client-side кэш 60-цикла → инстантный пересчёт
+- [ ] 5.3.4 анимация подсветки активных 冲/合 при overlay periods
+
+### 5.4 Luck Pillars timeline (PRO Lvl 1)
+- [ ] 5.4.1 web/components/luck_timeline.js — горизонтальная шкала 8-10 такт
+- [ ] 5.4.2 клик по такту → раскрытие месяцев + дней
+- [ ] 5.4.3 текущий возраст пользователя → подсветка активного такта
+- [ ] 5.4.4 bot/keyboards: добавить «Открыть Столпы удачи» (chart-card kb)
+- [ ] 5.4.5 callback chart:open-luck-pillars → Telegram WebApp.openLink
+
+### 5.5 Symbolic stars overlay (PRO Lvl 3)
+- [ ] 5.5.1 при выборе периода — фильтр Шэнь Ша которые активируются
+- [ ] 5.5.2 модальное окно с Markdown-описанием каждой звезды (RAG/KuzuDB)
+
+### 5.6 Hour rectification (PRO Lvl 4)
+> Перенесено из старого пункта 4.4
+
+- [ ] 5.6.1 inline-инструмент: ±1 час / ±15 минут на time-stepper
+- [ ] 5.6.2 список Event'ов (БД) с проверкой резонанса
+- [ ] 5.6.3 финальное «фиксирование» новой даты в Chart
+
+### 5.7 cloudStorage state persistence
+- [ ] 5.7.1 last_period_view → Telegram cloudStorage
+- [ ] 5.7.2 Восстановление при повторном открытии WebApp
+
+### 5.8 PRO монетизация (ЮKassa)
+> ADR-008: ЮKassa везде, provider-agnostic Subscription для будущей миграции на Stars
+
+- [ ] 5.8.1 web/payments.py — ЮKassa CreatePayment + redirect URL
+- [ ] 5.8.2 ЮKassa webhook → activate Subscription (plan=pro_monthly/yearly)
+- [ ] 5.8.3 Decorator @requires_pro на FastAPI-роутах /chart/{id}/with-period
+- [ ] 5.8.4 Pricing page в Mini App с кнопкой «Оплатить»
+- [ ] 5.8.5 Subscription provider-agnostic + миграция-план на Stars

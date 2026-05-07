@@ -91,6 +91,17 @@ AI-бот в Telegram, который:
 | DST история      | pytz                                                      |
 | Equation of Time | Jean Meeus / NOAA                                         |
 
+### Mini App PRO
+
+| Компонент        | Технология                                         |
+| ---------------- | -------------------------------------------------- |
+| Web framework    | FastAPI + Jinja2                                   |
+| Frontend         | Canvas API (vanilla JS), без React/Vue             |
+| Auth             | Telegram WebApp.initData → HMAC-SHA256 валидация   |
+| State            | Telegram cloudStorage (last_period_view)           |
+| Render           | CairoSVG + Pillow (ProcessPoolExecutor pool)       |
+| Платежи          | ЮKassa redirect (см. ADR-008)                      |
+
 ### Инфраструктура и DevOps
 
 | Компонент        | Технология                               |
@@ -362,10 +373,12 @@ BaDzi_bot/
 
 Цзе Ци → Столпы Удачи → Все взаимодействия → 3 школы скрытых стволов → 50-90 звёзд → Мин Гун/Тай Юань → Qwen + Kimi → AI-маршрутизатор → Синтез → Фолбэк → Langfuse → TaskIQ
 
-### Этап 3 — Визуализация (Q3 2026)
-
-FastAPI → Jinja2 + HTMX → Chart.js → Цветовое кодирование → Интерактивные подсказки → Уникальные токены → Telegram Mini App → Встроенный чат
-
 ### Этап 4 — Рост (Q4 2026)
 
-Ежедневные прогнозы → Реферальная программа → Мультиязычность → Кэш интерпретаций → A/B тесты → Векторная память (pgvector) → Ректификация
+Ежедневные прогнозы → Реферальная программа → Мультиязычность → Кэш интерпретаций → A/B тесты → Векторная память (pgvector)
+
+### Этап 5 — Mini App PRO (Q3-Q4 2026, заменяет старый Этап 3)
+
+FastAPI scaffold + initData HMAC → static chart view (Canvas) → интерактивный period slider (PRO Lvl 2) → Luck Pillars timeline (PRO Lvl 1) → Symbolic stars overlay (PRO Lvl 3) → Hour rectification (PRO Lvl 4) → cloudStorage persistence → ЮKassa в Mini App
+
+Подробности — [tasks.md](tasks.md) Этап 5, ADR-006 в [vision.mdc](.cursor/rules/vision.mdc).

@@ -114,6 +114,36 @@ PostgreSQL | Redis | OpenRouter API  (Infrastructure)
 
 **Consequences:** Управляемые сервисы = меньше ops. Все данные в российском облаке. Инструкция в deploy.md.
 
+### ADR-006: Hybrid Chat + Mini App architecture
+
+**Context:** Базовый MVP — PNG-карта в чате. Это удобно для пересылки и просмотра, но интерактив (крутить даты, видеть динамику столпов удачи) в чате невозможен — каждый клик требует round-trip к серверу + рендер.
+
+**Solution:**
+- **Free-tier (чат):** PNG-карта (Pillow+CairoSVG) + базовая 6-блочная интерпретация Анастасии
+- **PRO-tier (Mini App):** Telegram WebApp (FastAPI + Canvas API) с интерактивными временными периодами, столпами удачи, ректификацией. Платежи через ЮKassa
+- Mini App запускается из чата кнопкой «Открыть подробно» / «Столпы удачи»
+
+**Consequences:** Удвоение surface area разработки (чат + WebApp). PNG в чате остаётся как «паспорт» карты для шеринга. Все интерактивные фичи концентрируются в Mini App, которому всё равно нужен FastAPI + auth по initData.
+
+### ADR-007: Render engine — Pillow + CairoSVG
+
+**Context:** Playwright headless Chromium хорош для прототипа (1.7 MVP), но: bottleneck на 50+ параллельных запросах, 150 MB Chromium в Docker, ~50-150 ms на screenshot, RAM растёт линейно. Под прод-нагрузку не годится.
+
+**Solution:** Jinja2 → SVG-шаблон → CairoSVG → PNG bytes. Под нагрузку — `ProcessPoolExecutor` (Pillow GIL-bound). Playwright fallback оставляем 1-2 итерации для подстраховки.
+
+**Consequences:** 5-10× быстрее, 60% меньше Docker-образа (без Chromium binary), +cairosvg/Pillow зависимости. SVG-вёрстка дольше пишется, чем HTML+CSS, но шаблоны стабильные. Миграция реализована в разделе 1.7.6-1.7.11.
+
+### ADR-008: Payments — ЮKassa везде, готовность к Telegram Stars
+
+**Context:** Telegram рекомендует Stars для Mini App транзакций. Apple/Google комиссия 30% касается только их IAP (in-app purchase), не сторонних web-redirect. Российская аудитория привыкла к карточным платежам, ЮKassa — самый низкий friction для них.
+
+**Solution:**
+- Все платежи (бот в чате + Mini App) идут через **ЮKassa**
+- `Subscription.payment_provider` — provider-agnostic поле (`yookassa` / `stars` / `manual`)
+- Архитектура готова к swap на Stars если ToS Telegram изменится (≈8 часов на миграцию)
+
+**Consequences:** Простой UX в РФ, единый билинг для бухгалтерии. ToS-риск: Telegram может в будущем потребовать Stars для in-app транзакций, но пока это рекомендация, не запрет. Прецедентов блокировки русских ботов с ЮKassa в Mini App нет.
+
 ---
 
 ## Data Models

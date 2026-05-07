@@ -482,13 +482,17 @@ async def handle_confirm_calc(
     has_birth_time = bool(result["has_birth_time"])
     city_label = str(result["city_label"])
     assert isinstance(day_master, str)
+    assert isinstance(date_str, str)
     assert isinstance(chart_output, ChartOutput)
 
     if isinstance(callback.message, Message):
         png = await render_chart_png(
             RenderRequest(
                 chart=chart_output,
-                title=f"{day_master} {date_str}",
+                # CJK characters don't render in the SVG title font; the day
+                # master is shown prominently inside the card, so the title
+                # carries just the date here.
+                title=date_str,
                 subtitle=city_label,
                 has_birth_time=has_birth_time,
             )

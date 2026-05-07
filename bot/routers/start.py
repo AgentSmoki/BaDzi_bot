@@ -187,10 +187,16 @@ async def _render_chart(chart: Chart) -> bytes:
     time_part = chart.birth_datetime_original.strftime("%H:%M") if has_time else "без часа"
     subtitle_parts = [p for p in (short_city, time_part) if p]
     subtitle = " · ".join(subtitle_parts) if subtitle_parts else ""
+    # SVG title uses a Latin-priority font, so we drop the CJK day-master prefix
+    # here — the day master is already displayed prominently inside the card.
+    if chart.name and "," not in chart.name:
+        title = chart.name
+    else:
+        title = chart.birth_datetime_original.strftime("%d.%m.%Y")
     return await render_chart_png(
         RenderRequest(
             chart=chart_output,
-            title=_format_chart_label(chart),
+            title=title,
             subtitle=subtitle,
             has_birth_time=has_time,
         )
