@@ -191,8 +191,12 @@ async def _search_yandex(query: str, limit: int) -> list[CityCandidate]:
         "format": "json",
         "results": str(limit * 2),
     }
+    # Yandex's HTTP Geocoder rejects requests without a Referer header —
+    # even when the key has no referrer whitelist set in the dashboard.
+    # Without this header the API answers `403 Invalid api key`.
+    headers = {"Referer": "https://t.me/EdoHa_Badzi_bot"}
     try:
-        async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
             async with session.get(YANDEX_GEOCODE_URL, params=params) as resp:
                 if resp.status != 200:
                     logger.warning("geocoding.yandex_http", query=query, status=resp.status)
