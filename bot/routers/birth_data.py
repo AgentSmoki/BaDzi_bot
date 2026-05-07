@@ -6,9 +6,10 @@ import dateparser
 import structlog
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ai.card_renderer import RenderRequest, render_chart_png
 from bot.keyboards import (
     back_to_time_kb,
     city_choice_kb,
@@ -22,7 +23,7 @@ from bot.services.birth_datetime import resolve as resolve_birth_datetime
 from bot.services.geocoding import search_cities
 from bot.states import BirthDataForm
 from calculator import calculate_chart
-from calculator.models import ChartInput
+from calculator.models import ChartInput, ChartOutput
 from db.models import User
 from db.repositories.chart_repo import ChartRepository
 
@@ -443,8 +444,25 @@ async def handle_confirm_calc(
     chart_id = result["chart_id"]
     day_master = result["day_master"]
     date_str = result["date_str"]
+    chart_output = result["chart_output"]
+    has_birth_time = bool(result["has_birth_time"])
+    city_label = str(result["city_label"])
+    assert isinstance(day_master, str)
+    assert isinstance(chart_output, ChartOutput)
+
     if isinstance(callback.message, Message):
-        await callback.message.answer(_format_chart_summary(result))
+        png = await render_chart_png(
+            RenderRequest(
+                chart=chart_output,
+                title=f"{day_master} {date_str}",
+                subtitle=city_label,
+                has_birth_time=has_birth_time,
+            )
+        )
+        await callback.message.answer_photo(
+            BufferedInputFile(png, "chart.png"),
+            caption=f"Карта рассчитана. Дневной мастер: <b>{day_master}</b>.",
+        )
         await state.set_state(BirthDataForm.naming)
         await state.update_data(chart_id=str(chart_id))
         await callback.message.answer(
@@ -525,17 +543,16 @@ async def _calculate_and_persist(
         name=None,
         has_birth_time=has_time,
     )
-    # city_name is no longer stored on Chart.name (the user names the chart in
-    # the next step) — we keep it in chart_data for record-keeping.
-    chart_data["city_name"] = city_name
 
+    short_city = city_name.split(",")[0].strip() if "," in city_name else city_name
+    time_part = resolved.naive_local.strftime("%H:%M") if has_time else "без часа"
     return {
         "chart_id": chart.id,
         "date_str": resolved.naive_local.strftime("%d.%m.%Y"),
-        "pillars": chart_data["pillars"],
+        "city_label": f"{short_city} · {time_part}",
         "day_master": chart_data["day_master"],
-        "element_balance": chart_data["element_balance"],
         "has_birth_time": has_time,
+        "chart_output": chart_output,
     }
 
 

@@ -5,10 +5,12 @@ import structlog
 from aiogram import F, Router
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ai.card_renderer import RenderRequest, render_chart_png
 from bot.keyboards import new_user_kb, returning_user_kb
+from calculator.models import ChartOutput
 from db.models import Chart, User
 from db.repositories.chart_repo import ChartRepository
 
@@ -155,5 +157,35 @@ async def handle_chart_open(callback: CallbackQuery, session: AsyncSession) -> N
         return
 
     if isinstance(callback.message, Message):
-        await callback.message.answer(_format_chart_view(chart))
+        try:
+            png = await _render_chart(chart)
+        except Exception:
+            logger.exception("chart_open.render_failed", chart_id=str(chart.id))
+            await callback.message.answer(_format_chart_view(chart))
+            await callback.answer()
+            return
+        title = _format_chart_label(chart)
+        await callback.message.answer_photo(
+            BufferedInputFile(png, "chart.png"),
+            caption=f"<b>{title}</b>",
+        )
     await callback.answer()
+
+
+async def _render_chart(chart: Chart) -> bytes:
+    chart_output = ChartOutput.model_validate(chart.chart_data)
+    short_city = chart.chart_data.get("city_name") if chart.chart_data else None
+    if isinstance(short_city, str) and "," in short_city:
+        short_city = short_city.split(",")[0].strip()
+    has_time = bool(chart.has_birth_time)
+    time_part = chart.birth_datetime_original.strftime("%H:%M") if has_time else "без часа"
+    subtitle_parts = [p for p in (short_city, time_part) if p]
+    subtitle = " · ".join(subtitle_parts) if subtitle_parts else ""
+    return await render_chart_png(
+        RenderRequest(
+            chart=chart_output,
+            title=_format_chart_label(chart),
+            subtitle=subtitle,
+            has_birth_time=has_time,
+        )
+    )

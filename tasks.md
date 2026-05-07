@@ -63,11 +63,11 @@
 - [x] 1.6.6 Подтверждение данных + кнопка "Рассчитать" (вызов Calculator из 1.4) + сохранение Chart в БД
 
 ### 1.7 Визуальная карта (Playwright HTML→PNG)
-- [ ] 1.7.1 ai/card_renderer.py — рендеринг карты через Playwright (HTML/CSS → PNG screenshot)
-- [ ] 1.7.2 Jinja2 HTML-шаблон карты (тёмная тема Mingli, цвета элементов, 4 столпа + баланс)
-- [ ] 1.7.3 Загрузка PNG в Yandex Object Storage (aioboto3, кэш по hash данных карты)
-- [ ] 1.7.4 Отправка фото в Telegram (send_photo по pre-signed URL)
-- [ ] 1.7.5 Fallback: Pillow-композиция из 24 PNG-ассетов если Playwright недоступен
+- [x] 1.7.1 ai/card_renderer.py — рендеринг карты через Playwright (lazy singleton browser)
+- [x] 1.7.2 web/templates/chart.html — Jinja2 шаблон в тёмной Mingli-теме, цвета элементов, 4/3 столпа + баланс
+- [ ] 1.7.3 Загрузка PNG в Yandex Object Storage (aioboto3, кэш по hash) — отложено до prod-деплоя
+- [x] 1.7.4 Отправка фото в Telegram (BufferedInputFile в `handle_confirm_calc` и `chart:open`)
+- [ ] 1.7.5 Fallback: Pillow-композиция из 24 PNG-ассетов если Playwright недоступен — отложено
 
 ### 1.8 AI Оркестратор (OpenRouter)
 - [ ] 1.8.1 ai/orchestrator.py — OpenRouter клиент (httpx async)

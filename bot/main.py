@@ -6,6 +6,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
 
+from ai.card_renderer import close_browser
 from bot.config import Settings, get_settings
 from bot.logging import configure_logging
 from bot.middlewares import DbSessionMiddleware, TracingMiddleware, UserMiddleware
@@ -39,6 +40,7 @@ def _include_routers(dispatcher: Dispatcher) -> None:
 
 
 async def _shutdown(bot: Bot, dispatcher: Dispatcher) -> None:
+    await close_browser()
     await dispatcher.storage.close()
     await bot.session.close()
     await get_engine().dispose()
