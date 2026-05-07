@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1380" width="1200" height="1380">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1400" width="1200" height="1400">
   <defs>
     <style type="text/css"><![CDATA[
       .bg          { fill: #faf6ec; }
@@ -27,8 +27,12 @@
       .balance-label  { font-family: "Inter", sans-serif; font-size: 16px; fill: #3d2f18; }
       .balance-glyph  { font-family: "PingFang SC", "Noto Sans SC", serif; font-size: 22px; font-weight: 700; }
       .balance-pct    { font-family: "Inter", sans-serif; font-size: 14px; fill: #6e5832; }
-      .role-label  { font-family: "Inter", sans-serif; font-size: 14px; font-weight: 600; fill: #3d2f18; }
-      .role-label-dm { fill: #6e5832; font-size: 15px; }
+      .role-label  { font-family: "Inter", sans-serif; font-size: 15px; font-weight: 600; fill: #3d2f18; }
+      .role-label-dm { fill: #6e5832; font-size: 16px; font-weight: 700; }
+      .wuxing-emoji { font-family: "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji", sans-serif; font-size: 60px; text-anchor: middle; }
+      .wuxing-emoji-dm { font-size: 78px; }
+      .dm-stem-big { font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Songti SC", serif; font-weight: 900; font-size: 56px; }
+      .dm-name-big { font-family: "Inter", "Helvetica Neue", sans-serif; font-size: 26px; font-weight: 600; fill: #2d1f10; }
       .arrow-line  { stroke: #b0a587; stroke-width: 2.5; fill: none; }
       .arrow-ctrl  { stroke: #c46c4a; stroke-width: 1.6; fill: none; stroke-dasharray: 5 4; opacity: 0.85; }
       .el-wood    { fill: #5fa86a; }
@@ -130,19 +134,20 @@
 
   <!-- Господин дня strip -->
   <g transform="translate(40, 700)">
-    <rect class="card" x="0" y="0" width="1120" height="60" rx="6"/>
-    <text x="20" y="38" class="ru-text ru-meta">ГОСПОДИН ДНЯ</text>
-    <text x="195" y="42" class="glyph el-{{ dm_element_class }}" style="font-size: 36px; text-anchor: start;">{{ day_master }}</text>
-    <text x="245" y="38" class="ru-text title" style="font-size: 22px;">{{ day_master_ru }}</text>
-    <text x="1100" y="38" class="ru-text ru-sub" text-anchor="end">{{ chart_kind }}</text>
+    <rect class="card" x="0" y="0" width="1120" height="100" rx="6"/>
+    <text x="24" y="28" class="ru-text ru-sub" style="letter-spacing: 1.2px;">ГОСПОДИН ДНЯ</text>
+    <text x="1100" y="28" class="ru-text ru-sub" text-anchor="end">{{ chart_kind }}</text>
+    <line x1="20" y1="42" x2="1100" y2="42" class="border"/>
+    <text x="36" y="84" class="dm-stem-big el-{{ dm_element_class }}">{{ day_master }}</text>
+    <text x="106" y="80" class="dm-name-big">{{ day_master_ru }}</text>
   </g>
 
-  <!-- Wuxing wheel: pentagon, day master on top, generation arrows, role labels -->
-  <g transform="translate(40, 790)">
+  <!-- Wuxing wheel: pentagon, day master on top, generation + control arrows -->
+  <g transform="translate(40, 820)">
     <rect class="card" x="0" y="0" width="1120" height="380" rx="6"/>
     <text x="40" y="36" class="ru-text ru-sub">ЦИКЛ У-СИН</text>
 
-    <!-- Legend: solid arrow = generation, dashed = control -->
+    <!-- Legend -->
     <g transform="translate(820, 32)">
       <line x1="0" y1="0" x2="30" y2="0" class="arrow-line" marker-end="url(#gen-arrow)"/>
       <text x="38" y="4" class="ru-text ru-sub">порождение</text>
@@ -150,26 +155,22 @@
       <text x="200" y="4" class="ru-text ru-sub">контроль</text>
     </g>
 
-    <g transform="translate(280, 220)">
-      <!-- Control arrows first so they sit visually behind the generation cycle -->
+    <!-- Pentagon centred in card (card width 1120, centre 560) -->
+    <g transform="translate(560, 220)">
       {% for ar in wuxing.arrows_ctrl %}
       <line x1="{{ ar.x1 }}" y1="{{ ar.y1 }}" x2="{{ ar.x2 }}" y2="{{ ar.y2 }}"
             class="arrow-ctrl" marker-end="url(#ctrl-arrow)"/>
       {% endfor %}
-
-      <!-- Generation arrows (clockwise pentagon perimeter) -->
       {% for ar in wuxing.arrows_gen %}
       <line x1="{{ ar.x1 }}" y1="{{ ar.y1 }}" x2="{{ ar.x2 }}" y2="{{ ar.y2 }}"
             class="arrow-line" marker-end="url(#gen-arrow)"/>
       {% endfor %}
-
-      <!-- Element circles + icons + role labels -->
       {% for el in wuxing.elements %}
-      <circle cx="{{ el.cx }}" cy="{{ el.cy }}" r="{{ wuxing.icon_radius }}"
-              class="el-bg-{{ el.el }}" opacity="{{ '1.0' if el.is_dm else '0.7' }}"/>
-      <use href="#ic-{{ el.el }}" x="{{ el.cx - wuxing.icon_radius }}"
-           y="{{ el.cy - wuxing.icon_radius }}" width="{{ wuxing.icon_radius * 2 }}"
-           height="{{ wuxing.icon_radius * 2 }}"/>
+      {% if el.is_dm %}
+      <circle cx="{{ el.cx }}" cy="{{ el.cy }}" r="48" fill="none" stroke="#c69853" stroke-width="2.5" stroke-dasharray="5 4"/>
+      {% endif %}
+      <text x="{{ el.cx }}" y="{{ el.cy + (24 if el.is_dm else 18) }}"
+            class="wuxing-emoji{% if el.is_dm %} wuxing-emoji-dm{% endif %}">{{ el.emoji }}</text>
       <text x="{{ el.label_cx }}" y="{{ el.label_cy }}"
             class="ru-text role-label{% if el.is_dm %} role-label-dm{% endif %}"
             text-anchor="{{ el.label_anchor }}">{{ el.role }}</text>
@@ -178,7 +179,7 @@
   </g>
 
   <!-- Balance bars -->
-  <g transform="translate(40, 1190)">
+  <g transform="translate(40, 1220)">
     <rect class="card" x="0" y="0" width="1120" height="160" rx="6"/>
     <text x="20" y="32" class="ru-text ru-sub">БАЛАНС ЭЛЕМЕНТОВ</text>
     {% for row in balance %}
@@ -192,5 +193,5 @@
   </g>
 
   <!-- Footer -->
-  <text x="600" y="1370" class="ru-text footer">БАЦЗЫ КАРТА · АНАСТАСИЯ · @EdoHa_Badzi_bot</text>
+  <text x="600" y="1395" class="ru-text footer">БАЦЗЫ КАРТА · АНАСТАСИЯ · @EdoHa_Badzi_bot</text>
 </svg>

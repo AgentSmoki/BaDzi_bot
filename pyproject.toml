@@ -120,6 +120,7 @@ ignore = [
 "scripts/**/*.py" = ["E501", "RUF001"]
 "bot/routers/**/*.py" = ["RUF001"]
 "bot/keyboards/**/*.py" = ["RUF001"]
+"bot/services/**/*.py" = ["RUF001"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["bot", "calculator", "ai", "db", "web", "tasks", "monitoring", "knowledge"]

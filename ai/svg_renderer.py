@@ -128,7 +128,7 @@ class RenderRequest:
 
 
 _CANVAS_W: Final = 1200
-_CANVAS_H: Final = 1380
+_CANVAS_H: Final = 1400
 
 
 def render_chart_png(req: RenderRequest, *, scale: float = 1.0) -> bytes:
@@ -249,6 +249,13 @@ _ROLES_RU: Final[tuple[str, ...]] = (
     "Власть, муж",  # 3: this controls DM (power)
     "Ресурсы",  # 4: this generates DM (resources)
 )
+_ELEMENT_EMOJI: Final[dict[str, str]] = {
+    "wood": "🌳",
+    "fire": "🔥",
+    "earth": "⛰",
+    "metal": "⚙",
+    "water": "💧",
+}
 
 
 def _wuxing_wheel(dm_class: str) -> dict[str, object]:
@@ -292,6 +299,7 @@ def _wuxing_wheel(dm_class: str) -> dict[str, object]:
             {
                 "el": el,
                 "role": _ROLES_RU[i],
+                "emoji": _ELEMENT_EMOJI[el],
                 "cx": round(cx, 1),
                 "cy": round(cy, 1),
                 "label_cx": round(label_cx, 1),

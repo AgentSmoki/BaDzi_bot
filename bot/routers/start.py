@@ -10,6 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai.card_renderer import RenderRequest, render_chart_png
 from bot.keyboards import new_user_kb, returning_user_kb
+from bot.services.menu import (
+    charts_to_buttons,
+    format_chart_label,
+    send_main_menu,
+)
 from calculator.models import ChartOutput
 from db.models import Chart, User
 from db.repositories.chart_repo import ChartRepository
@@ -33,22 +38,9 @@ GREETING_NEW_USER = (
     "Начнём?"
 )
 
-GREETING_RETURNING_USER = "С возвращением, {name}. Что вас интересует сегодня?"
-
-
-def _format_chart_label(chart: Chart) -> str:
-    """User-set name wins; otherwise show day-master + date.
-
-    Legacy charts created before the naming flow had Chart.name auto-set to
-    the city's full address (e.g. "Волжский, Волгоградская область, Россия").
-    A name with commas almost certainly came from there, so treat it as
-    auto-generated and fall through to day-master + date for clarity.
-    """
-    if chart.name and "," not in chart.name:
-        return chart.name
-    date_str = chart.birth_datetime_original.strftime("%d.%m.%Y")
-    day_master = chart.chart_data.get("day_master", "?") if chart.chart_data else "?"
-    return f"{day_master} {date_str}"
+# Re-export so existing chart-render helpers below stay readable; the actual
+# implementation lives in bot.services.menu now.
+_format_chart_label = format_chart_label
 
 
 def _format_chart_view(chart: Chart) -> str:
@@ -101,14 +93,17 @@ async def handle_start(
     message: Message, user: User, session: AsyncSession, state: FSMContext
 ) -> None:
     await state.clear()
-    charts = await _chart_repo.list_by_user(session, user.id)
+    charts = await _chart_repo.list_unique_by_user(session, user.id)
 
     if not charts:
         logger.info("start.new_user", telegram_id=user.telegram_id, user_id=str(user.id))
-        await message.answer(
+        sent = await message.answer(
             GREETING_NEW_USER.format(name=user.first_name),
             reply_markup=new_user_kb(),
         )
+        # Track the greeting message so the first FSM step (handle_calc) can
+        # edit it in place instead of stacking a new prompt below.
+        await state.update_data(fsm_msg_id=sent.message_id)
         return
 
     logger.info(
@@ -117,14 +112,7 @@ async def handle_start(
         user_id=str(user.id),
         charts_count=len(charts),
     )
-    await message.answer(
-        GREETING_RETURNING_USER.format(name=user.first_name),
-        reply_markup=returning_user_kb(charts=_charts_to_buttons(charts)),
-    )
-
-
-def _charts_to_buttons(charts: list[Chart]) -> list[tuple[uuid.UUID, str]]:
-    return [(chart.id, _format_chart_label(chart)) for chart in charts]
+    await send_main_menu(message, user, session, state=state)
 
 
 @start_router.callback_query(F.data.startswith("charts:page:"))
@@ -138,10 +126,10 @@ async def handle_charts_page(callback: CallbackQuery, user: User, session: Async
         await callback.answer()
         return
 
-    charts = await _chart_repo.list_by_user(session, user.id)
+    charts = await _chart_repo.list_unique_by_user(session, user.id)
     if isinstance(callback.message, Message):
         await callback.message.edit_reply_markup(
-            reply_markup=returning_user_kb(charts=_charts_to_buttons(charts), page=page)
+            reply_markup=returning_user_kb(charts=charts_to_buttons(charts), page=page)
         )
     await callback.answer()
 

@@ -4,9 +4,9 @@ from typing import Final
 
 import dateparser
 import structlog
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import BufferedInputFile, CallbackQuery, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, InlineKeyboardMarkup, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai.card_renderer import RenderRequest, render_chart_png
@@ -21,6 +21,7 @@ from bot.keyboards import (
 )
 from bot.services.birth_datetime import resolve as resolve_birth_datetime
 from bot.services.geocoding import search_cities
+from bot.services.menu import send_main_menu
 from bot.states import BirthDataForm
 from calculator import calculate_chart
 from calculator.models import ChartInput, ChartOutput
@@ -124,15 +125,43 @@ _chart_repo = ChartRepository()
 
 async def _consume_buttons(callback: CallbackQuery) -> None:
     """Strip the inline keyboard from the message that triggered this callback
-    so the chat doesn't accumulate stale FSM-step buttons. Telegram refuses
-    to edit messages older than 48 hours or already-edited markup — that's
-    fine, log at debug level so the failure stays visible without spamming."""
+    so the chat doesn't accumulate stale FSM-step buttons. Used as a fallback
+    when _step can't edit the original message."""
     if not isinstance(callback.message, Message):
         return
     try:
         await callback.message.edit_reply_markup(reply_markup=None)
     except Exception as exc:
         logger.debug("consume_buttons.skip", error=str(exc), exc_type=type(exc).__name__)
+
+
+async def _step(
+    *,
+    bot: Bot,
+    chat_id: int,
+    state: FSMContext,
+    text: str,
+    kb: InlineKeyboardMarkup | None = None,
+) -> None:
+    """Edit the FSM-tracked message in place; fall back to a fresh message
+    when the tracked message no longer exists or can't be edited (Telegram
+    rejects edits older than 48h or with identical content). Either way the
+    new message id is saved as the next anchor."""
+    data = await state.get_data()
+    raw_id = data.get("fsm_msg_id")
+    if isinstance(raw_id, int):
+        try:
+            await bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=raw_id,
+                text=text,
+                reply_markup=kb,
+            )
+            return
+        except Exception as exc:
+            logger.debug("step.edit_failed", error=str(exc), exc_type=type(exc).__name__)
+    sent = await bot.send_message(chat_id=chat_id, text=text, reply_markup=kb)
+    await state.update_data(fsm_msg_id=sent.message_id)
 
 
 def _parse_birth_date(text: str) -> date | None:
@@ -179,28 +208,33 @@ def _parse_birth_time(text: str) -> time | None:
 
 
 @birth_data_router.callback_query(F.data == "menu:calc")
-async def handle_calc(callback: CallbackQuery, state: FSMContext) -> None:
-    await _consume_buttons(callback)
+async def handle_calc(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
     await state.set_state(BirthDataForm.waiting_date)
     if isinstance(callback.message, Message):
-        await callback.message.answer(DATE_PROMPT)
+        await _step(bot=bot, chat_id=callback.message.chat.id, state=state, text=DATE_PROMPT)
     await callback.answer()
 
 
 @birth_data_router.message(BirthDataForm.waiting_date, F.text)
-async def handle_date(message: Message, state: FSMContext) -> None:
+async def handle_date(message: Message, state: FSMContext, bot: Bot) -> None:
     text = message.text or ""
     parsed = _parse_birth_date(text)
     if parsed is None:
-        await message.answer(DATE_INVALID.format(text=text))
+        await _step(
+            bot=bot, chat_id=message.chat.id, state=state, text=DATE_INVALID.format(text=text)
+        )
         return
 
     today = datetime.now().date()
     if parsed > today:
-        await message.answer(DATE_FUTURE.format(text=text))
+        await _step(
+            bot=bot, chat_id=message.chat.id, state=state, text=DATE_FUTURE.format(text=text)
+        )
         return
     if parsed.year < MIN_YEAR:
-        await message.answer(DATE_TOO_OLD.format(text=text))
+        await _step(
+            bot=bot, chat_id=message.chat.id, state=state, text=DATE_TOO_OLD.format(text=text)
+        )
         return
 
     await state.update_data(birth_date=parsed.isoformat())
@@ -210,21 +244,30 @@ async def handle_date(message: Message, state: FSMContext) -> None:
         date=parsed.isoformat(),
     )
     if await _is_edit_mode(state):
-        await _back_to_confirm(message, state)
+        await _back_to_confirm(bot, message.chat.id, state)
         return
     await state.set_state(BirthDataForm.waiting_time)
-    await message.answer(
-        DATE_ACCEPTED.format(formatted=parsed.strftime("%d.%m.%Y")),
-        reply_markup=time_step_kb(),
+    await _step(
+        bot=bot,
+        chat_id=message.chat.id,
+        state=state,
+        text=DATE_ACCEPTED.format(formatted=parsed.strftime("%d.%m.%Y")),
+        kb=time_step_kb(),
     )
 
 
 @birth_data_router.message(BirthDataForm.waiting_time, F.text)
-async def handle_time(message: Message, state: FSMContext) -> None:
+async def handle_time(message: Message, state: FSMContext, bot: Bot) -> None:
     text = message.text or ""
     parsed = _parse_birth_time(text)
     if parsed is None:
-        await message.answer(TIME_INVALID.format(text=text), reply_markup=time_step_kb())
+        await _step(
+            bot=bot,
+            chat_id=message.chat.id,
+            state=state,
+            text=TIME_INVALID.format(text=text),
+            kb=time_step_kb(),
+        )
         return
 
     await state.update_data(birth_time=parsed.isoformat(), has_birth_time=True)
@@ -234,62 +277,76 @@ async def handle_time(message: Message, state: FSMContext) -> None:
         time=parsed.isoformat(),
     )
     if await _is_edit_mode(state):
-        await _back_to_confirm(message, state)
+        await _back_to_confirm(bot, message.chat.id, state)
         return
     await state.set_state(BirthDataForm.waiting_city)
-    await message.answer(
-        TIME_ACCEPTED.format(formatted=parsed.strftime("%H:%M")),
-        reply_markup=back_to_time_kb(),
+    await _step(
+        bot=bot,
+        chat_id=message.chat.id,
+        state=state,
+        text=TIME_ACCEPTED.format(formatted=parsed.strftime("%H:%M")),
+        kb=back_to_time_kb(),
     )
 
 
 @birth_data_router.callback_query(BirthDataForm.waiting_time, F.data == "time:skip")
-async def handle_time_skip(callback: CallbackQuery, state: FSMContext) -> None:
-    await _consume_buttons(callback)
+async def handle_time_skip(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
     await state.update_data(birth_time=None, has_birth_time=False)
     logger.info(
         "birth_data.time_skipped",
         telegram_id=callback.from_user.id if callback.from_user else None,
     )
+    chat_id = callback.message.chat.id if isinstance(callback.message, Message) else None
+    if chat_id is None:
+        await callback.answer()
+        return
     if await _is_edit_mode(state):
-        if isinstance(callback.message, Message):
-            await _back_to_confirm(callback.message, state)
+        await _back_to_confirm(bot, chat_id, state)
         await callback.answer()
         return
     await state.set_state(BirthDataForm.waiting_city)
-    if isinstance(callback.message, Message):
-        await callback.message.answer(TIME_SKIPPED, reply_markup=back_to_time_kb())
+    await _step(bot=bot, chat_id=chat_id, state=state, text=TIME_SKIPPED, kb=back_to_time_kb())
     await callback.answer()
 
 
 @birth_data_router.message(BirthDataForm.waiting_city, F.text)
-async def handle_city(message: Message, state: FSMContext) -> None:
+async def handle_city(message: Message, state: FSMContext, bot: Bot) -> None:
     query = (message.text or "").strip()
     candidates = await search_cities(query, limit=3)
     if not candidates:
-        await message.answer(CITY_NOT_FOUND.format(query=query), reply_markup=back_to_time_kb())
+        await _step(
+            bot=bot,
+            chat_id=message.chat.id,
+            state=state,
+            text=CITY_NOT_FOUND.format(query=query),
+            kb=back_to_time_kb(),
+        )
         return
 
     await state.update_data(city_candidates=[c.to_dict() for c in candidates])
     options = [(c.short_label(), f"city:{i}") for i, c in enumerate(candidates)]
-    await message.answer(CITY_CHOICES, reply_markup=city_choice_kb(options))
+    await _step(
+        bot=bot,
+        chat_id=message.chat.id,
+        state=state,
+        text=CITY_CHOICES,
+        kb=city_choice_kb(options),
+    )
 
 
 @birth_data_router.callback_query(BirthDataForm.waiting_city, F.data == "city:retry")
-async def handle_city_retry(callback: CallbackQuery, state: FSMContext) -> None:
-    await _consume_buttons(callback)
+async def handle_city_retry(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
     await state.update_data(city_candidates=None)
     if isinstance(callback.message, Message):
-        await callback.message.answer(CITY_PROMPT)
+        await _step(bot=bot, chat_id=callback.message.chat.id, state=state, text=CITY_PROMPT)
     await callback.answer()
 
 
 @birth_data_router.callback_query(BirthDataForm.waiting_city, F.data.startswith("city:"))
-async def handle_city_choice(callback: CallbackQuery, state: FSMContext) -> None:
+async def handle_city_choice(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
     if not callback.data:
         await callback.answer()
         return
-    await _consume_buttons(callback)
     try:
         idx = int(callback.data.split(":", 1)[1])
     except ValueError:
@@ -299,7 +356,7 @@ async def handle_city_choice(callback: CallbackQuery, state: FSMContext) -> None
     data = await state.get_data()
     candidates = data.get("city_candidates") or []
     if idx < 0 or idx >= len(candidates):
-        await callback.answer("Этот вариант устарел, введи город заново.", show_alert=True)
+        await callback.answer("Этот вариант устарел, введите город заново.", show_alert=True)
         return
 
     chosen = candidates[idx]
@@ -315,22 +372,27 @@ async def handle_city_choice(callback: CallbackQuery, state: FSMContext) -> None
         telegram_id=callback.from_user.id if callback.from_user else None,
         timezone=chosen["timezone"],
     )
+    chat_id = callback.message.chat.id if isinstance(callback.message, Message) else None
+    if chat_id is None:
+        await callback.answer()
+        return
     if await _is_edit_mode(state):
-        if isinstance(callback.message, Message):
-            await _back_to_confirm(callback.message, state)
+        await _back_to_confirm(bot, chat_id, state)
         await callback.answer()
         return
     await state.set_state(BirthDataForm.waiting_gender)
-    if isinstance(callback.message, Message):
-        await callback.message.answer(
-            CITY_ACCEPTED.format(name=chosen["display_name"]),
-            reply_markup=gender_kb(),
-        )
+    await _step(
+        bot=bot,
+        chat_id=chat_id,
+        state=state,
+        text=CITY_ACCEPTED.format(name=chosen["display_name"]),
+        kb=gender_kb(),
+    )
     await callback.answer()
 
 
 @birth_data_router.callback_query(BirthDataForm.waiting_gender, F.data.startswith("gender:"))
-async def handle_gender(callback: CallbackQuery, state: FSMContext) -> None:
+async def handle_gender(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
     if not callback.data:
         await callback.answer()
         return
@@ -338,7 +400,6 @@ async def handle_gender(callback: CallbackQuery, state: FSMContext) -> None:
     if value not in ("male", "female"):
         await callback.answer()
         return
-    await _consume_buttons(callback)
 
     await state.update_data(gender=value)
     logger.info(
@@ -347,7 +408,7 @@ async def handle_gender(callback: CallbackQuery, state: FSMContext) -> None:
         gender=value,
     )
     if isinstance(callback.message, Message):
-        await _back_to_confirm(callback.message, state)
+        await _back_to_confirm(bot, callback.message.chat.id, state)
     await callback.answer()
 
 
@@ -360,61 +421,83 @@ async def _is_edit_mode(state: FSMContext) -> bool:
     return bool(data.get("gender")) and bool(data.get("city_name"))
 
 
-async def _back_to_confirm(message: Message, state: FSMContext) -> None:
+async def _back_to_confirm(bot: Bot, chat_id: int, state: FSMContext) -> None:
     await state.set_state(BirthDataForm.confirm)
     data = await state.get_data()
-    await message.answer(_format_summary(data), reply_markup=confirm_kb())
+    await _step(
+        bot=bot,
+        chat_id=chat_id,
+        state=state,
+        text=_format_summary(data),
+        kb=confirm_kb(),
+    )
 
 
 @birth_data_router.callback_query(BirthDataForm.confirm, F.data == "edit:menu")
-async def handle_edit_menu(callback: CallbackQuery) -> None:
-    await _consume_buttons(callback)
+async def handle_edit_menu(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
     if isinstance(callback.message, Message):
-        await callback.message.answer(EDIT_MENU_PROMPT, reply_markup=edit_menu_kb())
+        await _step(
+            bot=bot,
+            chat_id=callback.message.chat.id,
+            state=state,
+            text=EDIT_MENU_PROMPT,
+            kb=edit_menu_kb(),
+        )
     await callback.answer()
 
 
 @birth_data_router.callback_query(BirthDataForm.confirm, F.data == "edit:cancel")
-async def handle_edit_cancel(callback: CallbackQuery, state: FSMContext) -> None:
-    await _consume_buttons(callback)
+async def handle_edit_cancel(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
     if isinstance(callback.message, Message):
-        await _back_to_confirm(callback.message, state)
+        await _back_to_confirm(bot, callback.message.chat.id, state)
     await callback.answer()
 
 
 @birth_data_router.callback_query(BirthDataForm.confirm, F.data == "edit:date")
-async def handle_edit_date(callback: CallbackQuery, state: FSMContext) -> None:
-    await _consume_buttons(callback)
+async def handle_edit_date(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
     await state.set_state(BirthDataForm.waiting_date)
     if isinstance(callback.message, Message):
-        await callback.message.answer(EDIT_PROMPTS["date"])
+        await _step(
+            bot=bot, chat_id=callback.message.chat.id, state=state, text=EDIT_PROMPTS["date"]
+        )
     await callback.answer()
 
 
 @birth_data_router.callback_query(BirthDataForm.confirm, F.data == "edit:time")
-async def handle_edit_time(callback: CallbackQuery, state: FSMContext) -> None:
-    await _consume_buttons(callback)
+async def handle_edit_time(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
     await state.set_state(BirthDataForm.waiting_time)
     if isinstance(callback.message, Message):
-        await callback.message.answer(EDIT_PROMPTS["time"], reply_markup=time_step_kb())
+        await _step(
+            bot=bot,
+            chat_id=callback.message.chat.id,
+            state=state,
+            text=EDIT_PROMPTS["time"],
+            kb=time_step_kb(),
+        )
     await callback.answer()
 
 
 @birth_data_router.callback_query(BirthDataForm.confirm, F.data == "edit:city")
-async def handle_edit_city(callback: CallbackQuery, state: FSMContext) -> None:
-    await _consume_buttons(callback)
+async def handle_edit_city(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
     await state.set_state(BirthDataForm.waiting_city)
     if isinstance(callback.message, Message):
-        await callback.message.answer(EDIT_PROMPTS["city"])
+        await _step(
+            bot=bot, chat_id=callback.message.chat.id, state=state, text=EDIT_PROMPTS["city"]
+        )
     await callback.answer()
 
 
 @birth_data_router.callback_query(BirthDataForm.confirm, F.data == "edit:gender")
-async def handle_edit_gender(callback: CallbackQuery, state: FSMContext) -> None:
-    await _consume_buttons(callback)
+async def handle_edit_gender(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
     await state.set_state(BirthDataForm.waiting_gender)
     if isinstance(callback.message, Message):
-        await callback.message.answer(EDIT_PROMPTS["gender"], reply_markup=gender_kb())
+        await _step(
+            bot=bot,
+            chat_id=callback.message.chat.id,
+            state=state,
+            text=EDIT_PROMPTS["gender"],
+            kb=gender_kb(),
+        )
     await callback.answer()
 
 
@@ -445,12 +528,20 @@ def _format_summary(data: dict[str, str | float | bool | None]) -> str:
 
 
 @birth_data_router.callback_query(F.data == "fsm:restart")
-async def handle_fsm_restart(callback: CallbackQuery, state: FSMContext) -> None:
-    await _consume_buttons(callback)
+async def handle_fsm_restart(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
+    chat_id = callback.message.chat.id if isinstance(callback.message, Message) else None
+    if chat_id is None:
+        await callback.answer()
+        return
+    # Preserve fsm_msg_id across the clear so _step can keep editing the same
+    # bot bubble. State clear wipes everything else.
+    data = await state.get_data()
+    msg_id = data.get("fsm_msg_id")
     await state.clear()
+    if isinstance(msg_id, int):
+        await state.update_data(fsm_msg_id=msg_id)
     await state.set_state(BirthDataForm.waiting_date)
-    if isinstance(callback.message, Message):
-        await callback.message.answer(RESTART_PROMPT)
+    await _step(bot=bot, chat_id=chat_id, state=state, text=RESTART_PROMPT)
     await callback.answer()
 
 
@@ -460,8 +551,9 @@ async def handle_confirm_calc(
     state: FSMContext,
     user: User,
     session: AsyncSession,
+    bot: Bot,
 ) -> None:
-    await _consume_buttons(callback)
+    await _consume_buttons(callback)  # last edit before we leave the FSM bubble
     data = await state.get_data()
     try:
         result = await _calculate_and_persist(data, user=user, session=session)
@@ -499,19 +591,30 @@ async def handle_confirm_calc(
         )
         await callback.message.answer_photo(
             BufferedInputFile(png, "chart.png"),
-            caption=f"Карта рассчитана. Дневной мастер: <b>{day_master}</b>.",
+            caption=f"Карта рассчитана. Господин дня: <b>{day_master}</b>.",
         )
         await state.set_state(BirthDataForm.naming)
-        await state.update_data(chart_id=str(chart_id))
-        await callback.message.answer(
-            NAME_PROMPT.format(day_master=day_master, date=date_str),
-            reply_markup=name_skip_kb(),
+        await state.update_data(chart_id=str(chart_id), fsm_msg_id=None)
+        # Naming prompt is a fresh bubble (photo above can't be text-edited);
+        # _step starts a new anchor here.
+        await _step(
+            bot=bot,
+            chat_id=callback.message.chat.id,
+            state=state,
+            text=NAME_PROMPT.format(day_master=day_master, date=date_str),
+            kb=name_skip_kb(),
         )
     await callback.answer()
 
 
 @birth_data_router.message(BirthDataForm.naming, F.text)
-async def handle_naming_input(message: Message, state: FSMContext, session: AsyncSession) -> None:
+async def handle_naming_input(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+    user: User,
+    bot: Bot,
+) -> None:
     name = (message.text or "").strip()
     if not name:
         return
@@ -523,16 +626,23 @@ async def handle_naming_input(message: Message, state: FSMContext, session: Asyn
     import uuid as _uuid
 
     await _chart_repo.update_name(session, _uuid.UUID(raw_id), name)
+    await _step(bot=bot, chat_id=message.chat.id, state=state, text=NAME_SAVED.format(name=name))
     await state.clear()
-    await message.answer(NAME_SAVED.format(name=name))
+    await send_main_menu(message, user, session, state=state)
 
 
 @birth_data_router.callback_query(BirthDataForm.naming, F.data == "name:skip")
-async def handle_naming_skip(callback: CallbackQuery, state: FSMContext) -> None:
-    await _consume_buttons(callback)
-    await state.clear()
+async def handle_naming_skip(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+    user: User,
+    bot: Bot,
+) -> None:
     if isinstance(callback.message, Message):
-        await callback.message.answer(NAME_SKIPPED)
+        await _step(bot=bot, chat_id=callback.message.chat.id, state=state, text=NAME_SKIPPED)
+        await state.clear()
+        await send_main_menu(callback.message, user, session, state=state)
     await callback.answer()
 
 

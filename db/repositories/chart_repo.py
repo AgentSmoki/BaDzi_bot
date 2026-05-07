@@ -60,7 +60,73 @@ class ChartRepository:
         )
         return list(result.scalars().all())
 
+    async def list_unique_by_user(self, session: AsyncSession, user_id: uuid.UUID) -> list[Chart]:
+        """Return the user's charts with duplicates collapsed.
+
+        Two charts collapse if they share birth date, location (≈100 m
+        precision), and gender. Within a group:
+        - if any chart carries a birth time, the time-less variants are
+          dropped (they're strictly less informative);
+        - charts with the *same* exact birth time also collapse to one;
+        - among equally-informative duplicates, the user-named one wins,
+          and freshest created_at breaks the remaining tie.
+        """
+        all_charts = await self.list_by_user(session, user_id)
+        if not all_charts:
+            return []
+
+        groups: dict[tuple[Any, ...], list[Chart]] = {}
+        for chart in all_charts:
+            key = _coarse_key(chart)
+            groups.setdefault(key, []).append(chart)
+
+        result: list[Chart] = []
+        for group in groups.values():
+            result.extend(_pick_best_in_group(group))
+
+        result.sort(key=lambda c: c.created_at, reverse=True)
+        return result
+
     async def update_name(
         self, session: AsyncSession, chart_id: uuid.UUID, name: str | None
     ) -> None:
         await session.execute(sa.update(Chart).where(Chart.id == chart_id).values(name=name))
+
+
+def _coarse_key(chart: Chart) -> tuple[Any, ...]:
+    """Group key that ignores birth time but keeps everything that
+    legitimately makes a chart different."""
+    gender = None
+    if chart.chart_data:
+        gender = (chart.chart_data.get("input") or {}).get("gender")
+    return (
+        chart.birth_datetime_original.date(),
+        round(chart.latitude, 3),
+        round(chart.longitude, 3),
+        gender,
+    )
+
+
+def _pick_best_in_group(group: list[Chart]) -> list[Chart]:
+    """Within a same-date+place+gender group, dedup by birth time and pick the
+    most informative variant. With-time entries always dominate time-less ones.
+    Same exact time collapses to one chart, preferring user-named + newest."""
+    with_time = [c for c in group if c.has_birth_time]
+    pool = with_time if with_time else group
+
+    by_time: dict[Any, list[Chart]] = {}
+    for chart in pool:
+        time_key = chart.birth_datetime_original.time() if chart.has_birth_time else None
+        by_time.setdefault(time_key, []).append(chart)
+
+    picked: list[Chart] = []
+    for variants in by_time.values():
+        # Sort: user-named first (commaless), then newest. variants[0] wins.
+        variants.sort(
+            key=lambda c: (
+                c.name is None or "," in (c.name or ""),
+                -c.created_at.timestamp(),
+            )
+        )
+        picked.append(variants[0])
+    return picked
