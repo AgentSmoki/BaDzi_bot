@@ -51,8 +51,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libpangocairo-1.0-0 \
         ca-certificates \
         curl \
-    && fc-cache -fv \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Twemoji (Mozilla COLR build) — closest open-source visual
+# match to Apple Color Emoji. Apple's font is licensed for macOS only,
+# so on Linux containers we ship Twemoji and Pango will pick it up via
+# fontconfig before falling back to Noto Color Emoji. Pinned version
+# so production builds are reproducible.
+RUN mkdir -p /usr/share/fonts/truetype/twemoji \
+    && curl -fsSL "https://github.com/mozilla/twemoji-colr/releases/download/v0.7.0/Twemoji.Mozilla.ttf" \
+        -o /usr/share/fonts/truetype/twemoji/Twemoji.Mozilla.ttf \
+    && fc-cache -fv
 
 COPY --from=builder /opt/venv /opt/venv
 
