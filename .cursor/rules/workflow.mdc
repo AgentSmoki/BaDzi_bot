@@ -81,3 +81,27 @@ ruff check → ruff format --check → mypy → pytest --cov
 ```
 
 Деплой на Yandex Cloud только если все шаги прошли. Инструкция: `deploy.md`
+
+## Local-first → Deploy (обязательно)
+
+Изменения всегда идут в одну сторону:
+
+```
+local edit → ruff/mypy/pytest → git commit → rsync to VM → docker rebuild
+```
+
+Запреты:
+- ⛔ Прямо `vim` на сервере, если есть SSH с локальной машины
+- ⛔ Любая правка кода без коммита перед rsync (граф git разойдётся с прод-кодом)
+- ⛔ Деплой без прогона тестов локально
+
+Если случился server-side hotfix (force majeure):
+1. Сделать минимальный fix на сервере.
+2. Сразу записать его в `MASTER.md → ## CHANGELOG (server-side hotfixes)` —
+   дата/время UTC, файл, диф, причина.
+3. При первой возможности — повторить локально, закоммитить, накатить
+   через стандартный rsync, удалить запись из CHANGELOG (или
+   пометить «merged into git»).
+
+Команды деплоя — в [CLAUDE.md](../../CLAUDE.md) секция
+«Local-first → Deploy».

@@ -42,12 +42,16 @@ ENV PYTHONUNBUFFERED=1 \
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libpq5 \
+        fontconfig \
         fonts-noto-cjk \
         fonts-noto-cjk-extra \
+        fonts-noto-color-emoji \
         libcairo2 \
         libpango-1.0-0 \
+        libpangocairo-1.0-0 \
         ca-certificates \
         curl \
+    && fc-cache -fv \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/venv /opt/venv

@@ -45,7 +45,7 @@ _chart_repo = ChartRepository()
 _consultation_repo = ConsultationRepository()
 
 
-@broker.task  # type: ignore[misc]
+@broker.task
 async def run_consultation(
     *,
     user_id: str,

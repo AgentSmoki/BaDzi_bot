@@ -1,3 +1,4 @@
+import asyncio
 import re
 from datetime import date, datetime, time
 from typing import Final
@@ -41,6 +42,13 @@ TIME_RE: Final[re.Pattern[str]] = re.compile(r"^\s*(\d{1,2})\s*[:.,\-/\sчh]\s*(
 TIME_PACKED_RE: Final[re.Pattern[str]] = re.compile(r"^\s*(\d{3,4})\s*$")
 HOUR_ONLY_RE: Final[re.Pattern[str]] = re.compile(r"^\s*(\d{1,2})\s*[чh]?\s*$")
 MIN_YEAR: Final = 1900
+
+# Pre-delete pause for `_swallow_user_message`. Long enough that the
+# user reads the bot's "Принято: ..." reply before their own message
+# fades, short enough that the chat doesn't feel laggy. Telegram itself
+# animates the deletion, this just shifts the trigger so the animation
+# isn't competing with the bot reply rendering for the user's eye.
+SWALLOW_FADE_DELAY_MS: Final = 450
 
 DATE_PROMPT = (
     "Назовите дату вашего рождения.\n\n"
@@ -139,7 +147,13 @@ async def _swallow_user_message(message: Message) -> None:
     """Delete the user's text input so the chat shows only the bot's
     edit-in-place anchor. Telegram silently rejects deletes older than 48h
     or without delete-message permission — those failures are logged at
-    debug level and ignored."""
+    debug level and ignored.
+
+    A short pre-delete pause (``SWALLOW_FADE_DELAY_MS``) gives the user
+    a beat to see their input was accepted before it disappears, and lets
+    Telegram's natural fade-out animation be more noticeable instead of
+    feeling like an abrupt vanish."""
+    await asyncio.sleep(SWALLOW_FADE_DELAY_MS / 1000)
     try:
         await message.delete()
     except Exception as exc:

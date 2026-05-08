@@ -41,6 +41,61 @@ Senior Python Developer, специализация: aiogram 3.x, FastAPI, SQLAl
 7. Если изменилась архитектура → обновляю MASTER.md
 ```
 
+## 🔥 Local-first → Deploy: ОБЯЗАТЕЛЬНЫЙ порядок
+
+Любые изменения (код, шаблоны, конфиги, Dockerfile) делаем **сначала
+в локальной копии**, тестируем, коммитим — и **только потом** льём на
+сервер. Это правило, не предложение.
+
+**Канонический поток:**
+
+```
+local edit → ruff + mypy + pytest → git commit → rsync to VM → rebuild → restart
+```
+
+**Почему:**
+- Локальная копия = source of truth. Всё что бежит на проде должно
+  быть в `git log`, иначе следующий деплой откатит работу с сервера.
+- Тесты гоняются в локальном venv (ruff, mypy, pytest) — на сервере
+  их прогонять долго и нет dev-зависимостей.
+- Pre-commit хуки видят правки только локально.
+
+**Команды деплоя на YC VM (130.193.51.15, user `yc-user`):**
+
+```bash
+# Заливка изменений (без .git, .venv, .env, кэшей)
+rsync -avz \
+  --exclude='.git/' --exclude='.venv/' --exclude='__pycache__/' \
+  --exclude='.coverage' --exclude='.DS_Store' --exclude='/.env' \
+  --exclude='graphify-out/cache/' --exclude='graphify-out/memory/' \
+  -e "ssh -i $HOME/.ssh/id_ed25519 -o IdentitiesOnly=yes" \
+  ./ yc-user@130.193.51.15:~/BaDzi_bot/
+
+# На VM: rebuild + restart (если менялся Dockerfile / Python deps)
+ssh -i ~/.ssh/id_ed25519 yc-user@130.193.51.15 \
+  'cd ~/BaDzi_bot && sudo docker compose build bot worker \
+   && sudo docker compose up -d --no-deps bot worker'
+
+# Если меняли только Python код (не Dockerfile / pyproject):
+# rsync уже подменил файлы внутри контейнера НЕТ — образ запекает.
+# Всегда rebuild для прод-копии.
+
+# Миграции после rsync (если новые в migrations/)
+ssh -i ~/.ssh/id_ed25519 yc-user@130.193.51.15 \
+  'cd ~/BaDzi_bot && sudo docker compose run --rm --no-deps bot alembic upgrade head'
+```
+
+⚠️ **Если что-то приходится сделать прямо на сервере** (hotfix без
+доступа к локальной машине, edge-case через `vim` на VM) — это
+исключение, и его НУЖНО зафиксировать:
+
+1. Сделать минимальный fix на сервере.
+2. **Сразу же** записать в `MASTER.md → ## CHANGELOG (server-side hotfixes)`:
+   - Дата/время (UTC), какой файл/команда, причина, точный diff.
+3. При первой возможности повторить fix локально, закоммитить,
+   и накатить через стандартный rsync — чтобы сервер и git снова
+   совпали.
+
 ## Ключевые архитектурные решения (из vision.mdc)
 
 - **Calculator** — stateless. Вход: `ChartInput`. Выход: `ChartOutput`. Нет зависимостей от bot/ или db/.
