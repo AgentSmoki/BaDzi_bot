@@ -9,7 +9,12 @@ from aiogram.types import BufferedInputFile, CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai.card_renderer import RenderRequest, render_chart_png
-from bot.keyboards import new_user_kb, returning_user_kb
+from bot.keyboards import (
+    chart_actions_kb,
+    new_user_kb,
+    pricing_kb,
+    returning_user_kb,
+)
 from bot.services.menu import (
     charts_to_buttons,
     format_chart_label,
@@ -18,6 +23,15 @@ from bot.services.menu import (
 from calculator.models import ChartOutput
 from db.models import Chart, User
 from db.repositories.chart_repo import ChartRepository
+
+PRICING_STUB_TEXT = (
+    "<b>Тарифы Анастасии</b>\n\n"
+    "• Месяц — 290 ₽\n"
+    "• 3 месяца — 990 ₽\n"
+    "• Год — 2 490 ₽\n\n"
+    "Оплата подключается — пока пользуйтесь бесплатным вопросом."
+)
+PAY_STUB_ALERT = "Оплата подключается. Совсем скоро здесь появится ЮKassa."
 
 logger = structlog.get_logger(__name__)
 
@@ -135,7 +149,9 @@ async def handle_charts_page(callback: CallbackQuery, user: User, session: Async
 
 
 @start_router.callback_query(F.data.startswith("chart:open:"))
-async def handle_chart_open(callback: CallbackQuery, session: AsyncSession) -> None:
+async def handle_chart_open(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+) -> None:
     if not callback.data:
         await callback.answer()
         return
@@ -150,20 +166,70 @@ async def handle_chart_open(callback: CallbackQuery, session: AsyncSession) -> N
         await callback.answer("Карта не найдена", show_alert=True)
         return
 
+    # Pin this chart as the active one for the upcoming consultation —
+    # `consultation._resolve_active_chart` reads `chart_id` from FSM
+    # before falling back to "latest". Without this a user opening an old
+    # chart and pressing "Задать вопрос" would silently get the latest.
+    await state.update_data(chart_id=str(chart.id))
+
     if isinstance(callback.message, Message):
         try:
             png = await _render_chart(chart)
         except Exception:
             logger.exception("chart_open.render_failed", chart_id=str(chart.id))
-            await callback.message.answer(_format_chart_view(chart))
+            await callback.message.answer(
+                _format_chart_view(chart), reply_markup=chart_actions_kb()
+            )
             await callback.answer()
             return
         title = _format_chart_label(chart)
         await callback.message.answer_photo(
             BufferedInputFile(png, "chart.png"),
             caption=f"<b>{title}</b>",
+            reply_markup=chart_actions_kb(),
         )
     await callback.answer()
+
+
+# ── Generic main-menu navigation (menu:back / menu:pricing / pay:*) ──────
+
+
+@start_router.callback_query(F.data == "menu:back")
+async def handle_menu_back(
+    callback: CallbackQuery,
+    state: FSMContext,
+    user: User,
+    session: AsyncSession,
+) -> None:
+    """Return to the returning-user main menu.
+
+    Called from `_after_answer_kb` (consultation), `chart_actions_kb`,
+    and the pricing-stub `pricing_kb`. Clears any in-flight FSM (e.g.
+    `ConsultationState.waiting_question`) so the user lands cleanly in
+    the menu instead of in a half-state.
+    """
+    await state.set_state(None)
+    if isinstance(callback.message, Message):
+        await send_main_menu(callback.message, user, session, state=state)
+    await callback.answer()
+
+
+@start_router.callback_query(F.data == "menu:pricing")
+async def handle_menu_pricing(callback: CallbackQuery) -> None:
+    """Stub until 1.12 (ЮKassa). Shows the price-list keyboard so the
+    user can see what's coming, but `pay:*` itself just answers an alert.
+    """
+    if isinstance(callback.message, Message):
+        await callback.message.answer(PRICING_STUB_TEXT, reply_markup=pricing_kb())
+    await callback.answer()
+
+
+@start_router.callback_query(F.data.startswith("pay:"))
+async def handle_pay_stub(callback: CallbackQuery) -> None:
+    """Placeholder for `pay:monthly|quarterly|annual` — surfaces a Telegram
+    alert so the user knows the click was registered. Will be replaced by
+    ЮKassa CreatePayment + redirect URL in 1.12.3."""
+    await callback.answer(PAY_STUB_ALERT, show_alert=True)
 
 
 async def _render_chart(chart: Chart) -> bytes:

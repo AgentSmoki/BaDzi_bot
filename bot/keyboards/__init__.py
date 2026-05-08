@@ -80,8 +80,18 @@ def returning_user_kb(
     charts: list[tuple[uuid.UUID, str]],
     page: int = 0,
 ) -> InlineKeyboardMarkup:
-    """charts: list of (chart_id, label) ordered newest-first."""
+    """Main menu for returning users.
+
+    Top row: actions on the active chart (Анастасия, тарифы).
+    Then: "Добавить новую карту" + paginated list of saved charts.
+
+    `charts`: list of (chart_id, label) ordered newest-first. Empty list is
+    fine — the action row still renders so a user with cleared charts can
+    rebuild from here.
+    """
     builder = InlineKeyboardBuilder()
+    builder.button(text="Задать вопрос Анастасии", callback_data="menu:ask")
+    builder.button(text="Тарифы", callback_data="menu:pricing")
     builder.button(text="Добавить новую карту", callback_data="menu:calc")
 
     start = page * CHARTS_PER_PAGE
@@ -90,7 +100,7 @@ def returning_user_kb(
     for chart_id, label in page_charts:
         builder.button(text=label[:60], callback_data=f"chart:open:{chart_id}")
 
-    rows = [1] + [1] * len(page_charts)
+    rows = [1, 1, 1] + [1] * len(page_charts)
     nav_buttons = 0
     if page > 0:
         builder.button(text="◀ Назад", callback_data=f"charts:page:{page - 1}")
@@ -102,6 +112,20 @@ def returning_user_kb(
         rows.append(nav_buttons)
 
     builder.adjust(*rows)
+    return builder.as_markup()
+
+
+def chart_actions_kb() -> InlineKeyboardMarkup:
+    """Focused inline keyboard attached to a freshly-rendered chart photo.
+
+    `chart:open:{id}` sets `chart_id` in FSM data before the photo is sent,
+    so `menu:ask` from this kb routes the consultation to that exact chart
+    (not "the latest"). `menu:back` returns to the main menu.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Задать вопрос по этой карте", callback_data="menu:ask")
+    builder.button(text="В меню", callback_data="menu:back")
+    builder.adjust(1)
     return builder.as_markup()
 
 
@@ -137,6 +161,7 @@ def pricing_kb() -> InlineKeyboardMarkup:
 
 __all__ = [
     "back_to_time_kb",
+    "chart_actions_kb",
     "city_choice_kb",
     "confirm_kb",
     "edit_menu_kb",
