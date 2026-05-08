@@ -117,13 +117,7 @@ async def handle_ask_pressed(
     await state.update_data(chart_id=str(chart.id))
     await state.set_state(ConsultationState.waiting_question)
 
-    await callback.message.answer(
-        "Напишите ваш вопрос Анастасии. Например:\n"
-        "• «Расскажи про мою карту в общем»\n"
-        "• «Что подсвечивает текущий столп удачи»\n"
-        "• «Какие сильные стороны видно по карте»\n\n"
-        "Можно отправить /reset чтобы очистить историю диалога.",
-    )
+    await callback.message.answer("Напишите ваш вопрос:")
     await callback.answer()
 
 

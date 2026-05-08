@@ -33,35 +33,31 @@ def _callback_data_set(markup: Any) -> set[str]:
     return {btn.callback_data for row in markup.inline_keyboard for btn in row}
 
 
-def test_returning_user_kb_has_calc_and_pricing_only() -> None:
-    """Main menu = navigation only. Per-chart actions live on the chart
-    card itself (chart_actions_kb), so menu has just 'Добавить новую'
-    + the chart list + 'Тарифы' link at the bottom."""
+def test_returning_user_kb_has_calc_only_no_pricing() -> None:
+    """Main menu = «Добавить новую» + chart list. Тарифы НЕ должны
+    появляться в главном меню — они только при upsell-моменте (после
+    free-limit). Per-chart actions живут на самой карте."""
     kb = returning_user_kb(charts=[])
     cbs = _callback_data_set(kb)
     assert "menu:calc" in cbs
-    assert "menu:pricing" in cbs
-    # Per-chart "ask" should NOT be in main menu — context-less click
-    # would be ambiguous about which chart the question is for.
+    assert "menu:pricing" not in cbs
     assert "menu:ask" not in cbs
 
 
-def test_returning_user_kb_lists_charts_between_calc_and_pricing() -> None:
+def test_returning_user_kb_chart_list_after_calc() -> None:
     chart_id = _uuid.uuid4()
     kb = returning_user_kb(charts=[(chart_id, "Test")])
     cbs = _callback_data_set(kb)
     assert f"chart:open:{chart_id}" in cbs
     rows = kb.inline_keyboard
-    # First row: "Добавить новую карту"
     assert rows[0][0].callback_data == "menu:calc"
-    # Last row: "Тарифы"
-    assert rows[-1][0].callback_data == "menu:pricing"
 
 
-def test_chart_actions_kb_has_interpret_ask_pricing_back() -> None:
-    """The four actions a user can do on a specific chart, in that order."""
+def test_chart_actions_kb_has_interpret_ask_back_no_pricing() -> None:
+    """Кнопки на карте: «Получить разбор», «Задать вопрос по карте»,
+    «В меню». Тарифы намеренно скрыты — появятся при free-limit."""
     cbs = _callback_data_set(chart_actions_kb())
-    assert cbs == {"chart:interpret", "menu:ask", "menu:pricing", "menu:back"}
+    assert cbs == {"chart:interpret", "menu:ask", "menu:back"}
 
 
 # ── Fixtures for handler tests ───────────────────────────────────────────

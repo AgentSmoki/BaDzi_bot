@@ -82,13 +82,11 @@ def returning_user_kb(
 ) -> InlineKeyboardMarkup:
     """Main menu for returning users — just the chart list.
 
-    Per-chart actions (вопрос Анастасии, базовый разбор, тарифы) live on
-    the chart card itself (`chart_actions_kb`), so the user always knows
-    which chart they're acting on. Main menu = navigation only.
+    «Тарифы» намеренно скрыты — они появляются только когда пользователь
+    упирается в free-tier лимит, а не как пункт меню. Per-chart actions
+    (вопрос, базовый разбор) живут на самой карте.
 
-    `charts`: list of (chart_id, label) ordered newest-first. Empty list
-    falls through gracefully — only "Добавить новую карту" + "Тарифы"
-    render.
+    `charts`: list of (chart_id, label) ordered newest-first.
     """
     builder = InlineKeyboardBuilder()
     builder.button(text="Добавить новую карту", callback_data="menu:calc")
@@ -110,11 +108,6 @@ def returning_user_kb(
     if nav_buttons:
         rows.append(nav_buttons)
 
-    # "Тарифы" сидит внизу как ненавязчивая ссылка на оплату — не отвлекает
-    # от выбора карты, но всегда под рукой.
-    builder.button(text="Тарифы", callback_data="menu:pricing")
-    rows.append(1)
-
     builder.adjust(*rows)
     return builder.as_markup()
 
@@ -122,15 +115,13 @@ def returning_user_kb(
 def chart_actions_kb() -> InlineKeyboardMarkup:
     """Focused inline keyboard attached to a chart photo.
 
-    Order matters — «Получить разбор» сверху как самое ценное бесплатное
-    действие, потом «Задать вопрос», потом тарифы и навигация. `menu:ask`
-    и `chart:interpret` опираются на `chart_id`, который пиннится в FSM
-    в `chart:open:{id}` / `confirm:calc`.
+    «Тарифы» намеренно скрыты — они появятся только когда пользователь
+    упирается в лимит free-tier (после 1.12). Сейчас фокус на бесплатных
+    действиях, чтобы пользователь увидел ценность до оплаты.
     """
     builder = InlineKeyboardBuilder()
-    builder.button(text="Получить разбор моей карты", callback_data="chart:interpret")
-    builder.button(text="Задать вопрос Анастасии", callback_data="menu:ask")
-    builder.button(text="Тарифы", callback_data="menu:pricing")
+    builder.button(text="Получить разбор карты", callback_data="chart:interpret")
+    builder.button(text="Задать вопрос по карте", callback_data="menu:ask")
     builder.button(text="В меню", callback_data="menu:back")
     builder.adjust(1)
     return builder.as_markup()
