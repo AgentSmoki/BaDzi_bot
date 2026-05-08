@@ -60,8 +60,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # so production builds are reproducible.
 RUN mkdir -p /usr/share/fonts/truetype/twemoji \
     && curl -fsSL "https://github.com/mozilla/twemoji-colr/releases/download/v0.7.0/Twemoji.Mozilla.ttf" \
-        -o /usr/share/fonts/truetype/twemoji/Twemoji.Mozilla.ttf \
-    && fc-cache -fv
+        -o /usr/share/fonts/truetype/twemoji/Twemoji.Mozilla.ttf
+
+# Fontconfig aliases — redirect macOS-native font names referenced in
+# the SVG template (PingFang SC, Hiragino, Apple Color Emoji, ...) to
+# the open-source equivalents above. Without this, fc-match falls
+# through to DejaVu Sans for any unknown CJK family and the chart
+# renders tofu boxes for every Chinese glyph (root cause of the prod
+# regression). fc-cache -fv runs after the alias is in place so the
+# resolution is baked into the image layer.
+COPY docker/fontconfig/99-bazi-aliases.conf /etc/fonts/conf.d/99-bazi-aliases.conf
+RUN fc-cache -fv
 
 COPY --from=builder /opt/venv /opt/venv
 

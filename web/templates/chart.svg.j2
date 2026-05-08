@@ -8,20 +8,20 @@
       .card-head   { fill: #6e5832; }
       .card-head-empty { fill: #c5beaa; }
       .border      { stroke: #cbc0a3; stroke-width: 1; fill: none; }
-      .ru-text     { font-family: "Inter", "Helvetica Neue", "Helvetica", Arial, "PingFang SC", "Noto Sans CJK SC", "Noto Sans SC", sans-serif; fill: #3d2f18; }
+      .ru-text     { font-family: "Inter", "Helvetica Neue", "Helvetica", Arial, "PingFang SC", "Noto Sans CJK SC", sans-serif; fill: #3d2f18; }
       .label-sm    { font-size: 16px; fill: #ffffff; font-weight: 600; letter-spacing: 1px; }
       .ru-meta     { font-size: 16px; fill: #6e5832; }
       .ru-sub      { font-size: 14px; fill: #8a7250; }
       .ru-mute     { font-size: 16px; fill: #a99c81; }
       .title       { font-family: "Inter", "Helvetica Neue", sans-serif; font-size: 32px; font-weight: 700; fill: #2d1f10; }
       .subtitle    { font-size: 18px; fill: #6e5832; }
-      /* Font-family ordered so the FIRST family that the runtime has a CJK
-         glyph for wins. Debian's `fonts-noto-cjk` package installs the
-         font under the family name "Noto Sans CJK SC" (with the CJK
-         marker), not "Noto Sans SC" — leaving CJK out of the family list
-         means CairoSVG falls back to serif and renders tofu boxes. macOS
-         keeps PingFang first so local dev still uses native rendering. */
-      .glyph       { font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Noto Serif CJK SC", "Noto Sans SC", "Songti SC", serif; font-weight: 700; text-anchor: middle; }
+      /* macOS family names lead the list because Cairo on macOS resolves
+         them through CoreText. On Linux containers fontconfig has no
+         knowledge that "PingFang SC" is a CJK family, so we install an
+         alias rule (see Dockerfile) that redirects unknown CJK family
+         names to Noto Sans CJK SC. Without that alias, fc-match falls
+         through to DejaVu Sans → tofu boxes. */
+      .glyph       { font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Noto Serif CJK SC", "Songti SC", serif; font-weight: 700; text-anchor: middle; }
       .stem-char   { font-size: 110px; }
       .branch-char { font-size: 100px; }
       /* Shadow copy of every large CJK glyph — drawn first, with an
@@ -36,7 +36,7 @@
       .placeholder { font-size: 90px; fill: #c5beb0; text-anchor: middle; }
       .footer      { font-size: 14px; fill: #8a7250; text-anchor: middle; letter-spacing: 1.5px; }
       .balance-label  { font-family: "Inter", sans-serif; font-size: 19px; fill: #3d2f18; }
-      .balance-glyph  { font-family: "PingFang SC", "Noto Sans CJK SC", "Noto Sans SC", serif; font-size: 26px; font-weight: 700; }
+      .balance-glyph  { font-family: "PingFang SC", "Noto Sans CJK SC", serif; font-size: 26px; font-weight: 700; }
       .balance-pct    { font-family: "Inter", sans-serif; font-size: 17px; fill: #6e5832; }
       .role-label  { font-family: "Inter", sans-serif; font-size: 18px; font-weight: 600; fill: #3d2f18; }
       .role-label-dm { fill: #6e5832; font-size: 20px; font-weight: 700; }
@@ -49,7 +49,7 @@
          resolves first via fontconfig. */
       .wuxing-emoji { font-family: "Apple Color Emoji", "Twemoji Mozilla", "Twemoji", "Noto Color Emoji", "Segoe UI Emoji", sans-serif; font-size: 60px; text-anchor: middle; }
       .wuxing-emoji-dm { font-size: 78px; }
-      .dm-stem-big { font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Noto Sans SC", "Songti SC", serif; font-weight: 900; font-size: 56px; }
+      .dm-stem-big { font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Songti SC", serif; font-weight: 900; font-size: 56px; }
       .dm-name-big { font-family: "Inter", "Helvetica Neue", sans-serif; font-size: 32px; font-weight: 600; fill: #2d1f10; }
       .arrow-line  { stroke-width: 3; fill: none; stroke-linecap: round; opacity: 0.92; }
       .arrow-ctrl  { stroke-width: 1.8; fill: none; stroke-linecap: round; stroke-dasharray: 5 5; opacity: 0.78; }
