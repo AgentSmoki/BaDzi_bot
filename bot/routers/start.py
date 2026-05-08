@@ -1,14 +1,21 @@
+import asyncio
+import contextlib
 import uuid
+from decimal import Decimal
 from typing import Any
 
 import structlog
 from aiogram import F, Router
+from aiogram.enums import ChatAction
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import BufferedInputFile, CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ai.base_interpretation import format_for_telegram, generate_base_interpretation
 from ai.card_renderer import RenderRequest, render_chart_png
+from ai.orchestrator import OrchestratorError
 from bot.keyboards import (
     chart_actions_kb,
     new_user_kb,
@@ -23,6 +30,7 @@ from bot.services.menu import (
 from calculator.models import ChartOutput
 from db.models import Chart, User
 from db.repositories.chart_repo import ChartRepository
+from db.repositories.consultation_repo import ConsultationRepository
 
 PRICING_STUB_TEXT = (
     "<b>Тарифы Анастасии</b>\n\n"
@@ -37,6 +45,13 @@ logger = structlog.get_logger(__name__)
 
 start_router = Router(name="start")
 _chart_repo = ChartRepository()
+_consultation_repo = ConsultationRepository()
+
+# Maximum size of one Telegram message; the base interpretation can run
+# 6 blocks × ~200 words ≈ 6-7k chars. We split into halves at the block
+# boundary so the user gets a clean read instead of mid-sentence cutoff.
+TELEGRAM_MAX_LEN = 4000
+INTERPRETATION_TOPIC = "base_interpretation"
 
 GREETING_NEW_USER = (
     "Здравствуйте, {name}. Меня зовут Анастасия — я консультант по древнекитайской "
@@ -230,6 +245,149 @@ async def handle_pay_stub(callback: CallbackQuery) -> None:
     alert so the user knows the click was registered. Will be replaced by
     ЮKassa CreatePayment + redirect URL in 1.12.3."""
     await callback.answer(PAY_STUB_ALERT, show_alert=True)
+
+
+# ── Базовая интерпретация (1.10) ─────────────────────────────────────────
+
+
+@start_router.callback_query(F.data == "chart:interpret")
+async def handle_chart_interpret(
+    callback: CallbackQuery,
+    state: FSMContext,
+    user: User,
+    session: AsyncSession,
+) -> None:
+    """«Получить разбор моей карты» — бесплатная 6-блочная интерпретация.
+
+    Идемпотентно: первый клик генерирует через LLM и сохраняет результат
+    в `Consultation` с `topic="base_interpretation"`. Повторные клики
+    отдают сохранённый текст без новых LLM-вызовов — это и обеспечивает
+    «1 раз бесплатно, дальше из БД».
+    """
+    if not isinstance(callback.message, Message):
+        await callback.answer()
+        return
+
+    chart = await _resolve_chart(state, session, user)
+    if chart is None:
+        await callback.message.answer(
+            "Не нашла карту — постройте её через меню и повторите.",
+            reply_markup=returning_user_kb(charts=[]),
+        )
+        await callback.answer()
+        return
+
+    cached = await _consultation_repo.get_by_chart_and_topic(
+        session, chart.id, INTERPRETATION_TOPIC
+    )
+    if cached is not None:
+        await _send_interpretation(
+            callback.message,
+            text=cached.ai_response,
+            cached=True,
+        )
+        await callback.answer()
+        return
+
+    await callback.answer("Генерирую разбор — это ~30-60 сек.")
+    typing_task = asyncio.create_task(_keep_typing(callback.message))
+    try:
+        chart_output = ChartOutput.model_validate(chart.chart_data)
+        result = await generate_base_interpretation(chart=chart_output)
+    except OrchestratorError:
+        logger.exception("interpret.llm_failed", chart_id=str(chart.id))
+        await callback.message.answer(
+            "Анастасия не смогла собрать разбор. Попробуйте ещё раз через минуту.",
+            reply_markup=chart_actions_kb(),
+        )
+        return
+    finally:
+        typing_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await typing_task
+
+    label = format_chart_label(chart)
+    formatted = format_for_telegram(result.interpretation, chart_label=label)
+
+    await _consultation_repo.create(
+        session,
+        user_id=user.id,
+        chart_id=chart.id,
+        topic=INTERPRETATION_TOPIC,
+        user_message="[base interpretation request]",
+        ai_response=formatted,
+        model_used=result.model,
+        prompt_tokens=result.prompt_tokens,
+        completion_tokens=result.completion_tokens,
+        cost_usd=Decimal(str(result.cost_usd)),
+        latency_ms=result.latency_ms,
+        trace_id=result.trace_id,
+    )
+
+    await _send_interpretation(callback.message, text=formatted, cached=False)
+
+
+async def _resolve_chart(state: FSMContext, session: AsyncSession, user: User) -> Chart | None:
+    """FSM `chart_id` wins (set by `chart:open` and post-calc), falls
+    back to the user's latest chart for clicks that bypass the FSM."""
+    fsm_data = await state.get_data()
+    raw_id = fsm_data.get("chart_id")
+    if isinstance(raw_id, str):
+        try:
+            return await _chart_repo.get_by_id(session, uuid.UUID(raw_id))
+        except (ValueError, AttributeError):
+            pass
+    return await _chart_repo.get_latest_by_user(session, user.id)
+
+
+async def _send_interpretation(message: Message, *, text: str, cached: bool) -> None:
+    """Split long bodies at block boundaries so Telegram's 4096-char
+    cap doesn't truncate the last block. Keyboard goes on the LAST chunk
+    so the user sees follow-up actions only after reading."""
+    parts = _split_for_telegram(text)
+    prefix = "" if not cached else "<i>Сохранённый разбор:</i>\n\n"
+    for i, part in enumerate(parts):
+        is_last = i == len(parts) - 1
+        body = (prefix if i == 0 else "") + part
+        await message.answer(
+            body,
+            reply_markup=chart_actions_kb() if is_last else None,
+        )
+
+
+def _split_for_telegram(text: str) -> list[str]:
+    """Split on block boundaries (`<b>` headings) so each chunk is a
+    coherent block group rather than a mid-sentence cut. If the whole
+    body fits, return a single-element list."""
+    if len(text) <= TELEGRAM_MAX_LEN:
+        return [text]
+    chunks: list[str] = []
+    current = ""
+    for block in text.split("\n\n<b>"):
+        candidate = (current + "\n\n<b>" + block) if current else block
+        if len(candidate) > TELEGRAM_MAX_LEN and current:
+            chunks.append(current)
+            current = "<b>" + block
+        else:
+            current = candidate
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+async def _keep_typing(message: Message) -> None:
+    """Telegram's typing indicator decays after ~5 sec, so we refresh
+    every 4 sec while the LLM is reasoning. K2.6 averages 30-60s on
+    interpretation; the indicator keeps the user reassured the bot
+    is alive (otherwise looks frozen)."""
+    if message.bot is None:
+        return
+    while True:
+        try:
+            await message.bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
+        except TelegramBadRequest:
+            return
+        await asyncio.sleep(4)
 
 
 async def _render_chart(chart: Chart) -> bytes:

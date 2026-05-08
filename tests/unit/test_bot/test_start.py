@@ -15,9 +15,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from aiogram.types import Message
 
+from ai.base_interpretation import BaseInterpretation
 from bot.keyboards import chart_actions_kb, returning_user_kb
 from bot.routers import start as start_module
 from bot.routers.start import (
+    handle_chart_interpret,
     handle_chart_open,
     handle_menu_back,
     handle_menu_pricing,
@@ -31,29 +33,35 @@ def _callback_data_set(markup: Any) -> set[str]:
     return {btn.callback_data for row in markup.inline_keyboard for btn in row}
 
 
-def test_returning_user_kb_includes_ask_pricing_and_calc() -> None:
-    """The whole point of this fix: returning users see 'Задать вопрос',
-    'Тарифы' and 'Добавить новую карту' before the chart list."""
+def test_returning_user_kb_has_calc_and_pricing_only() -> None:
+    """Main menu = navigation only. Per-chart actions live on the chart
+    card itself (chart_actions_kb), so menu has just 'Добавить новую'
+    + the chart list + 'Тарифы' link at the bottom."""
     kb = returning_user_kb(charts=[])
     cbs = _callback_data_set(kb)
-    assert "menu:ask" in cbs
-    assert "menu:pricing" in cbs
     assert "menu:calc" in cbs
+    assert "menu:pricing" in cbs
+    # Per-chart "ask" should NOT be in main menu — context-less click
+    # would be ambiguous about which chart the question is for.
+    assert "menu:ask" not in cbs
 
 
-def test_returning_user_kb_lists_charts_after_actions() -> None:
+def test_returning_user_kb_lists_charts_between_calc_and_pricing() -> None:
     chart_id = _uuid.uuid4()
     kb = returning_user_kb(charts=[(chart_id, "Test")])
     cbs = _callback_data_set(kb)
     assert f"chart:open:{chart_id}" in cbs
-    # Action buttons render as separate rows above the chart list
     rows = kb.inline_keyboard
-    assert rows[0][0].callback_data == "menu:ask"
+    # First row: "Добавить новую карту"
+    assert rows[0][0].callback_data == "menu:calc"
+    # Last row: "Тарифы"
+    assert rows[-1][0].callback_data == "menu:pricing"
 
 
-def test_chart_actions_kb_has_ask_and_back() -> None:
+def test_chart_actions_kb_has_interpret_ask_pricing_back() -> None:
+    """The four actions a user can do on a specific chart, in that order."""
     cbs = _callback_data_set(chart_actions_kb())
-    assert cbs == {"menu:ask", "menu:back"}
+    assert cbs == {"chart:interpret", "menu:ask", "menu:pricing", "menu:back"}
 
 
 # ── Fixtures for handler tests ───────────────────────────────────────────
@@ -212,3 +220,124 @@ async def test_chart_open_pins_chart_id_in_fsm(
     state_data = await fake_state.get_data()
     assert state_data["chart_id"] == str(chart_id)
     fake_callback.answer.assert_awaited()
+
+
+# ── handle_chart_interpret ───────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_chart_interpret_returns_cached_without_llm(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_callback: MagicMock,
+    fake_state: MagicMock,
+    fake_user: MagicMock,
+    fake_session: MagicMock,
+) -> None:
+    """Second click on «Получить разбор» must hit the Consultation cache,
+    not the LLM. The free-tier guarantee: «1 раз бесплатно» effectively
+    means «generate once, replay forever from DB»."""
+    chart_id = _uuid.uuid4()
+    await fake_state.update_data(chart_id=str(chart_id))
+    fake_chart = MagicMock()
+    fake_chart.id = chart_id
+    fake_chart.chart_data = {"day_master": "丁"}
+    fake_chart.name = "Богдан"
+    monkeypatch.setattr(start_module._chart_repo, "get_by_id", AsyncMock(return_value=fake_chart))
+    cached_consultation = MagicMock()
+    cached_consultation.ai_response = "<b>1. Баланс</b>\nкэш"
+    monkeypatch.setattr(
+        start_module._consultation_repo,
+        "get_by_chart_and_topic",
+        AsyncMock(return_value=cached_consultation),
+    )
+    llm_mock = AsyncMock()
+    monkeypatch.setattr(start_module, "generate_base_interpretation", llm_mock)
+
+    await handle_chart_interpret(
+        callback=fake_callback,
+        state=fake_state,
+        user=fake_user,
+        session=fake_session,
+    )
+
+    # LLM never called on cache hit
+    llm_mock.assert_not_awaited()
+    fake_callback.message.answer.assert_awaited()
+    body = fake_callback.message.answer.call_args.args[0]
+    assert "кэш" in body
+    fake_callback.answer.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_chart_interpret_generates_and_persists_on_cache_miss(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_callback: MagicMock,
+    fake_state: MagicMock,
+    fake_user: MagicMock,
+    fake_session: MagicMock,
+) -> None:
+    """First click on «Получить разбор» → LLM call → save to Consultation
+    with topic='base_interpretation' so the next click is cached."""
+    chart_id = _uuid.uuid4()
+    await fake_state.update_data(chart_id=str(chart_id))
+    fake_chart = MagicMock()
+    fake_chart.id = chart_id
+    # Minimal valid ChartOutput payload — model_validate is called on it
+    from datetime import datetime
+
+    from calculator import calculate_chart
+    from calculator.models import ChartInput
+
+    real_chart = calculate_chart(
+        ChartInput(
+            birth_datetime=datetime(1999, 9, 12, 23, 55),
+            latitude=48.78,
+            longitude=44.77,
+            tz_offset=4.0,
+            gender="female",
+        )
+    )
+    fake_chart.chart_data = real_chart.model_dump(mode="json")
+    fake_chart.name = None
+    fake_chart.birth_datetime_original = datetime(1999, 9, 12, 23, 55)
+    monkeypatch.setattr(start_module._chart_repo, "get_by_id", AsyncMock(return_value=fake_chart))
+    monkeypatch.setattr(
+        start_module._consultation_repo,
+        "get_by_chart_and_topic",
+        AsyncMock(return_value=None),
+    )
+
+    fake_result = MagicMock()
+    fake_result.interpretation = BaseInterpretation(
+        block_1_balance="Баланс стихий",
+        block_2_day_master="ДМ",
+        block_3_realization="Реализация",
+        block_4_partner="Партнёр",
+        block_5_strengths="Сильные стороны",
+        block_6_current_year="Текущий год",
+    )
+    fake_result.model = "moonshotai/kimi-k2.6"
+    fake_result.prompt_tokens = 18000
+    fake_result.completion_tokens = 1500
+    fake_result.cost_usd = 0.05
+    fake_result.latency_ms = 45_000
+    fake_result.trace_id = "t-interpret"
+    monkeypatch.setattr(
+        start_module, "generate_base_interpretation", AsyncMock(return_value=fake_result)
+    )
+    create_mock = AsyncMock()
+    monkeypatch.setattr(start_module._consultation_repo, "create", create_mock)
+
+    await handle_chart_interpret(
+        callback=fake_callback,
+        state=fake_state,
+        user=fake_user,
+        session=fake_session,
+    )
+
+    create_mock.assert_awaited_once()
+    persist_kwargs = create_mock.call_args.kwargs
+    assert persist_kwargs["topic"] == "base_interpretation"
+    assert persist_kwargs["chart_id"] == chart_id
+    assert persist_kwargs["model_used"] == "moonshotai/kimi-k2.6"
+    fake_callback.message.answer.assert_awaited()

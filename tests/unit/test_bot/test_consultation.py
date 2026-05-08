@@ -16,6 +16,7 @@ from unittest.mock import AsyncMock, MagicMock
 import fakeredis.aioredis
 import pytest
 import pytest_asyncio
+from aiogram.types import Message
 
 from ai.context import HistoryStore
 from ai.fallback import FallbackResult
@@ -104,8 +105,12 @@ def fake_state() -> MagicMock:
 
 @pytest.fixture
 def fake_message() -> MagicMock:
-    m = MagicMock()
+    """Spec'd to Message so `isinstance(callback.message, Message)` holds —
+    handle_ask_pressed now calls message.answer (photos can't be edited
+    as text), so the isinstance guard must pass."""
+    m = MagicMock(spec=Message)
     m.text = ""
+    m.chat = MagicMock()
     m.chat.id = 9999
     m.bot = MagicMock()
     m.bot.send_chat_action = AsyncMock()
@@ -117,7 +122,6 @@ def fake_message() -> MagicMock:
 def fake_callback(fake_message: MagicMock) -> MagicMock:
     cb = MagicMock()
     cb.message = fake_message
-    cb.message.edit_text = AsyncMock()
     cb.answer = AsyncMock()
     cb.data = "menu:ask"
     return cb
@@ -141,8 +145,8 @@ async def test_ask_pressed_with_no_chart_shows_calc_button(
     await handle_ask_pressed(
         callback=fake_callback, state=fake_state, session=fake_session, user=fake_user
     )
-    fake_callback.message.edit_text.assert_awaited()
-    args, _ = fake_callback.message.edit_text.call_args
+    fake_callback.message.answer.assert_awaited()
+    args, _ = fake_callback.message.answer.call_args
     assert "постройте карту" in args[0].lower()
 
 
@@ -167,7 +171,7 @@ async def test_ask_pressed_with_chart_sets_waiting_state(
     assert state_data["chart_id"] == str(fake_chart.id)
     # FSMContext.set_state stores the state under "__state" in our fake
     assert "__state" in state_data
-    fake_callback.message.edit_text.assert_awaited()
+    fake_callback.message.answer.assert_awaited()
 
 
 # ── handle_reset ─────────────────────────────────────────────────────────

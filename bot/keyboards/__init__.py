@@ -80,18 +80,17 @@ def returning_user_kb(
     charts: list[tuple[uuid.UUID, str]],
     page: int = 0,
 ) -> InlineKeyboardMarkup:
-    """Main menu for returning users.
+    """Main menu for returning users — just the chart list.
 
-    Top row: actions on the active chart (Анастасия, тарифы).
-    Then: "Добавить новую карту" + paginated list of saved charts.
+    Per-chart actions (вопрос Анастасии, базовый разбор, тарифы) live on
+    the chart card itself (`chart_actions_kb`), so the user always knows
+    which chart they're acting on. Main menu = navigation only.
 
-    `charts`: list of (chart_id, label) ordered newest-first. Empty list is
-    fine — the action row still renders so a user with cleared charts can
-    rebuild from here.
+    `charts`: list of (chart_id, label) ordered newest-first. Empty list
+    falls through gracefully — only "Добавить новую карту" + "Тарифы"
+    render.
     """
     builder = InlineKeyboardBuilder()
-    builder.button(text="Задать вопрос Анастасии", callback_data="menu:ask")
-    builder.button(text="Тарифы", callback_data="menu:pricing")
     builder.button(text="Добавить новую карту", callback_data="menu:calc")
 
     start = page * CHARTS_PER_PAGE
@@ -100,7 +99,7 @@ def returning_user_kb(
     for chart_id, label in page_charts:
         builder.button(text=label[:60], callback_data=f"chart:open:{chart_id}")
 
-    rows = [1, 1, 1] + [1] * len(page_charts)
+    rows = [1] + [1] * len(page_charts)
     nav_buttons = 0
     if page > 0:
         builder.button(text="◀ Назад", callback_data=f"charts:page:{page - 1}")
@@ -111,19 +110,27 @@ def returning_user_kb(
     if nav_buttons:
         rows.append(nav_buttons)
 
+    # "Тарифы" сидит внизу как ненавязчивая ссылка на оплату — не отвлекает
+    # от выбора карты, но всегда под рукой.
+    builder.button(text="Тарифы", callback_data="menu:pricing")
+    rows.append(1)
+
     builder.adjust(*rows)
     return builder.as_markup()
 
 
 def chart_actions_kb() -> InlineKeyboardMarkup:
-    """Focused inline keyboard attached to a freshly-rendered chart photo.
+    """Focused inline keyboard attached to a chart photo.
 
-    `chart:open:{id}` sets `chart_id` in FSM data before the photo is sent,
-    so `menu:ask` from this kb routes the consultation to that exact chart
-    (not "the latest"). `menu:back` returns to the main menu.
+    Order matters — «Получить разбор» сверху как самое ценное бесплатное
+    действие, потом «Задать вопрос», потом тарифы и навигация. `menu:ask`
+    и `chart:interpret` опираются на `chart_id`, который пиннится в FSM
+    в `chart:open:{id}` / `confirm:calc`.
     """
     builder = InlineKeyboardBuilder()
-    builder.button(text="Задать вопрос по этой карте", callback_data="menu:ask")
+    builder.button(text="Получить разбор моей карты", callback_data="chart:interpret")
+    builder.button(text="Задать вопрос Анастасии", callback_data="menu:ask")
+    builder.button(text="Тарифы", callback_data="menu:pricing")
     builder.button(text="В меню", callback_data="menu:back")
     builder.adjust(1)
     return builder.as_markup()

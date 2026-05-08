@@ -93,14 +93,21 @@ async def handle_ask_pressed(
     session: AsyncSession,
     user: User,
 ) -> None:
-    """Load the active chart and park the user in waiting_question."""
-    if callback.message is None:
+    """Load the active chart and park the user in waiting_question.
+
+    The kb is usually attached to a chart photo (`chart_actions_kb`), so
+    we send the prompt as a *new* message instead of editing the photo —
+    Telegram rejects edit_text on a photo with `Bad Request: there is no
+    text in the message to edit`. New message also keeps the chart photo
+    visible so the user can see what they're asking about.
+    """
+    if not isinstance(callback.message, Message):
         await callback.answer()
         return
 
     chart = await _resolve_active_chart(state, session, user)
     if chart is None:
-        await callback.message.edit_text(  # type: ignore[union-attr]
+        await callback.message.answer(
             "Сначала постройте карту — Анастасия отвечает только на её основе.",
             reply_markup=_no_chart_kb(),
         )
@@ -110,8 +117,8 @@ async def handle_ask_pressed(
     await state.update_data(chart_id=str(chart.id))
     await state.set_state(ConsultationState.waiting_question)
 
-    await callback.message.edit_text(  # type: ignore[union-attr]
-        "Задайте вопрос Анастасии. Например:\n"
+    await callback.message.answer(
+        "Напишите ваш вопрос Анастасии. Например:\n"
         "• «Расскажи про мою карту в общем»\n"
         "• «Что подсвечивает текущий столп удачи»\n"
         "• «Какие сильные стороны видно по карте»\n\n"

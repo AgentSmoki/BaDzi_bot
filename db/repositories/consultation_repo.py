@@ -69,3 +69,23 @@ class ConsultationRepository:
             )
         )
         return result.scalar_one()
+
+    async def get_by_chart_and_topic(
+        self,
+        session: AsyncSession,
+        chart_id: uuid.UUID,
+        topic: str,
+    ) -> Consultation | None:
+        """Latest consultation for a chart filtered by topic.
+
+        Used by the "Получить разбор моей карты" handler to memoise the
+        free-tier base interpretation: first click → generate + persist;
+        subsequent clicks → return the cached row, no LLM call.
+        """
+        result = await session.execute(
+            sa.select(Consultation)
+            .where(Consultation.chart_id == chart_id, Consultation.topic == topic)
+            .order_by(Consultation.created_at.desc())
+            .limit(1)
+        )
+        return result.scalars().first()
