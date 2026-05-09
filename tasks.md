@@ -1,7 +1,46 @@
 ![1778154346381](image/tasks/1778154346381.png)![1778154360599](image/tasks/1778154360599.png)# БаЦзы-Бот — Бэклог задач
 ![1778157066075](image/tasks/1778157066075.png)
-> Статус: 📦 Упакован к разработке (май 2026)
+> Статус: 🚀 Live на YC VM 130.193.51.15 как @EdoHa_Badzi_bot (2026-05-08)
 > Методология: AIDD → Plan → Agree → Implement → Verify → Commit
+
+---
+
+## 🔴 Текущая итерация — открытые задачи (2026-05-08)
+
+> Сводка из плана `~/.claude/plans/goofy-wiggling-twilight.md` + live-фидбека.
+> Live-бот работает на @EdoHa_Badzi_bot, расчёт + базовый разбор + диалог
+> подключены, идёт полировка UX.
+
+### 🟡 Live-fix wave (что осталось от UX-багов)
+- [ ] **L-1 Эмодзи в SVG-карте** — на проде эмодзи 🌳🔥⛰⚙💧 не рендерятся (видны белые SVG-плейсхолдеры). Twemoji не подходит (тусклый). Нужен другой 3D-emoji-шрифт. План: получить от Gemini рекомендацию по open-source 3D-стилизованным эмодзи (Microsoft Fluent Emoji 3D / Joypixels 6 / Apple Color Emoji extracted) → установить в Dockerfile через apt/curl + fontconfig alias → проверить рендер через `BAZI_DEBUG_DUMP_SVG=1` → деплой.
+- [ ] **L-2 Live-валидация Claude Sonnet** — после деплоя коммита `ff21ef2` (свитч с K2.6) проверить в Telegram: latency упала до ~10с, баланс стихий цитируется дословно (15% Огня, не 40%), стиль Анастасии сохранился (тёплый, без `!`).
+
+### 🟢 1.12 Монетизация (минимальная защита перед широким релизом)
+- [ ] **1.12.0 (новое) Free-question guard** — `User.free_question_used` флаг + проверка в `handle_question`. Первый вопрос → флаг True, второй → заглушка «оплата подключается» (`pricing_kb` уже есть). Без этого любой пользователь жжёт OpenRouter-токены безлимитно.
+- [ ] 1.12.1 Redis rate limiter (счётчик вопросов/день для free)
+- [ ] 1.12.2 bot/routers/subscription.py — экран тарифов (Месяц 290₽ / 3 месяца 990₽ / Год 2490₽)
+- [ ] 1.12.3 ЮKassa интеграция — создание платежа, получение URL
+- [ ] 1.12.4 ЮKassa webhook handler (FastAPI endpoint) — приём уведомлений об оплате
+- [ ] 1.12.5 Логика: 1 бесплатный вопрос для новых пользователей
+- [ ] 1.12.6 После оплаты: обновить Subscription в БД
+
+### 🟢 1.16.4 Webhook вместо polling (приоритет — после 1.12.0)
+- [ ] FastAPI endpoint `/webhook/<token>` в `web/main.py`.
+- [ ] SSL через YC Certificate Manager.
+- [ ] `setWebhook` при старте, `deleteWebhook` при shutdown.
+- [ ] Заменить `dp.start_polling()` на webhook mode в `bot/main.py`.
+
+### 🔵 1.9 Knowledge graph RAG (отложено до отдельной итерации)
+> **Богдан хочет фрактальный RAG-Graph подход**, не классический Kuzu-схема.
+> Задача требует отдельного исследования и плана. Пока остаётся в backlog.
+- [ ] 1.9.1 Исследовать fractal RAG-Graph методику (статьи + примеры внедрений)
+- [ ] 1.9.2 Спроектировать схему графа Бацзы (Element/Stem/Branch/Rule + fractal levels)
+- [ ] 1.9.3 Оцифровка `База/ba_zi_prompt_anastasia_v2.md` → граф
+- [ ] 1.9.4 RAG-поиск по концептам вопроса
+- [ ] 1.9.5 Интеграция в `compose_messages` (заменит часть system_prompt)
+
+### 🔵 1.14 Мониторинг Langfuse / 1.15 Админка
+Откладываются на следующую итерацию (после 1.12 + 1.16.4).
 
 ---
 
@@ -125,13 +164,16 @@
 - [ ] 1.12.5 Логика: 1 бесплатный вопрос для новых пользователей
 - [ ] 1.12.6 После оплаты: обновить Subscription в БД
 
-### 1.13 Консультация — диалог с Анастасией ✅ Закрыт 2026-05-07
+### 1.13 Консультация — диалог с Анастасией ✅ Закрыт 2026-05-07, доработан 2026-05-08
 - [x] 1.13.1 [bot/routers/consultation.py](bot/routers/consultation.py) — `handle_ask_pressed` (callback `menu:ask` → загружает Chart, переводит FSM в `ConsultationState.waiting_question`), `handle_question` (полный pipeline LLM-ответа), `handle_reset` (`/reset` → `HistoryStore.clear`). Inline-клавиатуры «Ещё вопрос / В меню».
 - [x] 1.13.2 Формирование контекста — через `compose_messages()` из 1.8.6: system_prompt (Анастасия 39k) + history (Redis из 1.8.4) + chart_block + опциональный temporal_block + question. KuzuDB граф (1.9) подключим позже — сейчас работает на full system prompt без RAG.
 - [x] 1.13.3 Детектор временных вопросов — через `route()` из 1.8.3 (regex word-boundary матчинг по 16 keywords: `сейчас/год/месяц/период/ближайш/текущ/...`); `RouteDecision.needs_temporal_context` → `get_current_bazi()` подмешивается в `compose_messages`.
 - [x] 1.13.4 Typing-индикатор: `_keep_typing()` async-task шлёт `ChatAction.TYPING` каждые 4 сек пока ждём LLM (Telegram декаит индикатор за ~5 сек, нужен refresh). TaskIQ-broker для рассылок добавим в 1.11; для синхронного дилогового UX `ChatAction.TYPING` достаточно.
 - [x] 1.13.5 Сохранение в `Consultation` — `ConsultationRepository.create()` со всеми полями: model_used, prompt_tokens, completion_tokens, cost_usd (Decimal), latency_ms, trace_id, topic=intent. Ошибка LLM → пользователю «Анастасия не смогла ответить», history не пополняется (никаких полу-ходов).
 - [x] **Bonus:** [bot/middlewares/history.py](bot/middlewares/history.py) — `HistoryMiddleware(store)` инжектит singleton `HistoryStore` в каждый handler через `data["history_store"]`. Lifecycle: создаётся в `bot/main.py` при старте, `aclose()` при shutdown. 7 тестов handler'а через MagicMock + fakeredis.
+- [x] **1.13.6 UI-интеграция (2026-05-08):** `chart_actions_kb` («Получить разбор карты», «Задать вопрос по карте», «В меню») прикреплена к фото карты после расчёта и `chart:open`. `handle_ask_pressed` использует `message.answer` вместо `edit_text` (фото нельзя редактировать как text). `handle_chart_open` пиннит `chart_id` в FSM, чтобы консультация работала с открытой картой.
+- [x] **1.13.7 Менюшная навигация (2026-05-08):** хендлеры `menu:back` (clear FSM + `send_main_menu`), `menu:pricing` (заглушка до 1.12), `pay:*` (alert «оплата подключается»).
+- [x] **1.13.8 Свитч на Claude 3.5 Sonnet (2026-05-08):** primary `anthropic/claude-3.5-sonnet`, fallback `moonshotai/kimi-k2.6`. Latency 55s → ~5-10s. Strict-cite в `_INSTRUCTION` против context-leakage галлюцинаций.
 
 ### 1.14 Мониторинг
 - [ ] 1.14.1 monitoring/langfuse.py — Langfuse клиент и helpers
@@ -147,10 +189,11 @@
 
 ### 1.16 Деплой MVP
 - [x] 1.16.1 Создать ресурсы Yandex Cloud (VPS, PostgreSQL, Redis, Object Storage) — созданы 2026-05-02
-- [ ] 1.16.2 Загрузить Docker-образ в Yandex Container Registry
-- [ ] 1.16.3 Запустить миграции Alembic
-- [ ] 1.16.4 Настроить Telegram webhook
-- [ ] 1.16.5 Smoke test: /start → карта → бесплатный вопрос → тарифы
+- [ ] 1.16.2 Загрузить Docker-образ в Yandex Container Registry — **отложено**, фактический пайплайн `rsync → docker compose build на VM` (без YCR), решение про переход на YCR + GitHub Actions откладывается до отдельной итерации.
+- [x] 1.16.3 Запустить миграции Alembic — alembic revision `151398db4f39 (head)` накатан на managed PostgreSQL (подтверждено SSH-аудитом 2026-05-08).
+- [ ] 1.16.4 Настроить Telegram webhook — сейчас бот на polling (`Start polling for bot @EdoHa_Badzi_bot`). Нужно: FastAPI endpoint `/webhook/<token>` + `setWebhook` через Bot API + SSL через YC Certificate Manager. Polling работает, но webhook нужен для масштаба.
+- [ ] 1.16.5 Smoke test: /start → карта → бесплатный вопрос → тарифы — частичный smoke прошёл (карта + вопрос ответили), но финальный smoke требует 1.12 (free-question guard) + 1.16.4 (webhook).
+- [x] **1.16.6 Live-bot на VM (2026-05-08):** контейнеры `badzi_bot-bot-1` + `badzi_bot-worker-1` healthy на YC VM 130.193.51.15. Связаны с managed PG/Redis. Бот доступен в Telegram как @EdoHa_Badzi_bot.
 
 ---
 
