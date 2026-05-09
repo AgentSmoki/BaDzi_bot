@@ -28,16 +28,15 @@ class Settings(BaseSettings):
 
     # ── AI (OpenRouter) ───────────────────────────────────────────────────────
     openrouter_api_key: SecretStr
-    # Kimi K2.6 is a *thinking* model: it spends a chunk of the
-    # output budget on internal reasoning before producing the user-
-    # facing answer. We pay for that reasoning in latency (10-60s)
-    # and tokens, but it gives noticeably deeper Bazi readings. Bot
-    # UX is built around this — the long llm_timeout below and the
-    # generous max_tokens budgets in ai/router.py both assume
-    # thinking-class costs.
-    default_llm_model: str = "moonshotai/kimi-k2.6"
-    fallback_llm_model: str = "anthropic/claude-3.5-sonnet"
-    llm_timeout: int = 180
+    # Claude 3.5 Sonnet — non-thinking model, ~5-10s end-to-end vs ~55s
+    # for K2.6 (which burns ~70% latency on internal reasoning). Anthropic
+    # also tunes hard against context-leakage hallucinations — important
+    # for our 39 KB persona prompt where K2.6 was inventing chart numbers
+    # by mixing training-data examples into the answer. Kept K2.6 as
+    # fallback so we have an alternative provider if Anthropic 5xx-s.
+    default_llm_model: str = "anthropic/claude-3.5-sonnet"
+    fallback_llm_model: str = "moonshotai/kimi-k2.6"
+    llm_timeout: int = 60
     max_output_tokens: int = 8192
 
     # ── Swiss Ephemeris ───────────────────────────────────────────────────────
