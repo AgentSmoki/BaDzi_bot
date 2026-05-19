@@ -196,6 +196,53 @@ Yandex AI Studio добавила Alibaba Qwen3-family в каталог Foundat
 - `usage.cost` от YC = 0 (не отдают в response) → post-hoc cost calc через price-table планируется в 1.14 Langfuse
 - Tier 2 — не дублирующий провайдер того же cloud, а независимая инфраструктура
 
+### ADR-010: Skill-based AI routing (Wave 6, 2026-05-19)
+
+**Status:** Active.
+
+**Context:** До Wave 6 каждый вопрос клиента уходил в Анастасию с одним и тем же системным промптом (`anastasia_system.md`, 927 строк, 39 KB). Промпт пытался покрыть все темы сразу — карьеру, отношения, здоровье, прогнозы — что:
+- Раздувало каждый запрос (большая часть instructions нерелевантна конкретному вопросу).
+- Не давало LLM явных доменных подсказок — приходилось «угадывать» уместную методику Бацзы.
+- Не учитывало контекст: для вопроса про супруга важно сравнить столпы дня двух карт; для прогноза — фокус на текущем такте удачи; для здоровья — баланс стихий ↔ ТКМ-системы.
+
+Богдан запросил двухэтапную маршрутизацию: быстрая модель → выбор skill → уточняющие вопросы при нехватке контекста → main LLM с узкой инструкцией. Плюс возможность сравнивать карту партнёра.
+
+**Solution:** Двухэтапный AI-pipeline.
+
+1. **Skill catalog (`ai/skills/`):** 5 markdown-файлов с YAML frontmatter и body инструкций:
+   - `work.md` — карьера, столпы месяца/года, 10 божеств власти/богатства
+   - `relationships.md` — Дворец Супруга, столпы дня, сравнение партнёрской карты
+   - `health.md` — баланс стихий ↔ ТКМ-системы
+   - `time.md` — Столпы Удачи, текущий период, резонансы
+   - `default.md` — fallback для общих и философских вопросов
+
+2. **Fast skill-router (`ai/skill_router.py::select_skill`):** один LLM-вызов на Qwen3.6-35B-A3B (Qwen3-3B недоступен в YC каталоге на 2026-05-19, см. caveat). Возвращает `SkillSelection`: `skill`, `confidence`, `clarifying_questions[]`, `needs_partner_chart`, `concept_hints[]`. JSON через `response_format={"type":"json_object"}`. На любой parse/network/4xx ошибке — graceful fallback на `skill="default", confidence=0.0`.
+
+3. **Clarifying-questions FSM:** при `clarifying_questions != []` бот заходит в `ConsultationState.collecting_clarifications`, собирает ответы по одному, потом продолжает.
+
+4. **Partner-chart linking:** новое поле `charts.partner_chart_id` UUID NULL FK self. Когда `needs_partner_chart=True` и карта не залинкована — бот показывает кнопку `partner:add` → reuse `BirthDataForm` с `mode="partner"` → set_partner → resume.
+
+5. **Base prompt + injected SKILL:** `anastasia_system.md` (legacy, 39 KB) бэкап остаётся на диске. Новый `base.md` (12 KB) содержит только универсальные правила (персона, стиль, glossary, ethics, метафоры/поговорки/спорт-аналогии). Доменная методика приходит из соответствующего `skills/<name>.md` через `[SKILL: <name>]` секцию в `compose_messages`.
+
+6. **Расширенная база-интерпретация (6 → 9 блоков):** добавлены БЛОК 7 «работа через столп месяца», БЛОК 8 «общество через столп года», БЛОК 9 «тайные желания через столп часа» (пункт 8 Богдана). Каждый блок закрывается строкой `**Дальше можно спросить:** «...»` — конкретный follow-up для платного диалога.
+
+**Feature flag:** `settings.skill_router_enabled` (default `True`). Сбросить в Redis за <30 сек для rollback на legacy single-prompt путь.
+
+**Low-confidence guard:** если router возвращает confidence < 0.4 — handle_question принудительно даунгрейдит skill до `default`, чтобы не выдать «специализированный неправильный» ответ.
+
+**Caveats:**
+- **Qwen3-3B недоступен в YC AI Studio** на 2026-05-19 — probe вернул `Failed to get model`. Router работает на той же Qwen3.6-35B-A3B что и main LLM, с `max_tokens=2000` (минимум для thinking-модели — она тратит большую часть на `reasoning_content`). Latency router'а ~1.5-2s вместо ожидаемых 0.5s. Задача 1.9.17 «миграция на Qwen3-3B» остаётся в backlog'е до появления модели в каталоге YC.
+- **Router cost** на Qwen3.6 ~0.3 ₽ за вопрос → общий cost-per-answer +5-10%.
+
+**Consequences:**
+- Каждый ответ Анастасии теперь опирается на узкую инструкцию домена + общую базу — точность вырастает, объём промпта на main LLM уменьшается (39 KB → 12 KB base + 6-8 KB skill).
+- Появилась возможность сравнения карт партнёров (закрывает старую таску 2.3.3).
+- Уточняющие вопросы дают точечные ответы там, где раньше LLM «отвечал в среднем».
+- Архитектура готова к расширению — новый skill = новый `<name>.md` файл + добавление в Literal `SkillName`, никаких изменений в core flow.
+- Feature flag + параллельное хранение legacy `anastasia_system.md` дают быстрый rollback при регрессии.
+
+**Реализация:** Wave 6 Phase 0-7 (коммиты `25f16c9` → Phase 7). Полный план: `~/.claude/plans/badzi-skill-router-wave6.md`.
+
 ---
 
 ## Data Models

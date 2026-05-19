@@ -125,7 +125,26 @@
 - [ ] **L-2 Live-валидация Claude Sonnet.** После коммита `ff21ef2` проверить в Telegram: latency ~10с (вместо 55), баланс стихий цитируется дословно (15% Огня, не 40%), стиль Анастасии сохранился (тёплый, без `!`).
 
 ### 🟢 1.12.0 Минимальный free-question guard (защита от безлимитного жжения токенов)
-- [ ] **1.12.0 (новое)** `User.free_question_used` флаг + проверка в `handle_question`: первый вопрос → флаг `True`, второй → заглушка «оплата подключается» через `pricing_kb`. Нужно ДО широкого релиза, иначе любой пользователь жжёт OpenRouter-токены.
+- [x] **1.12.0** `User.free_question_used` флаг + проверка в `handle_question`: первый вопрос → флаг `True`, второй → заглушка «оплата подключается» через `pricing_kb`. **Зафиксировано в [bot/routers/consultation.py:241-255](bot/routers/consultation.py#L241-L255), admin-skip через `pricing:skip`.** Сделано до Wave 6.
+
+### 🌊 1.17 Wave 6: AI Skill-Router (ADR-010) — Phase 0-6 закрыты 2026-05-19
+
+- [x] **1.17.0 Phase 0** — prompt surgery + Qwen3-3B probe + 9-блочная база-интерпретация ([base.md](ai/prompts/base.md) 12 KB, 5×`ai/skills/*.md`, [base_interpretation.py](ai/base_interpretation.py) 6→9 блоков с follow-up «**Дальше можно спросить:**»). Пункты 8+9 Богдана. Commit `25f16c9`.
+- [x] **1.17.1 Phase 1** — `ai/skills/` каталог + Pydantic SkillSpec/SkillSelection + frontmatter loader. 25 тестов. Commit `25f16c9`.
+- [x] **1.17.2 Phase 2** — [ai/skill_router.py](ai/skill_router.py) `select_skill` (Qwen3.6 max_tokens=2000, JSON output, graceful fallback). [skill_router_system.md](ai/prompts/skill_router_system.md) с 6 few-shot. [orchestrator.py](ai/orchestrator.py) `chat` теперь принимает опц. `response_format`. 11 тестов. Commit `25f16c9`.
+- [x] **1.17.3 Phase 3** — `charts.partner_chart_id` UUID NULL FK self (migration `5c7804a9c2c3`), `ChartRepository.set_partner`, [birth_data.handle_add_partner_chart](bot/routers/birth_data.py) entry + `mode="partner"` flow в `_calculate_and_persist`. 9 тестов. Commit `e95f200`.
+- [x] **1.17.4 Phase 4** — `ConsultationState.collecting_clarifications` + [handle_clarification_answer](bot/routers/consultation.py) FSM loop. 6 тестов. Commit `fe5c0e7`.
+- [x] **1.17.5 Phase 5** — [compose_messages](ai/temporal_context.py) расширен: `[PARTNER_CHART]`, `[SKILL: <name>]`, `[CLARIFICATIONS]` секции; `concept_hints` в [load_knowledge_for_question](ai/rag/public.py). 11 тестов, backward-compat. Commit `d987e76`.
+- [x] **1.17.6 Phase 6** — wire-up в [consultation.py](bot/routers/consultation.py): `_continue_consultation_with_skill` extracted; `handle_question` 3 ветки (clarifying/partner/straight); `handle_partner_skip`; low-confidence downgrade; feature flag `skill_router_enabled`. +5 skill-router тестов, +6 рефактор clarifications, 9 регрессий. Commit `76819cd`.
+- [ ] **1.17.7 Phase 7** — deploy + verify:
+  - [ ] Local docker compose build + smoke (бот стартует без ошибок импортов)
+  - [ ] rsync → YC VM + `alembic upgrade head` + docker rebuild + up
+  - [ ] Live Telegram smoke в `@EdoHa_Badzi_bot`: 4 кейса (work/relationships/health/time) + clarifying flow + partner-chart flow
+  - [ ] Optional: `/graphify . --update` для пересборки семантического графа
+
+### 🔮 Wave 6 backlog (после деплоя)
+
+- [ ] **1.17.8 Qwen3-3B миграция** (бывший 1.9.17) — когда модель появится в YC каталоге, swap `settings.yc_fast_model` + проверить JSON-output mode. Дешевле в 5× и быстрее на 1-1.5 сек.
 
 ---
 

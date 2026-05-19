@@ -23,6 +23,45 @@ _(пока пусто)_
 
 ---
 
+## Сессия 2026-05-19 — Wave 6: AI Skill-Router (ADR-010) — Phase 0-6
+
+**Что сделано:** двухэтапная AI-маршрутизация в `consultation` handler. 7 фаз закрыты, тесты 691 passing, mypy strict clean, deploy ожидает.
+
+| Фаза | Коммит | Артефакты |
+|---|---|---|
+| 0 — prompt surgery | `25f16c9` | `ai/prompts/base.md` (12 KB), 5 × `ai/skills/*.md`, расширенная база-интерпретация 6→9 блоков с follow-up (пункты 8+9 Богдана), Qwen3-3B probe (недоступен) |
+| 1 — skill catalog | `25f16c9` | `ai/skills/{models,loader}.py` — Pydantic SkillSpec/SkillSelection, frontmatter parser, 25 тестов |
+| 2 — fast router | `25f16c9` | `ai/skill_router.py::select_skill` — Qwen3.6 max_tokens=2000, JSON output, graceful fallback, 11 тестов. `ai/orchestrator.py::chat` опц. `response_format`. `ai/prompts/skill_router_system.md` + 6 few-shot |
+| 3 — partner_chart_id | `e95f200` | Alembic `5c7804a9c2c3`, `Chart.partner_chart_id` UUID NULL FK self, `ChartRepository.set_partner`, `birth_data.handle_add_partner_chart`, `mode="partner"` flow, 9 тестов |
+| 4 — clarifying FSM | `fe5c0e7` | `ConsultationState.collecting_clarifications`, `handle_clarification_answer` (Phase 4 — scaffold), 6 тестов |
+| 5 — compose_messages | `d987e76` | `[PARTNER_CHART]`, `[SKILL: <name>]`, `[CLARIFICATIONS]` секции; `concept_hints` в `load_knowledge_for_question`. Backward-compat. 11 тестов |
+| 6 — wire-up | `76819cd` | `_continue_consultation_with_skill` extracted; `handle_question` 3 ветки (clarifying/partner/straight); `handle_partner_skip`; low-confidence downgrade; logs `skill/had_clarifications/had_partner_chart`; +5 skill-router тестов |
+
+**Ключевые архитектурные решения (ADR-010 в vision.mdc):**
+
+1. **Skill каталог как файлы**, не код — каждый skill — markdown с YAML frontmatter (`work`, `relationships`, `health`, `time`, `default`). Расширение = новый файл + Literal `SkillName`.
+2. **Fast router как отдельный LLM-вызов**, не rule-based. `ai/router.py` (rule-based intent/temperature) остаётся параллельно — он определяет `temperature` и `needs_temporal_context` поверх skill-router'а.
+3. **Backward-compat в `compose_messages`** — все Wave 6 параметры опциональны. Legacy callers (base_interpretation, calendar) не тронуты.
+4. **`base.md` (12 KB) вместо `anastasia_system.md` (39 KB)** только когда skill_spec инжектится. Legacy промпт бэкап остаётся на диске для rollback через feature flag.
+5. **Partner chart — обычный Chart того же user_id**, не отдельная сущность. Это даёт reuse `BirthDataForm`/`ChartRepository`/UI без копи-паста.
+6. **Low-confidence guard 0.4** — router'у разрешено сомневаться, но не отдавать «специализированный неправильный» ответ.
+
+**Caveats (записаны в коде и vision.mdc ADR-010):**
+
+- **Qwen3-3B недоступен в YC каталоге** на 2026-05-19 (probe HTTP 400 `Failed to get model`). Router работает на Qwen3.6-35B-A3B с `max_tokens=2000` (минимум для thinking-модели — она тратит большую часть на `reasoning_content`; orchestrator.py raises `UpstreamError` при `finish_reason=length` если max_tokens мал). Router latency ~1.5-2s вместо ожидаемых 0.5s. Задача 1.9.17 — миграция на Qwen3-3B остаётся в backlog'е.
+- **Router cost** на Qwen3.6 ~0.3 ₽/вопрос → общий cost-per-answer +5-10%.
+- `_continue_consultation_with_skill` возвращает без сообщения когда `message.bot is None` — защита от тестовых MagicMock без bot.
+
+**Pending (Phase 7):**
+
+- [ ] **Local docker smoke** — `docker compose build bot worker` + `docker compose up` + проверка что бот стартует без import-ошибок
+- [ ] **rsync → YC VM** + `alembic upgrade head` + `docker compose build bot worker && up -d --no-deps bot worker`
+- [ ] **Live Telegram smoke** — 4 кейса по skill'ам + проверка clarifying flow + partner-chart flow в реальном `@EdoHa_Badzi_bot`
+- [ ] **Update tasks.md** — закрыть `[x] 1.12.0` (уже сделано в коде до Wave 6), добавить `[x] 1.17.1-7` под Wave 6, обновить «текущая итерация»
+- [ ] **Optional: /graphify . --update** — пересобрать семантический граф после 7 prose-файлов и нового AI flow
+
+---
+
 ## Сессия 2026-05-18 / 2026-05-19 — Fractal RAG follow-up: tech debt cleanup — 1.9.12–1.9.17
 
 **Что сделано:**
