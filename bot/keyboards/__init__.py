@@ -112,22 +112,29 @@ def returning_user_kb(
     return builder.as_markup()
 
 
-def chart_actions_kb() -> InlineKeyboardMarkup:
+def chart_actions_kb(chart_id: uuid.UUID | None = None) -> InlineKeyboardMarkup:
     """Focused inline keyboard attached to a chart photo (pre-interpretation).
 
     «Тарифы» намеренно скрыты — они появятся только когда пользователь
     упирается в лимит free-tier (после 1.12). Сейчас фокус на бесплатных
     действиях, чтобы пользователь увидел ценность до оплаты.
+
+    When ``chart_id`` is supplied, adds a «Удалить карту» button (Wave 1b).
+    Old callers that pass nothing keep the previous 3-button layout.
     """
     builder = InlineKeyboardBuilder()
     builder.button(text="Получить разбор карты", callback_data="chart:interpret")
     builder.button(text="Задать вопрос по карте", callback_data="menu:ask")
+    if chart_id is not None:
+        builder.button(text="🗑 Удалить карту", callback_data=f"chart:delete:{chart_id}")
     builder.button(text="В меню", callback_data="menu:back")
     builder.adjust(1)
     return builder.as_markup()
 
 
-def chart_actions_kb_post_interpret() -> InlineKeyboardMarkup:
+def chart_actions_kb_post_interpret(
+    chart_id: uuid.UUID | None = None,
+) -> InlineKeyboardMarkup:
     """Same as ``chart_actions_kb`` minus «Получить разбор карты».
 
     Sent after the 6-block base interpretation is delivered — the user
@@ -138,7 +145,25 @@ def chart_actions_kb_post_interpret() -> InlineKeyboardMarkup:
     """
     builder = InlineKeyboardBuilder()
     builder.button(text="Задать вопрос по карте", callback_data="menu:ask")
+    if chart_id is not None:
+        builder.button(text="🗑 Удалить карту", callback_data=f"chart:delete:{chart_id}")
     builder.button(text="В меню", callback_data="menu:back")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def chart_delete_confirm_kb(chart_id: uuid.UUID) -> InlineKeyboardMarkup:
+    """Confirm dialog shown before hard-deleting a chart (Wave 1b).
+
+    The action is irreversible — chart row + cascade on consultations —
+    so we always go through a Yes/No prompt instead of deleting on a
+    single tap."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="🗑 Удалить навсегда",
+        callback_data=f"chart:delete_confirm:{chart_id}",
+    )
+    builder.button(text="Отмена", callback_data="chart:delete_cancel")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -203,6 +228,7 @@ __all__ = [
     "back_to_time_kb",
     "chart_actions_kb",
     "chart_actions_kb_post_interpret",
+    "chart_delete_confirm_kb",
     "city_choice_kb",
     "confirm_kb",
     "edit_menu_kb",

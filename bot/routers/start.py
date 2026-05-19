@@ -19,6 +19,7 @@ from ai.orchestrator import OrchestratorError
 from bot.keyboards import (
     chart_actions_kb,
     chart_actions_kb_post_interpret,
+    chart_delete_confirm_kb,
     new_user_kb,
     pricing_kb,
     returning_user_kb,
@@ -194,7 +195,8 @@ async def handle_chart_open(
         except Exception:
             logger.exception("chart_open.render_failed", chart_id=str(chart.id))
             await callback.message.answer(
-                _format_chart_view(chart), reply_markup=chart_actions_kb()
+                _format_chart_view(chart),
+                reply_markup=chart_actions_kb(chart_id=chart.id),
             )
             await callback.answer()
             return
@@ -202,8 +204,116 @@ async def handle_chart_open(
         await callback.message.answer_photo(
             BufferedInputFile(png, "chart.png"),
             caption=f"<b>{title}</b>",
-            reply_markup=chart_actions_kb(),
+            reply_markup=chart_actions_kb(chart_id=chart.id),
         )
+    await callback.answer()
+
+
+# ── Chart deletion (Wave 1b) ─────────────────────────────────────────────
+
+
+_DELETE_PROMPT_FMT = (
+    "Удалить карту «{label}» навсегда?\n\n"
+    "Будут удалены: сама карта, все консультации по ней и связанные события. "
+    "Карту партнёра не трону — она останется в списке."
+)
+_DELETE_DONE_FMT = "Карта «{label}» удалена."
+_DELETE_NOT_FOUND = "Карта не найдена — возможно, уже удалена."
+
+
+@start_router.callback_query(F.data.startswith("chart:delete:"))
+async def handle_chart_delete_request(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+) -> None:
+    """Pre-confirm step for chart deletion (Wave 1b).
+
+    Shows a Yes/Cancel dialog with the chart's label so the user
+    can sanity-check before the irreversible delete. Verifies
+    ownership server-side — a leaked callback_data on another user's
+    chat can't trick the bot into deleting someone else's chart."""
+    if not callback.data:
+        await callback.answer()
+        return
+    try:
+        chart_id = uuid.UUID(callback.data.split(":")[2])
+    except (ValueError, IndexError):
+        await callback.answer("Неверная карта", show_alert=True)
+        return
+
+    chart = await _chart_repo.get_by_id(session, chart_id)
+    if chart is None or chart.user_id != user.id:
+        await callback.answer(_DELETE_NOT_FOUND, show_alert=True)
+        return
+
+    label = _format_chart_label(chart)
+    if isinstance(callback.message, Message):
+        await callback.message.answer(
+            _DELETE_PROMPT_FMT.format(label=label),
+            reply_markup=chart_delete_confirm_kb(chart.id),
+        )
+    await callback.answer()
+
+
+@start_router.callback_query(F.data.startswith("chart:delete_confirm:"))
+async def handle_chart_delete_confirm(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+    user: User,
+) -> None:
+    """Execute the delete after confirm. Idempotent: if the row is
+    already gone (race / double-click) we surface a soft alert and
+    return the user to the menu."""
+    if not callback.data:
+        await callback.answer()
+        return
+    try:
+        chart_id = uuid.UUID(callback.data.split(":")[2])
+    except (ValueError, IndexError):
+        await callback.answer("Неверная карта", show_alert=True)
+        return
+
+    chart = await _chart_repo.get_by_id(session, chart_id)
+    if chart is None or chart.user_id != user.id:
+        await callback.answer(_DELETE_NOT_FOUND, show_alert=True)
+        return
+
+    label = _format_chart_label(chart)
+    deleted = await _chart_repo.delete(session, chart_id)
+    if not deleted:
+        await callback.answer(_DELETE_NOT_FOUND, show_alert=True)
+        return
+
+    # Clear FSM pin if it pointed at the deleted chart, otherwise
+    # consultation handlers would resolve to a row that no longer exists.
+    fsm_data = await state.get_data()
+    if fsm_data.get("chart_id") == str(chart_id):
+        await state.update_data(chart_id=None)
+
+    logger.info(
+        "chart.deleted",
+        user_id=str(user.id),
+        chart_id=str(chart_id),
+        label=label,
+    )
+
+    if isinstance(callback.message, Message):
+        with contextlib.suppress(Exception):
+            await callback.message.edit_text(_DELETE_DONE_FMT.format(label=label))
+        await send_main_menu(callback.message, user, session, state=state)
+    await callback.answer()
+
+
+@start_router.callback_query(F.data == "chart:delete_cancel")
+async def handle_chart_delete_cancel(callback: CallbackQuery) -> None:
+    """User chose «Отмена» — drop the confirm dialog. The original
+    chart-photo + actions kb above stays as-is, so they can keep
+    interacting with it."""
+    if isinstance(callback.message, Message):
+        with contextlib.suppress(Exception):
+            await callback.message.delete()
     await callback.answer()
 
 
@@ -286,6 +396,7 @@ async def handle_chart_interpret(
             callback.message,
             text=cached.ai_response,
             cached=True,
+            chart_id=chart.id,
         )
         await callback.answer()
         return
@@ -299,7 +410,7 @@ async def handle_chart_interpret(
         logger.exception("interpret.llm_failed", chart_id=str(chart.id))
         await callback.message.answer(
             "Анастасия не смогла собрать разбор. Попробуйте ещё раз через минуту.",
-            reply_markup=chart_actions_kb(),
+            reply_markup=chart_actions_kb(chart_id=chart.id),
         )
         return
     finally:
@@ -325,7 +436,7 @@ async def handle_chart_interpret(
         trace_id=result.trace_id,
     )
 
-    await _send_interpretation(callback.message, text=formatted, cached=False)
+    await _send_interpretation(callback.message, text=formatted, cached=False, chart_id=chart.id)
 
 
 async def _resolve_chart(state: FSMContext, session: AsyncSession, user: User) -> Chart | None:
@@ -341,13 +452,23 @@ async def _resolve_chart(state: FSMContext, session: AsyncSession, user: User) -
     return await _chart_repo.get_latest_by_user(session, user.id)
 
 
-async def _send_interpretation(message: Message, *, text: str, cached: bool) -> None:
+async def _send_interpretation(
+    message: Message,
+    *,
+    text: str,
+    cached: bool,
+    chart_id: uuid.UUID | None = None,
+) -> None:
     """Split long bodies at block boundaries so Telegram's 4096-char
     cap doesn't truncate the last block. Keyboard goes on the LAST chunk
     so the user sees follow-up actions only after reading. The post-
     interpret kb drops «Получить разбор карты» — re-clicking the same
     button after already seeing the interpretation is noise (and would
-    burn a free-question slot for nothing)."""
+    burn a free-question slot for nothing).
+
+    ``chart_id`` (Wave 1b) — when supplied, the post-interpret keyboard
+    gets a «Удалить карту» button. Older callers pass nothing and keep
+    the previous 2-button layout."""
     parts = _split_for_telegram(text)
     prefix = "" if not cached else "<i>Сохранённый разбор:</i>\n\n"
     for i, part in enumerate(parts):
@@ -355,7 +476,7 @@ async def _send_interpretation(message: Message, *, text: str, cached: bool) -> 
         body = (prefix if i == 0 else "") + part
         await message.answer(
             body,
-            reply_markup=chart_actions_kb_post_interpret() if is_last else None,
+            reply_markup=chart_actions_kb_post_interpret(chart_id=chart_id) if is_last else None,
         )
 
 

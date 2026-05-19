@@ -92,6 +92,23 @@ class ChartRepository:
     ) -> None:
         await session.execute(sa.update(Chart).where(Chart.id == chart_id).values(name=name))
 
+    async def delete(self, session: AsyncSession, chart_id: uuid.UUID) -> bool:
+        """Hard-delete a chart by id (Wave 1b).
+
+        Cascades on ``consultations`` (FK ondelete=CASCADE) and on
+        ``events`` (same). Sets ``charts.partner_chart_id = NULL`` on
+        any chart that referenced this one as a partner (FK ondelete
+        SET NULL — from Wave 6 migration).
+
+        Returns True if a row was actually deleted, False if the id
+        didn't exist. Caller decides whether to surface a «not found»
+        message; the bot handler shows an alert in that case.
+        """
+        result = await session.execute(sa.delete(Chart).where(Chart.id == chart_id))
+        # rowcount is dialect-dependent — Postgres always returns it; for
+        # mocks in tests we coerce to int defensively.
+        return bool(getattr(result, "rowcount", 0))
+
     async def set_partner(
         self,
         session: AsyncSession,

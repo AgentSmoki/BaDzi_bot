@@ -36,6 +36,17 @@ birth_data_router = Router(name="birth_data")
 YEAR_RE: Final[re.Pattern[str]] = re.compile(r"\b(18|19|20)\d{2}\b")
 # Packed numeric date — 8 digits, DDMMYYYY: 12091999 → 12.09.1999.
 PACKED_DATE_RE: Final[re.Pattern[str]] = re.compile(r"^\s*(\d{2})(\d{2})(\d{4})\s*$")
+# ISO format YYYY-MM-DD (1990-05-15). Wave 1a — Bogdan reports this didn't
+# parse before because YEAR_RE found the year but dateparser with
+# DATE_ORDER=DMY guessed day-month-year and confused the layout.
+ISO_DATE_RE: Final[re.Pattern[str]] = re.compile(r"^\s*(\d{4})-(\d{1,2})-(\d{1,2})\s*$")
+# Two-digit year forms: dd.mm.yy / dd-mm-yy / dd/mm/yy / dd mm yy
+# (27.04.88 → 27.04.1988). Separators match _parse_birth_time spirit.
+SHORT_YEAR_DOT_RE: Final[re.Pattern[str]] = re.compile(
+    r"^\s*(\d{1,2})[.,\-/\s](\d{1,2})[.,\-/\s](\d{2})\s*$"
+)
+# Packed 6 digits ddmmyy (270488 → 27.04.1988).
+SHORT_YEAR_PACKED_RE: Final[re.Pattern[str]] = re.compile(r"^\s*(\d{2})(\d{2})(\d{2})\s*$")
 # Permissive time separators: colon, dot, comma, dash, slash, space, "ч"/"h"
 TIME_RE: Final[re.Pattern[str]] = re.compile(r"^\s*(\d{1,2})\s*[:.,\-/\sчh]\s*(\d{2})\s*$")
 # 3 digits: HMM (e.g. 955 → 9:55). 4 digits: HHMM (e.g. 2355 → 23:55).
@@ -200,13 +211,64 @@ async def _step(
     await state.update_data(fsm_msg_id=sent.message_id)
 
 
+def _expand_2digit_year(yy: int) -> int:
+    """Map 2-digit year to 4-digit (cutoff 30):
+    - 00-29 → 2000-2029 (modern births / kids)
+    - 30-99 → 1930-1999 (adults — overwhelming majority of Bazi clients)
+
+    The cutoff is fixed (not «relative to today») so the mapping stays
+    stable across years — moving with today would silently reshuffle
+    old chart inputs on Dec 31."""
+    return 2000 + yy if yy < 30 else 1900 + yy
+
+
 def _parse_birth_date(text: str) -> date | None:
+    """Parse a birth date from free-form text.
+
+    Recognised formats (checked in order):
+    1. ISO YYYY-MM-DD (1990-05-15) — picked off first because YEAR_RE
+       hits but dateparser DATE_ORDER=DMY mis-parses
+    2. Packed DDMMYYYY (12091999) — 8 digits
+    3. Packed DDMMYY (270488) — 6 digits, applies 2-digit-year expansion
+    4. Dotted/dashed/slashed DD.MM.YY (27.04.88 / 27/04/88)
+    5. Anything else with a 4-digit year — handed to dateparser DMY
+    """
+    iso = ISO_DATE_RE.match(text)
+    if iso is not None:
+        try:
+            return date(int(iso.group(1)), int(iso.group(2)), int(iso.group(3)))
+        except ValueError:
+            return None
+
     packed = PACKED_DATE_RE.match(text)
     if packed is not None:
         try:
             return date(int(packed.group(3)), int(packed.group(2)), int(packed.group(1)))
         except ValueError:
             return None
+
+    short_packed = SHORT_YEAR_PACKED_RE.match(text)
+    if short_packed is not None:
+        try:
+            return date(
+                _expand_2digit_year(int(short_packed.group(3))),
+                int(short_packed.group(2)),
+                int(short_packed.group(1)),
+            )
+        except ValueError:
+            return None
+
+    short_dot = SHORT_YEAR_DOT_RE.match(text)
+    if short_dot is not None:
+        try:
+            return date(
+                _expand_2digit_year(int(short_dot.group(3))),
+                int(short_dot.group(2)),
+                int(short_dot.group(1)),
+            )
+        except ValueError:
+            return None
+
     if not YEAR_RE.search(text):
         return None
     # DATE_ORDER=DMY: in en locale dateparser defaults to MM.DD.YYYY which is
