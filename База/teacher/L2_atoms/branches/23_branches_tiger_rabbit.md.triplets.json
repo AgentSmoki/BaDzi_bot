@@ -1,0 +1,16 @@
+[
+  {"subject": "L2_atoms/branches/23_branches_tiger_rabbit", "relation": "example_of", "object": "concept:di_zhi"},
+  {"subject": "L2_atoms/branches/23_branches_tiger_rabbit", "relation": "refers_to", "object": "concept:tiger_yin"},
+  {"subject": "L2_atoms/branches/23_branches_tiger_rabbit", "relation": "refers_to", "object": "concept:rabbit_mao"},
+  {"subject": "L2_atoms/branches/23_branches_tiger_rabbit", "relation": "refers_to", "object": "concept:yang_wood"},
+  {"subject": "L2_atoms/branches/23_branches_tiger_rabbit", "relation": "refers_to", "object": "concept:yin_wood"},
+  {"subject": "L2_atoms/branches/23_branches_tiger_rabbit", "relation": "refers_to", "object": "concept:spring_season"},
+  {"subject": "L2_atoms/branches/23_branches_tiger_rabbit", "relation": "refers_to", "object": "concept:east_direction"},
+  {"subject": "L2_atoms/branches/23_branches_tiger_rabbit", "relation": "clashes_with", "object": "concept:monkey_shen"},
+  {"subject": "L2_atoms/branches/23_branches_tiger_rabbit", "relation": "clashes_with", "object": "concept:rooster_you"},
+  {"subject": "L2_atoms/branches/23_branches_tiger_rabbit", "relation": "combines_with", "object": "concept:horse_wu"},
+  {"subject": "L2_atoms/branches/23_branches_tiger_rabbit", "relation": "combines_with", "object": "concept:dog_xu"},
+  {"subject": "L2_atoms/branches/23_branches_tiger_rabbit", "relation": "combines_with", "object": "concept:goat_wei"},
+  {"subject": "L2_atoms/branches/23_branches_tiger_rabbit", "relation": "combines_with", "object": "concept:pig_hai"},
+  {"subject": "L2_atoms/branches/23_branches_tiger_rabbit", "relation": "generates", "object": "concept:fire_element"}
+]

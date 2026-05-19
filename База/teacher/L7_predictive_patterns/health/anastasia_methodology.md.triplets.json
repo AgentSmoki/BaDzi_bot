@@ -1,0 +1,14 @@
+[
+  {"subject": "L7_predictive_patterns/health/anastasia_methodology", "relation": "refers_to", "object": "concept:wu_xing"},
+  {"subject": "L7_predictive_patterns/health/anastasia_methodology", "relation": "refers_to", "object": "concept:yin_yang_organs"},
+  {"subject": "L7_predictive_patterns/health/anastasia_methodology", "relation": "refers_to", "object": "concept:wood_element"},
+  {"subject": "L7_predictive_patterns/health/anastasia_methodology", "relation": "refers_to", "object": "concept:fire_element"},
+  {"subject": "L7_predictive_patterns/health/anastasia_methodology", "relation": "refers_to", "object": "concept:earth_element"},
+  {"subject": "L7_predictive_patterns/health/anastasia_methodology", "relation": "refers_to", "object": "concept:metal_element"},
+  {"subject": "L7_predictive_patterns/health/anastasia_methodology", "relation": "refers_to", "object": "concept:water_element"},
+  {"subject": "L7_predictive_patterns/health/anastasia_methodology", "relation": "refers_to", "object": "concept:element_imbalance"},
+  {"subject": "L7_predictive_patterns/health/anastasia_methodology", "relation": "refers_to", "object": "concept:luck_pillar"},
+  {"subject": "L7_predictive_patterns/health/anastasia_methodology", "relation": "refers_to", "object": "concept:annual_pillar"},
+  {"subject": "L7_predictive_patterns/health/anastasia_methodology", "relation": "clashes_with", "object": "concept:liuchong"},
+  {"subject": "L7_predictive_patterns/health/anastasia_methodology", "relation": "refers_to", "object": "concept:medical_disclaimer"}
+]

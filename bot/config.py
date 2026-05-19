@@ -26,18 +26,27 @@ class Settings(BaseSettings):
     database_url: str
     redis_url: str
 
-    # ── AI (OpenRouter) ───────────────────────────────────────────────────────
+    # ── AI (Yandex AI Studio — Tier 1 primary, ADR-009) ───────────────────────
+    # SA: badzi-ai-sa, role ai.languageModels.user. Confirmed via probe
+    # 2026-05-16: qwen3.6-35b-a3b отвечает HTTP 200 в folder b1gtu3ebh1mbqbmkqm9t.
+    yc_ai_api_key: SecretStr
+    yc_ai_folder_id: str
+    yc_primary_model: str = "qwen3.6-35b-a3b"
+    yc_qwen36_context: int = 262_144
+
+    # ── AI (OpenRouter — Tier 2 emergency fallback, ADR-009) ──────────────────
+    # Independent cloud (US/EU Anthropic nodes via OR). Triggered when YC
+    # 429/5xx/timeout. Keep ~5 USD credit topped up; fallback fires sparsely.
     openrouter_api_key: SecretStr
-    # Claude 3.5 Sonnet — non-thinking model, ~5-10s end-to-end vs ~55s
-    # for K2.6 (which burns ~70% latency on internal reasoning). Anthropic
-    # also tunes hard against context-leakage hallucinations — important
-    # for our 39 KB persona prompt where K2.6 was inventing chart numbers
-    # by mixing training-data examples into the answer. Kept K2.6 as
-    # fallback so we have an alternative provider if Anthropic 5xx-s.
-    default_llm_model: str = "anthropic/claude-3.5-sonnet"
-    fallback_llm_model: str = "moonshotai/kimi-k2.6"
+    openrouter_emergency_model: str = "anthropic/claude-3.5-sonnet"
+    openrouter_claude_context: int = 200_000
+
+    # ── AI shared knobs ───────────────────────────────────────────────────────
     llm_timeout: int = 60
-    max_output_tokens: int = 8192
+    # Hard cap on output tokens regardless of context window — defensive
+    # against accidental 100k responses. Dynamic budget (ai.budget) normally
+    # wins; this ceiling protects when the model gets chatty.
+    max_output_tokens_ceiling: int = 32_000
 
     # ── Swiss Ephemeris ───────────────────────────────────────────────────────
     swiss_ephemeris_path: Path = Path("/usr/share/swisseph")

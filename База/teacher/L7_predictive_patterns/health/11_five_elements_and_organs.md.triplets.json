@@ -1,0 +1,16 @@
+[
+  {"subject": "L7_predictive_patterns/health/11_five_elements_and_organs", "relation": "refers_to", "object": "concept:wu_xing"},
+  {"subject": "L7_predictive_patterns/health/11_five_elements_and_organs", "relation": "refers_to", "object": "concept:yin_yang_organs"},
+  {"subject": "L7_predictive_patterns/health/11_five_elements_and_organs", "relation": "refers_to", "object": "concept:qi_meridians"},
+  {"subject": "L7_predictive_patterns/health/11_five_elements_and_organs", "relation": "combines_with", "object": "concept:wood_liver_gallbladder"},
+  {"subject": "L7_predictive_patterns/health/11_five_elements_and_organs", "relation": "combines_with", "object": "concept:fire_heart_small_intestine"},
+  {"subject": "L7_predictive_patterns/health/11_five_elements_and_organs", "relation": "combines_with", "object": "concept:earth_spleen_stomach"},
+  {"subject": "L7_predictive_patterns/health/11_five_elements_and_organs", "relation": "combines_with", "object": "concept:metal_lungs_large_intestine"},
+  {"subject": "L7_predictive_patterns/health/11_five_elements_and_organs", "relation": "combines_with", "object": "concept:water_kidneys_bladder"},
+  {"subject": "L7_predictive_patterns/health/11_five_elements_and_organs", "relation": "example_of", "object": "concept:ji_yin_earth"},
+  {"subject": "L7_predictive_patterns/health/11_five_elements_and_organs", "relation": "example_of", "object": "concept:wu_yang_earth"},
+  {"subject": "L7_predictive_patterns/health/11_five_elements_and_organs", "relation": "generates", "object": "concept:metal_generates_water"},
+  {"subject": "L7_predictive_patterns/health/11_five_elements_and_organs", "relation": "refers_to", "object": "concept:ancestral_qi"},
+  {"subject": "L7_predictive_patterns/health/11_five_elements_and_organs", "relation": "refers_to", "object": "concept:pericardium_triple_heater"},
+  {"subject": "L7_predictive_patterns/health/11_five_elements_and_organs", "relation": "refers_to", "object": "L7_predictive_patterns/health/10_health_five_elements_balance"}
+]

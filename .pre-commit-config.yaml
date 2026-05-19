@@ -19,8 +19,10 @@ repos:
           - structlog==25.3.0
           - taskiq==0.11.14
           - taskiq-redis==1.0.2
+          - kuzu==0.10.0
           - types-pytz
           - types-pillow
+          - types-PyYAML
         args: [--ignore-missing-imports]
         # Tests are excluded from strict typing in pyproject.toml; mirror
         # the same here so pre-commit doesn't trip on pytest fixture and

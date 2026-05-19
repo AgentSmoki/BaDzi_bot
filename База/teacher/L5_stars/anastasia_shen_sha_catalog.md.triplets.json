@@ -1,0 +1,16 @@
+[
+  {"subject": "L5_stars/anastasia_shen_sha_catalog", "relation": "refers_to", "object": "concept:shen_sha"},
+  {"subject": "L5_stars/anastasia_shen_sha_catalog", "relation": "refers_to", "object": "concept:tianyi_guiren"},
+  {"subject": "L5_stars/anastasia_shen_sha_catalog", "relation": "refers_to", "object": "concept:wenchang"},
+  {"subject": "L5_stars/anastasia_shen_sha_catalog", "relation": "refers_to", "object": "concept:tiande_guiren"},
+  {"subject": "L5_stars/anastasia_shen_sha_catalog", "relation": "refers_to", "object": "concept:yuede_guiren"},
+  {"subject": "L5_stars/anastasia_shen_sha_catalog", "relation": "refers_to", "object": "concept:jinkui"},
+  {"subject": "L5_stars/anastasia_shen_sha_catalog", "relation": "refers_to", "object": "concept:huagai"},
+  {"subject": "L5_stars/anastasia_shen_sha_catalog", "relation": "refers_to", "object": "concept:taohua"},
+  {"subject": "L5_stars/anastasia_shen_sha_catalog", "relation": "refers_to", "object": "concept:guchen"},
+  {"subject": "L5_stars/anastasia_shen_sha_catalog", "relation": "refers_to", "object": "concept:guasu"},
+  {"subject": "L5_stars/anastasia_shen_sha_catalog", "relation": "refers_to", "object": "concept:feiren"},
+  {"subject": "L5_stars/anastasia_shen_sha_catalog", "relation": "refers_to", "object": "concept:yangren"},
+  {"subject": "L5_stars/anastasia_shen_sha_catalog", "relation": "combines_with", "object": "concept:ten_gods"},
+  {"subject": "L5_stars/anastasia_shen_sha_catalog", "relation": "combines_with", "object": "concept:element_interactions"}
+]

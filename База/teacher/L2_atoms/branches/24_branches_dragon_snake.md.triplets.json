@@ -1,0 +1,16 @@
+[
+  {"subject": "L2_atoms/branches/24_branches_dragon_snake", "relation": "refers_to", "object": "concept:earth_yang"},
+  {"subject": "L2_atoms/branches/24_branches_dragon_snake", "relation": "refers_to", "object": "concept:fire_yin"},
+  {"subject": "L2_atoms/branches/24_branches_dragon_snake", "relation": "refers_to", "object": "concept:spring_season"},
+  {"subject": "L2_atoms/branches/24_branches_dragon_snake", "relation": "refers_to", "object": "concept:summer_season"},
+  {"subject": "L2_atoms/branches/24_branches_dragon_snake", "relation": "refers_to", "object": "concept:earthly_branches"},
+  {"subject": "L2_atoms/branches/24_branches_dragon_snake", "relation": "clashes_with", "object": "concept:chong_dragon_dog"},
+  {"subject": "L2_atoms/branches/24_branches_dragon_snake", "relation": "clashes_with", "object": "concept:chong_snake_pig"},
+  {"subject": "L2_atoms/branches/24_branches_dragon_snake", "relation": "combines_with", "object": "concept:sanhe_water_monkey_rat_dragon"},
+  {"subject": "L2_atoms/branches/24_branches_dragon_snake", "relation": "combines_with", "object": "concept:sanhe_metal_snake_rooster_ox"},
+  {"subject": "L2_atoms/branches/24_branches_dragon_snake", "relation": "refers_to", "object": "concept:sanhe"},
+  {"subject": "L2_atoms/branches/24_branches_dragon_snake", "relation": "refers_to", "object": "concept:liuhe"},
+  {"subject": "L2_atoms/branches/24_branches_dragon_snake", "relation": "refers_to", "object": "concept:chong"},
+  {"subject": "L2_atoms/branches/24_branches_dragon_snake", "relation": "refers_to", "object": "concept:hai_harm"},
+  {"subject": "L2_atoms/branches/24_branches_dragon_snake", "relation": "refers_to", "object": "concept:compatibility_branches"}
+]

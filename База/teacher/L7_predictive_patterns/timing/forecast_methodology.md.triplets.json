@@ -1,0 +1,15 @@
+[
+  {"subject": "L7_predictive_patterns/timing/forecast_methodology", "relation": "refers_to", "object": "concept:luck_pillar"},
+  {"subject": "L7_predictive_patterns/timing/forecast_methodology", "relation": "refers_to", "object": "concept:annual_pillar"},
+  {"subject": "L7_predictive_patterns/timing/forecast_methodology", "relation": "combines_with", "object": "concept:natal_chart"},
+  {"subject": "L7_predictive_patterns/timing/forecast_methodology", "relation": "refers_to", "object": "concept:bozhestva"},
+  {"subject": "L7_predictive_patterns/timing/forecast_methodology", "relation": "clashes_with", "object": "concept:liuchong"},
+  {"subject": "L7_predictive_patterns/timing/forecast_methodology", "relation": "combines_with", "object": "concept:liuhe"},
+  {"subject": "L7_predictive_patterns/timing/forecast_methodology", "relation": "refers_to", "object": "concept:punishments"},
+  {"subject": "L7_predictive_patterns/timing/forecast_methodology", "relation": "refers_to", "object": "concept:career"},
+  {"subject": "L7_predictive_patterns/timing/forecast_methodology", "relation": "refers_to", "object": "concept:relationships"},
+  {"subject": "L7_predictive_patterns/timing/forecast_methodology", "relation": "refers_to", "object": "concept:health"},
+  {"subject": "L7_predictive_patterns/timing/forecast_methodology", "relation": "refers_to", "object": "concept:finance"},
+  {"subject": "L7_predictive_patterns/timing/forecast_methodology", "relation": "refers_to", "object": "concept:triedinstvo"},
+  {"subject": "L7_predictive_patterns/timing/forecast_methodology", "relation": "combines_with", "object": "L7_predictive_patterns/timing/05_luck_pillars"}
+]

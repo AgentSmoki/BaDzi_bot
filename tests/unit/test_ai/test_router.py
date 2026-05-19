@@ -23,10 +23,8 @@ def _decision_for(text: str) -> RouteDecision:
 def test_short_factual_questions_route_to_simple(text: str) -> None:
     d = _decision_for(text)
     assert d.intent == "simple"
-    # K2.6 thinking + full Anastasia prompt needs ≥4000 even for the
-    # shortest answers (an earlier 2500-token run got truncated). Cap
-    # is set lower than normal/complex so simple is still cheaper.
-    assert 3000 <= d.max_tokens <= 4096
+    # max_tokens sizing now lives in ai.budget (per-tier dynamic).
+    # Router only classifies; budget knows how to scale.
     assert d.temperature < 0.55
     assert d.needs_temporal_context is False
 
@@ -58,9 +56,7 @@ def test_normal_intent_with_or_without_temporal(text: str, expect_temporal: bool
 def test_complex_questions_route_to_complex(text: str) -> None:
     d = _decision_for(text)
     assert d.intent == "complex"
-    # Complex gets the highest token budget — extended reasoning AND
-    # a long answer; floor is 12000 with full Anastasia system prompt
-    assert d.max_tokens >= 8000
+    # max_tokens is sized in ai.budget per-tier — router only classifies.
 
 
 def test_complex_question_with_temporal_keeps_temporal_context() -> None:
@@ -69,11 +65,13 @@ def test_complex_question_with_temporal_keeps_temporal_context() -> None:
     assert d.needs_temporal_context is True
 
 
-def test_route_uses_settings_default_model() -> None:
-    from bot.config import get_settings
-
+def test_decision_only_carries_intent_temperature_temporal() -> None:
+    """RouteDecision is a *classifier* now — model + max_tokens belong
+    in ai.fallback / ai.budget. Pin the shrunk surface so the next
+    refactor doesn't accidentally re-attach model logic here."""
     d = _decision_for("Расскажи про карту.")
-    assert d.model == get_settings().default_llm_model
+    fields = {f.name for f in d.__dataclass_fields__.values()}
+    assert fields == {"intent", "temperature", "needs_temporal_context", "reason"}
 
 
 def test_empty_text_routes_to_default_normal() -> None:

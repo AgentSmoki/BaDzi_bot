@@ -17,8 +17,27 @@
       "input_tokens": 0,
       "output_tokens": 0,
       "files": 33
+    },
+    {
+      "date": "2026-05-09T07:02:16.263608+00:00",
+      "input_tokens": 12500,
+      "output_tokens": 18000,
+      "files": 101
+    },
+    {
+      "date": "2026-05-17T05:52:41.238009+00:00",
+      "input_tokens": 50000,
+      "output_tokens": 8000,
+      "files": 34
+    },
+    {
+      "date": "2026-05-17T17:11:35.114864+00:00",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "files": 67,
+      "mode": "update"
     }
   ],
-  "total_input_tokens": 0,
-  "total_output_tokens": 0
+  "total_input_tokens": 62500,
+  "total_output_tokens": 26000
 }

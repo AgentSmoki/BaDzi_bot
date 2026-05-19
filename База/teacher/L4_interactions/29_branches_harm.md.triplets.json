@@ -1,0 +1,15 @@
+[
+  {"subject": "L4_interactions/29_branches_harm", "relation": "refers_to", "object": "concept:liuhai"},
+  {"subject": "L4_interactions/29_branches_harm", "relation": "refers_to", "object": "concept:earthly_branches"},
+  {"subject": "L4_interactions/29_branches_harm", "relation": "clashes_with", "object": "concept:liuchong"},
+  {"subject": "L4_interactions/29_branches_harm", "relation": "combines_with", "object": "concept:ten_gods"},
+  {"subject": "L4_interactions/29_branches_harm", "relation": "combines_with", "object": "concept:five_elements"},
+  {"subject": "L4_interactions/29_branches_harm", "relation": "example_of", "object": "concept:zi_wei_harm"},
+  {"subject": "L4_interactions/29_branches_harm", "relation": "example_of", "object": "concept:yin_si_harm"},
+  {"subject": "L4_interactions/29_branches_harm", "relation": "example_of", "object": "concept:shen_hai_harm"},
+  {"subject": "L4_interactions/29_branches_harm", "relation": "example_of", "object": "concept:chou_wu_harm"},
+  {"subject": "L4_interactions/29_branches_harm", "relation": "example_of", "object": "concept:mao_chen_harm"},
+  {"subject": "L4_interactions/29_branches_harm", "relation": "example_of", "object": "concept:xu_you_harm"},
+  {"subject": "L4_interactions/29_branches_harm", "relation": "refers_to", "object": "concept:adjacent_branches_rule"},
+  {"subject": "L4_interactions/29_branches_harm", "relation": "refers_to", "object": "L4_interactions/28_branches_six_clashes"}
+]

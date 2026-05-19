@@ -1,0 +1,17 @@
+[
+  {"subject": "L5_stars/anastasia_nobles_guiren", "relation": "refers_to", "object": "concept:tianyi_guiren"},
+  {"subject": "L5_stars/anastasia_nobles_guiren", "relation": "refers_to", "object": "concept:day_master"},
+  {"subject": "L5_stars/anastasia_nobles_guiren", "relation": "refers_to", "object": "concept:heavenly_stems"},
+  {"subject": "L5_stars/anastasia_nobles_guiren", "relation": "refers_to", "object": "concept:earthly_branches"},
+  {"subject": "L5_stars/anastasia_nobles_guiren", "relation": "combines_with", "object": "concept:jia_wood"},
+  {"subject": "L5_stars/anastasia_nobles_guiren", "relation": "combines_with", "object": "concept:wu_earth"},
+  {"subject": "L5_stars/anastasia_nobles_guiren", "relation": "combines_with", "object": "concept:yi_wood"},
+  {"subject": "L5_stars/anastasia_nobles_guiren", "relation": "combines_with", "object": "concept:ji_earth"},
+  {"subject": "L5_stars/anastasia_nobles_guiren", "relation": "combines_with", "object": "concept:bing_fire"},
+  {"subject": "L5_stars/anastasia_nobles_guiren", "relation": "combines_with", "object": "concept:ding_fire"},
+  {"subject": "L5_stars/anastasia_nobles_guiren", "relation": "combines_with", "object": "concept:geng_metal"},
+  {"subject": "L5_stars/anastasia_nobles_guiren", "relation": "combines_with", "object": "concept:xin_metal"},
+  {"subject": "L5_stars/anastasia_nobles_guiren", "relation": "combines_with", "object": "concept:ren_water"},
+  {"subject": "L5_stars/anastasia_nobles_guiren", "relation": "combines_with", "object": "concept:gui_water"},
+  {"subject": "L5_stars/anastasia_nobles_guiren", "relation": "refers_to", "object": "concept:luck_pillar"}
+]

@@ -1,0 +1,16 @@
+[
+  {"subject": "L1_foundational/07_five_elements_cycles", "relation": "refers_to", "object": "concept:five_elements"},
+  {"subject": "L1_foundational/07_five_elements_cycles", "relation": "refers_to", "object": "concept:generation_cycle"},
+  {"subject": "L1_foundational/07_five_elements_cycles", "relation": "refers_to", "object": "concept:control_cycle"},
+  {"subject": "L1_foundational/07_five_elements_cycles", "relation": "refers_to", "object": "concept:weakening_cycle"},
+  {"subject": "concept:water", "relation": "generates", "object": "concept:wood"},
+  {"subject": "concept:wood", "relation": "generates", "object": "concept:fire"},
+  {"subject": "concept:fire", "relation": "generates", "object": "concept:earth"},
+  {"subject": "concept:earth", "relation": "generates", "object": "concept:metal"},
+  {"subject": "concept:metal", "relation": "generates", "object": "concept:water"},
+  {"subject": "concept:water", "relation": "controls", "object": "concept:fire"},
+  {"subject": "concept:fire", "relation": "controls", "object": "concept:metal"},
+  {"subject": "concept:metal", "relation": "controls", "object": "concept:wood"},
+  {"subject": "concept:wood", "relation": "controls", "object": "concept:earth"},
+  {"subject": "concept:earth", "relation": "controls", "object": "concept:water"}
+]

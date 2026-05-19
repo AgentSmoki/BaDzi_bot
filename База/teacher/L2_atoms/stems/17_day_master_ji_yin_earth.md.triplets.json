@@ -1,0 +1,16 @@
+[
+  {"subject": "L2_atoms/stems/17_day_master_ji_yin_earth", "relation": "example_of", "object": "concept:day_master"},
+  {"subject": "L2_atoms/stems/17_day_master_ji_yin_earth", "relation": "example_of", "object": "concept:yin_earth"},
+  {"subject": "L2_atoms/stems/17_day_master_ji_yin_earth", "relation": "refers_to", "object": "concept:tian_gan"},
+  {"subject": "L2_atoms/stems/17_day_master_ji_yin_earth", "relation": "refers_to", "object": "concept:day_master_strength"},
+  {"subject": "L2_atoms/stems/17_day_master_ji_yin_earth", "relation": "refers_to", "object": "concept:nurturing"},
+  {"subject": "L2_atoms/stems/17_day_master_ji_yin_earth", "relation": "refers_to", "object": "concept:hidden_talents"},
+  {"subject": "L2_atoms/stems/17_day_master_ji_yin_earth", "relation": "refers_to", "object": "concept:memory"},
+  {"subject": "L2_atoms/stems/17_day_master_ji_yin_earth", "relation": "refers_to", "object": "concept:spirituality"},
+  {"subject": "L2_atoms/stems/17_day_master_ji_yin_earth", "relation": "refers_to", "object": "concept:wealth_planning"},
+  {"subject": "L2_atoms/stems/17_day_master_ji_yin_earth", "relation": "refers_to", "object": "concept:leadership"},
+  {"subject": "L2_atoms/stems/17_day_master_ji_yin_earth", "relation": "refers_to", "object": "concept:career_palace"},
+  {"subject": "L2_atoms/stems/17_day_master_ji_yin_earth", "relation": "generates", "object": "concept:metal"},
+  {"subject": "L2_atoms/stems/17_day_master_ji_yin_earth", "relation": "controls", "object": "concept:water"},
+  {"subject": "L2_atoms/stems/17_day_master_ji_yin_earth", "relation": "combines_with", "object": "concept:yang_wood"}
+]

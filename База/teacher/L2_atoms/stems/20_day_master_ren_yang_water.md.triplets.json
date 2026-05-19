@@ -1,0 +1,16 @@
+[
+  {"subject": "L2_atoms/stems/20_day_master_ren_yang_water", "relation": "example_of", "object": "concept:day_master"},
+  {"subject": "L2_atoms/stems/20_day_master_ren_yang_water", "relation": "example_of", "object": "concept:yang_water"},
+  {"subject": "L2_atoms/stems/20_day_master_ren_yang_water", "relation": "refers_to", "object": "concept:tian_gan"},
+  {"subject": "L2_atoms/stems/20_day_master_ren_yang_water", "relation": "refers_to", "object": "concept:day_master_strength"},
+  {"subject": "L2_atoms/stems/20_day_master_ren_yang_water", "relation": "refers_to", "object": "concept:wu_xing_balance"},
+  {"subject": "L2_atoms/stems/20_day_master_ren_yang_water", "relation": "controls", "object": "concept:fire"},
+  {"subject": "L2_atoms/stems/20_day_master_ren_yang_water", "relation": "generates", "object": "concept:wood"},
+  {"subject": "L2_atoms/stems/20_day_master_ren_yang_water", "relation": "clashes_with", "object": "concept:yang_earth"},
+  {"subject": "L2_atoms/stems/20_day_master_ren_yang_water", "relation": "combines_with", "object": "concept:yin_earth"},
+  {"subject": "L2_atoms/stems/20_day_master_ren_yang_water", "relation": "refers_to", "object": "concept:wealth_star"},
+  {"subject": "L2_atoms/stems/20_day_master_ren_yang_water", "relation": "refers_to", "object": "concept:intelligence_star"},
+  {"subject": "L2_atoms/stems/20_day_master_ren_yang_water", "relation": "refers_to", "object": "concept:entrepreneur_archetype"},
+  {"subject": "L2_atoms/stems/20_day_master_ren_yang_water", "relation": "example_of", "object": "concept:bill_gates"},
+  {"subject": "L2_atoms/stems/20_day_master_ren_yang_water", "relation": "example_of", "object": "concept:warren_buffett"}
+]

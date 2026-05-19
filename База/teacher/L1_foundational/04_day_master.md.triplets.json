@@ -1,0 +1,12 @@
+[
+  {"subject": "L1_foundational/04_day_master", "relation": "refers_to", "object": "concept:day_master"},
+  {"subject": "L1_foundational/04_day_master", "relation": "refers_to", "object": "concept:day_pillar"},
+  {"subject": "L1_foundational/04_day_master", "relation": "refers_to", "object": "concept:day_master_strength"},
+  {"subject": "L1_foundational/04_day_master", "relation": "refers_to", "object": "concept:bazi_chart"},
+  {"subject": "L1_foundational/04_day_master", "relation": "refers_to", "object": "concept:wuxing"},
+  {"subject": "L1_foundational/04_day_master", "relation": "clashes_with", "object": "concept:liuchong"},
+  {"subject": "L1_foundational/04_day_master", "relation": "clashes_with", "object": "concept:xing"},
+  {"subject": "L1_foundational/04_day_master", "relation": "combines_with", "object": "concept:favorable_elements"},
+  {"subject": "L1_foundational/04_day_master", "relation": "refers_to", "object": "L1_foundational/02_bazi_and_wuxing"},
+  {"subject": "L1_foundational/04_day_master", "relation": "refers_to", "object": "L1_foundational/03_four_pillars"}
+]

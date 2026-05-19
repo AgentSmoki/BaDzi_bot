@@ -1,0 +1,14 @@
+[
+  {"subject": "L7_predictive_patterns/life_path/talents", "relation": "refers_to", "object": "concept:geju_structure"},
+  {"subject": "L7_predictive_patterns/life_path/talents", "relation": "refers_to", "object": "concept:ten_gods"},
+  {"subject": "L7_predictive_patterns/life_path/talents", "relation": "combines_with", "object": "concept:strong_seal"},
+  {"subject": "L7_predictive_patterns/life_path/talents", "relation": "combines_with", "object": "concept:strong_self_expression"},
+  {"subject": "L7_predictive_patterns/life_path/talents", "relation": "combines_with", "object": "concept:strong_wealth"},
+  {"subject": "L7_predictive_patterns/life_path/talents", "relation": "combines_with", "object": "concept:strong_power"},
+  {"subject": "L7_predictive_patterns/life_path/talents", "relation": "combines_with", "object": "concept:strong_brotherhood"},
+  {"subject": "L7_predictive_patterns/life_path/talents", "relation": "refers_to", "object": "concept:hidden_stems"},
+  {"subject": "L7_predictive_patterns/life_path/talents", "relation": "refers_to", "object": "concept:symbolic_stars"},
+  {"subject": "L7_predictive_patterns/life_path/talents", "relation": "example_of", "object": "concept:wenchang"},
+  {"subject": "L7_predictive_patterns/life_path/talents", "relation": "example_of", "object": "concept:huagai"},
+  {"subject": "L7_predictive_patterns/life_path/talents", "relation": "example_of", "object": "concept:jiangxing"}
+]

@@ -8,7 +8,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 
 from ai.card_renderer import close_browser
 from ai.context import HistoryStore
-from ai.orchestrator import close_client as close_openrouter_client
+from ai.orchestrator import close_clients as close_llm_clients
 from bot.config import Settings, get_settings
 from bot.logging import configure_logging
 from bot.middlewares import (
@@ -51,7 +51,7 @@ def _include_routers(dispatcher: Dispatcher) -> None:
 
 async def _shutdown(bot: Bot, dispatcher: Dispatcher, history_store: HistoryStore) -> None:
     await close_browser()
-    await close_openrouter_client()
+    await close_llm_clients()
     await history_store.aclose()
     await dispatcher.storage.close()
     await bot.session.close()

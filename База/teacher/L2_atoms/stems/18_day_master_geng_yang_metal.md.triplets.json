@@ -1,0 +1,16 @@
+[
+  {"subject": "L2_atoms/stems/18_day_master_geng_yang_metal", "relation": "example_of", "object": "concept:day_master"},
+  {"subject": "L2_atoms/stems/18_day_master_geng_yang_metal", "relation": "example_of", "object": "concept:yang_metal"},
+  {"subject": "L2_atoms/stems/18_day_master_geng_yang_metal", "relation": "refers_to", "object": "concept:tian_gan"},
+  {"subject": "L2_atoms/stems/18_day_master_geng_yang_metal", "relation": "refers_to", "object": "concept:day_master_strength"},
+  {"subject": "L2_atoms/stems/18_day_master_geng_yang_metal", "relation": "refers_to", "object": "concept:sword_axe_metaphor"},
+  {"subject": "L2_atoms/stems/18_day_master_geng_yang_metal", "relation": "refers_to", "object": "concept:education_pressure"},
+  {"subject": "L2_atoms/stems/18_day_master_geng_yang_metal", "relation": "refers_to", "object": "concept:loyalty"},
+  {"subject": "L2_atoms/stems/18_day_master_geng_yang_metal", "relation": "refers_to", "object": "concept:justice"},
+  {"subject": "L2_atoms/stems/18_day_master_geng_yang_metal", "relation": "refers_to", "object": "concept:pride"},
+  {"subject": "L2_atoms/stems/18_day_master_geng_yang_metal", "relation": "controls", "object": "concept:yang_wood"},
+  {"subject": "L2_atoms/stems/18_day_master_geng_yang_metal", "relation": "clashes_with", "object": "concept:yang_fire"},
+  {"subject": "L2_atoms/stems/18_day_master_geng_yang_metal", "relation": "combines_with", "object": "concept:yin_wood"},
+  {"subject": "L2_atoms/stems/18_day_master_geng_yang_metal", "relation": "combines_with", "object": "concept:water"},
+  {"subject": "L2_atoms/stems/18_day_master_geng_yang_metal", "relation": "example_of", "object": "concept:margaret_thatcher"}
+]

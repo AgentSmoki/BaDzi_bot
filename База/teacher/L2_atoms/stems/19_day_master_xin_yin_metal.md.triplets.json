@@ -1,0 +1,17 @@
+[
+  {"subject": "L2_atoms/stems/19_day_master_xin_yin_metal", "relation": "example_of", "object": "concept:day_master"},
+  {"subject": "L2_atoms/stems/19_day_master_xin_yin_metal", "relation": "example_of", "object": "concept:yin_metal"},
+  {"subject": "L2_atoms/stems/19_day_master_xin_yin_metal", "relation": "refers_to", "object": "concept:tian_gan"},
+  {"subject": "L2_atoms/stems/19_day_master_xin_yin_metal", "relation": "refers_to", "object": "concept:day_master_strength"},
+  {"subject": "L2_atoms/stems/19_day_master_xin_yin_metal", "relation": "refers_to", "object": "concept:intuition"},
+  {"subject": "L2_atoms/stems/19_day_master_xin_yin_metal", "relation": "refers_to", "object": "concept:creativity"},
+  {"subject": "L2_atoms/stems/19_day_master_xin_yin_metal", "relation": "refers_to", "object": "concept:ego"},
+  {"subject": "L2_atoms/stems/19_day_master_xin_yin_metal", "relation": "refers_to", "object": "concept:image_and_face"},
+  {"subject": "L2_atoms/stems/19_day_master_xin_yin_metal", "relation": "refers_to", "object": "concept:leadership"},
+  {"subject": "L2_atoms/stems/19_day_master_xin_yin_metal", "relation": "refers_to", "object": "concept:delegation"},
+  {"subject": "L2_atoms/stems/19_day_master_xin_yin_metal", "relation": "refers_to", "object": "concept:wealth_star"},
+  {"subject": "L2_atoms/stems/19_day_master_xin_yin_metal", "relation": "generates", "object": "concept:yang_water"},
+  {"subject": "L2_atoms/stems/19_day_master_xin_yin_metal", "relation": "generates", "object": "concept:yin_water"},
+  {"subject": "L2_atoms/stems/19_day_master_xin_yin_metal", "relation": "controls", "object": "concept:wood"},
+  {"subject": "L2_atoms/stems/19_day_master_xin_yin_metal", "relation": "combines_with", "object": "concept:yang_fire"}
+]

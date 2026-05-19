@@ -1,0 +1,16 @@
+[
+  {"subject": "L1_foundational/09_five_elements_personality", "relation": "refers_to", "object": "concept:wuxing"},
+  {"subject": "L1_foundational/09_five_elements_personality", "relation": "refers_to", "object": "concept:wood"},
+  {"subject": "L1_foundational/09_five_elements_personality", "relation": "refers_to", "object": "concept:fire"},
+  {"subject": "L1_foundational/09_five_elements_personality", "relation": "refers_to", "object": "concept:earth"},
+  {"subject": "L1_foundational/09_five_elements_personality", "relation": "refers_to", "object": "concept:metal"},
+  {"subject": "L1_foundational/09_five_elements_personality", "relation": "refers_to", "object": "concept:water"},
+  {"subject": "L1_foundational/09_five_elements_personality", "relation": "refers_to", "object": "concept:seasons"},
+  {"subject": "L1_foundational/09_five_elements_personality", "relation": "refers_to", "object": "concept:personality_archetypes"},
+  {"subject": "L1_foundational/09_five_elements_personality", "relation": "refers_to", "object": "concept:tcm_heart_meridian"},
+  {"subject": "L1_foundational/09_five_elements_personality", "relation": "example_of", "object": "concept:fire_imbalance"},
+  {"subject": "L1_foundational/09_five_elements_personality", "relation": "combines_with", "object": "L1_foundational/02_bazi_and_wuxing"},
+  {"subject": "L1_foundational/09_five_elements_personality", "relation": "combines_with", "object": "L1_foundational/06_seasons_and_calendar"},
+  {"subject": "L1_foundational/09_five_elements_personality", "relation": "combines_with", "object": "L1_foundational/07_five_elements_cycles"},
+  {"subject": "L1_foundational/09_five_elements_personality", "relation": "combines_with", "object": "L1_foundational/08_elements_strength_by_season"}
+]

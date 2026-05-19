@@ -1,0 +1,14 @@
+[
+  {"subject": "L2_atoms/stems/14_day_master_bing_yang_fire", "relation": "refers_to", "object": "concept:bing_yang_fire"},
+  {"subject": "L2_atoms/stems/14_day_master_bing_yang_fire", "relation": "refers_to", "object": "concept:sun"},
+  {"subject": "L2_atoms/stems/14_day_master_bing_yang_fire", "relation": "refers_to", "object": "concept:day_master_strength"},
+  {"subject": "L2_atoms/stems/14_day_master_bing_yang_fire", "relation": "refers_to", "object": "concept:summer_season"},
+  {"subject": "L2_atoms/stems/14_day_master_bing_yang_fire", "relation": "refers_to", "object": "concept:leadership"},
+  {"subject": "L2_atoms/stems/14_day_master_bing_yang_fire", "relation": "refers_to", "object": "concept:creativity"},
+  {"subject": "L2_atoms/stems/14_day_master_bing_yang_fire", "relation": "refers_to", "object": "concept:risk_aversion"},
+  {"subject": "L2_atoms/stems/14_day_master_bing_yang_fire", "relation": "refers_to", "object": "concept:team_dependency"},
+  {"subject": "L2_atoms/stems/14_day_master_bing_yang_fire", "relation": "refers_to", "object": "concept:attention_seeking"},
+  {"subject": "L2_atoms/stems/14_day_master_bing_yang_fire", "relation": "clashes_with", "object": "concept:bing_yang_fire"},
+  {"subject": "L2_atoms/stems/14_day_master_bing_yang_fire", "relation": "example_of", "object": "concept:steve_jobs"},
+  {"subject": "L2_atoms/stems/14_day_master_bing_yang_fire", "relation": "example_of", "object": "concept:bing_yang_fire"}
+]

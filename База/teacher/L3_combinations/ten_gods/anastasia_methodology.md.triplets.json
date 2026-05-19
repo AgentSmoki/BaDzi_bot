@@ -1,0 +1,17 @@
+[
+  {"subject": "L3_combinations/ten_gods/anastasia_methodology", "relation": "refers_to", "object": "concept:day_master"},
+  {"subject": "L3_combinations/ten_gods/anastasia_methodology", "relation": "refers_to", "object": "concept:ten_gods"},
+  {"subject": "L3_combinations/ten_gods/anastasia_methodology", "relation": "refers_to", "object": "concept:bi_jian"},
+  {"subject": "L3_combinations/ten_gods/anastasia_methodology", "relation": "refers_to", "object": "concept:jie_cai"},
+  {"subject": "L3_combinations/ten_gods/anastasia_methodology", "relation": "refers_to", "object": "concept:shi_shen"},
+  {"subject": "L3_combinations/ten_gods/anastasia_methodology", "relation": "refers_to", "object": "concept:shang_guan"},
+  {"subject": "L3_combinations/ten_gods/anastasia_methodology", "relation": "refers_to", "object": "concept:zheng_cai"},
+  {"subject": "L3_combinations/ten_gods/anastasia_methodology", "relation": "refers_to", "object": "concept:pian_cai"},
+  {"subject": "L3_combinations/ten_gods/anastasia_methodology", "relation": "refers_to", "object": "concept:zheng_guan"},
+  {"subject": "L3_combinations/ten_gods/anastasia_methodology", "relation": "refers_to", "object": "concept:qi_sha"},
+  {"subject": "L3_combinations/ten_gods/anastasia_methodology", "relation": "refers_to", "object": "concept:zheng_yin"},
+  {"subject": "L3_combinations/ten_gods/anastasia_methodology", "relation": "refers_to", "object": "concept:pian_yin"},
+  {"subject": "L3_combinations/ten_gods/anastasia_methodology", "relation": "clashes_with", "object": "concept:shang_guan_jian_guan"},
+  {"subject": "L3_combinations/ten_gods/anastasia_methodology", "relation": "controls", "object": "concept:pian_yin_eats_shi_shen"},
+  {"subject": "L3_combinations/ten_gods/anastasia_methodology", "relation": "generates", "object": "concept:wo_sheng_relation"}
+]

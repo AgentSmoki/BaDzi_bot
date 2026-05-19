@@ -51,16 +51,30 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libpangocairo-1.0-0 \
         ca-certificates \
         curl \
+        unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Twemoji (Mozilla COLR build) — closest open-source visual
-# match to Apple Color Emoji. Apple's font is licensed for macOS only,
-# so on Linux containers we ship Twemoji and Pango will pick it up via
-# fontconfig before falling back to Noto Color Emoji. Pinned version
-# so production builds are reproducible.
-RUN mkdir -p /usr/share/fonts/truetype/twemoji \
-    && curl -fsSL "https://github.com/mozilla/twemoji-colr/releases/download/v0.7.0/Twemoji.Mozilla.ttf" \
-        -o /usr/share/fonts/truetype/twemoji/Twemoji.Mozilla.ttf
+# Install OpenMoji Color (CBDT bitmap build) as the primary color emoji
+# font. Apple's emoji is licensed for macOS only; Twemoji (Mozilla COLR
+# build) was the prior fallback but rendered flat and dim — the У-син
+# wheel emojis (🌳🔥⛰⚙💧) looked washed out on prod. OpenMoji has more
+# saturated palette, larger glyph metrics, and the CBDT (bitmap) build
+# specifically gives a stylized/dimensional look that's closer to
+# Apple's 3D-ish appearance than COLR-vector alternatives.
+#
+# License: CC-BY-SA 4.0 (font assets only — attribution kept in this
+# Dockerfile + README, no impact on bot code licensing since rendered
+# PNGs don't constitute a derivative work of the font under copyright).
+#
+# We extract only the CBDT TTF variant (best Pango compatibility on
+# Bookworm) — the zip also contains picosvgz/sbix/COLR builds that we
+# skip to keep the image lean.
+RUN mkdir -p /usr/share/fonts/truetype/openmoji \
+    && curl -fsSL "https://github.com/hfg-gmuend/openmoji/releases/download/17.0.0/openmoji-font.zip" \
+        -o /tmp/openmoji.zip \
+    && cd /tmp && unzip -q openmoji.zip "OpenMoji-color-cbdt/OpenMoji-color-cbdt.ttf" \
+    && mv /tmp/OpenMoji-color-cbdt/OpenMoji-color-cbdt.ttf /usr/share/fonts/truetype/openmoji/ \
+    && rm -rf /tmp/openmoji.zip /tmp/OpenMoji-color-cbdt
 
 # Fontconfig aliases — redirect macOS-native font names referenced in
 # the SVG template (PingFang SC, Hiragino, Apple Color Emoji, ...) to

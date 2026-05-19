@@ -1,0 +1,15 @@
+[
+  {"subject": "L2_atoms/stems/12_day_master_jia_yang_wood", "relation": "example_of", "object": "concept:day_master"},
+  {"subject": "L2_atoms/stems/12_day_master_jia_yang_wood", "relation": "example_of", "object": "concept:yang_wood"},
+  {"subject": "L2_atoms/stems/12_day_master_jia_yang_wood", "relation": "refers_to", "object": "concept:tian_gan"},
+  {"subject": "L2_atoms/stems/12_day_master_jia_yang_wood", "relation": "refers_to", "object": "concept:day_master_strength"},
+  {"subject": "L2_atoms/stems/12_day_master_jia_yang_wood", "relation": "refers_to", "object": "concept:da_yun"},
+  {"subject": "L2_atoms/stems/12_day_master_jia_yang_wood", "relation": "generates", "object": "concept:yang_fire"},
+  {"subject": "L2_atoms/stems/12_day_master_jia_yang_wood", "relation": "generates", "object": "concept:yin_fire"},
+  {"subject": "L2_atoms/stems/12_day_master_jia_yang_wood", "relation": "controls", "object": "concept:earth"},
+  {"subject": "L2_atoms/stems/12_day_master_jia_yang_wood", "relation": "clashes_with", "object": "concept:yang_metal"},
+  {"subject": "L2_atoms/stems/12_day_master_jia_yang_wood", "relation": "combines_with", "object": "concept:yang_fire"},
+  {"subject": "L2_atoms/stems/12_day_master_jia_yang_wood", "relation": "combines_with", "object": "concept:earth"},
+  {"subject": "L2_atoms/stems/12_day_master_jia_yang_wood", "relation": "refers_to", "object": "concept:wealth_star"},
+  {"subject": "L2_atoms/stems/12_day_master_jia_yang_wood", "relation": "refers_to", "object": "concept:career_palace"}
+]

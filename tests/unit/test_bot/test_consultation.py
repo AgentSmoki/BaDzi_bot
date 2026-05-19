@@ -66,6 +66,9 @@ def fake_user() -> MagicMock:
     u = MagicMock()
     u.id = _uuid.uuid4()
     u.telegram_id = 1234567
+    # New users haven't used their one free question yet; tests that
+    # exercise the guard override this to True.
+    u.free_question_used = False
     return u
 
 
@@ -218,13 +221,16 @@ def _patched_chat(
         return FallbackResult(
             result=ChatResult(
                 text=text,
-                model="moonshotai/kimi-k2.6",
+                model="gpt://test-folder/qwen3.6-35b-a3b/latest",
                 usage=ChatUsage(
                     prompt_tokens=18000, completion_tokens=900, total_tokens=18900, cost_usd=0.025
                 ),
                 latency_ms=42_000,
                 trace_id="t-test",
+                provider="yc",
             ),
+            tier=1,
+            provider="yc",
             used_fallback=False,
         )
 
@@ -250,6 +256,8 @@ async def test_question_happy_path_persists_consultation_and_history(
     )
     create_mock = AsyncMock()
     monkeypatch.setattr(consultation_module._consultation_repo, "create", create_mock)
+    mark_free_mock = AsyncMock()
+    monkeypatch.setattr(consultation_module._user_repo, "mark_free_question_used", mark_free_mock)
     seen_calls = _patched_chat(monkeypatch, text="Вы — Огонь Инь.")
 
     await handle_question(
@@ -270,9 +278,12 @@ async def test_question_happy_path_persists_consultation_and_history(
     persist_kwargs = create_mock.call_args.kwargs
     assert persist_kwargs["user_id"] == fake_user.id
     assert persist_kwargs["chart_id"] == fake_chart.id
-    assert persist_kwargs["model_used"] == "moonshotai/kimi-k2.6"
+    assert persist_kwargs["model_used"] == "gpt://test-folder/qwen3.6-35b-a3b/latest"
     assert persist_kwargs["completion_tokens"] == 900
     assert persist_kwargs["trace_id"] == "t-test"
+
+    # Free-question flag flipped after a successful answer (1.12.0).
+    mark_free_mock.assert_awaited_once_with(fake_session, fake_user.id)
 
     # History contains both turns in chronological order
     history = await history_store.get(fake_user.telegram_id)
@@ -282,6 +293,92 @@ async def test_question_happy_path_persists_consultation_and_history(
 
     # The chat call was made — and exactly once (no retries on success)
     assert len(seen_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_question_blocked_when_free_question_already_used(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_message: MagicMock,
+    fake_state: MagicMock,
+    fake_session: MagicMock,
+    fake_user: MagicMock,
+    fake_chart: MagicMock,
+    history_store: HistoryStore,
+) -> None:
+    """1.12.0 guard: second question goes to pricing_kb instead of
+    burning OpenRouter/YC tokens. The LLM is never called."""
+    fake_user.free_question_used = True
+    fake_message.text = "Второй вопрос подряд"
+    monkeypatch.setattr(
+        consultation_module._chart_repo,
+        "get_latest_by_user",
+        AsyncMock(return_value=fake_chart),
+    )
+    create_mock = AsyncMock()
+    monkeypatch.setattr(consultation_module._consultation_repo, "create", create_mock)
+    mark_free_mock = AsyncMock()
+    monkeypatch.setattr(consultation_module._user_repo, "mark_free_question_used", mark_free_mock)
+    seen_calls = _patched_chat(monkeypatch)
+
+    await handle_question(
+        message=fake_message,
+        state=fake_state,
+        session=fake_session,
+        user=fake_user,
+        history_store=history_store,
+    )
+
+    # User received the upsell message
+    fake_message.answer.assert_awaited()
+    answer_text = fake_message.answer.call_args.args[0]
+    assert "тариф" in answer_text.lower()
+    # Reply markup is the pricing keyboard, not the regular after-answer
+    assert fake_message.answer.call_args.kwargs.get("reply_markup") is not None
+
+    # No LLM call, no consultation row, no flag flip (already True)
+    assert len(seen_calls) == 0
+    create_mock.assert_not_awaited()
+    mark_free_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_question_does_not_flip_flag_on_llm_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_message: MagicMock,
+    fake_state: MagicMock,
+    fake_session: MagicMock,
+    fake_user: MagicMock,
+    fake_chart: MagicMock,
+    history_store: HistoryStore,
+) -> None:
+    """If the LLM tier chain fails the user gets an apology — but their
+    one free question is NOT consumed, so a retry is possible."""
+    fake_message.text = "Покажи карту"
+    monkeypatch.setattr(
+        consultation_module._chart_repo,
+        "get_latest_by_user",
+        AsyncMock(return_value=fake_chart),
+    )
+    mark_free_mock = AsyncMock()
+    monkeypatch.setattr(consultation_module._user_repo, "mark_free_question_used", mark_free_mock)
+
+    async def boom(**_kw: Any) -> Any:
+        raise UpstreamError("both tiers down")
+
+    monkeypatch.setattr(consultation_module, "chat_with_fallback", boom)
+
+    await handle_question(
+        message=fake_message,
+        state=fake_state,
+        session=fake_session,
+        user=fake_user,
+        history_store=history_store,
+    )
+
+    # User saw the apology
+    fake_message.answer.assert_awaited()
+    # …but the free-question flag is untouched
+    mark_free_mock.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -302,6 +399,7 @@ async def test_question_with_temporal_keyword_includes_now_block(
         AsyncMock(return_value=fake_chart),
     )
     monkeypatch.setattr(consultation_module._consultation_repo, "create", AsyncMock())
+    monkeypatch.setattr(consultation_module._user_repo, "mark_free_question_used", AsyncMock())
     seen = _patched_chat(monkeypatch)
 
     await handle_question(

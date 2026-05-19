@@ -1,0 +1,17 @@
+[
+  {"subject": "L6_structures/anastasia_25_classical", "relation": "refers_to", "object": "concept:zhengge"},
+  {"subject": "L6_structures/anastasia_25_classical", "relation": "refers_to", "object": "concept:zhengyin_ge"},
+  {"subject": "L6_structures/anastasia_25_classical", "relation": "refers_to", "object": "concept:pianyin_ge"},
+  {"subject": "L6_structures/anastasia_25_classical", "relation": "refers_to", "object": "concept:zhengguan_ge"},
+  {"subject": "L6_structures/anastasia_25_classical", "relation": "refers_to", "object": "concept:qisha_ge"},
+  {"subject": "L6_structures/anastasia_25_classical", "relation": "refers_to", "object": "concept:zhengcai_ge"},
+  {"subject": "L6_structures/anastasia_25_classical", "relation": "refers_to", "object": "concept:piancai_ge"},
+  {"subject": "L6_structures/anastasia_25_classical", "relation": "refers_to", "object": "concept:shishen_ge"},
+  {"subject": "L6_structures/anastasia_25_classical", "relation": "refers_to", "object": "concept:shangguan_ge"},
+  {"subject": "L6_structures/anastasia_25_classical", "relation": "refers_to", "object": "concept:congqiang_ge"},
+  {"subject": "L6_structures/anastasia_25_classical", "relation": "refers_to", "object": "concept:congruo_ge"},
+  {"subject": "L6_structures/anastasia_25_classical", "relation": "refers_to", "object": "concept:huaqi_ge"},
+  {"subject": "L6_structures/anastasia_25_classical", "relation": "combines_with", "object": "concept:day_master_strength"},
+  {"subject": "L6_structures/anastasia_25_classical", "relation": "combines_with", "object": "concept:month_pillar"},
+  {"subject": "L6_structures/anastasia_25_classical", "relation": "generates", "object": "concept:ten_gods"}
+]

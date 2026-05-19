@@ -175,7 +175,9 @@ def reference_chart():  # type: ignore[no-untyped-def]
     )
 
 
-def _fake_response(text: str, *, model: str = "moonshotai/kimi-k2.6") -> FallbackResult:
+def _fake_response(
+    text: str, *, model: str = "gpt://test-folder/qwen3.6-35b-a3b/latest"
+) -> FallbackResult:
     return FallbackResult(
         result=ChatResult(
             text=text,
@@ -185,7 +187,10 @@ def _fake_response(text: str, *, model: str = "moonshotai/kimi-k2.6") -> Fallbac
             ),
             latency_ms=42_000,
             trace_id="test-trace",
+            provider="yc",
         ),
+        tier=1,
+        provider="yc",
         used_fallback=False,
     )
 
@@ -224,14 +229,14 @@ async def test_generate_base_interpretation_parses_six_blocks(
 
     assert out.interpretation.block_1_balance == "1"
     assert out.interpretation.block_6_current_year == "6"
-    assert out.model == "moonshotai/kimi-k2.6"
+    assert out.model == "gpt://test-folder/qwen3.6-35b-a3b/latest"
     assert out.used_fallback is False
     assert out.cost_usd == pytest.approx(0.025)
     assert out.trace_id == "test-trace"
-    # The instruction goes inside the user message; system is the
-    # full Anastasia prompt + chart should sit in the user message
-    assert captured["temperature"] < 0.6  # interpretation is calmer than chat
-    assert captured["max_tokens"] >= 4096
+    # Interpretation calls now pass intent (not raw max_tokens) — budget
+    # is sized per-tier inside ai.fallback.chat_with_fallback.
+    assert captured["temperature"] < 0.6
+    assert captured["intent"] == "interpretation"
 
 
 @pytest.mark.asyncio
@@ -250,7 +255,10 @@ async def test_generate_base_interpretation_records_fallback_flag(
                 usage=ChatUsage(),
                 latency_ms=12_000,
                 trace_id="t",
+                provider="openrouter",
             ),
+            tier=2,
+            provider="openrouter",
             used_fallback=True,
         )
 

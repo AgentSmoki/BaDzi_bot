@@ -1,0 +1,14 @@
+[
+  {"subject": "L3_combinations/twelve_growth_stages", "relation": "refers_to", "object": "concept:heavenly_stem"},
+  {"subject": "L3_combinations/twelve_growth_stages", "relation": "refers_to", "object": "concept:earthly_branch"},
+  {"subject": "L3_combinations/twelve_growth_stages", "relation": "refers_to", "object": "concept:day_master"},
+  {"subject": "L3_combinations/twelve_growth_stages", "relation": "refers_to", "object": "concept:day_master_strength"},
+  {"subject": "L3_combinations/twelve_growth_stages", "relation": "refers_to", "object": "concept:day_branch"},
+  {"subject": "L3_combinations/twelve_growth_stages", "relation": "refers_to", "object": "concept:zhangsheng_birth"},
+  {"subject": "L3_combinations/twelve_growth_stages", "relation": "refers_to", "object": "concept:muyu_bathing"},
+  {"subject": "L3_combinations/twelve_growth_stages", "relation": "refers_to", "object": "concept:linguan_prosperity"},
+  {"subject": "L3_combinations/twelve_growth_stages", "relation": "refers_to", "object": "concept:diwang_emperor"},
+  {"subject": "L3_combinations/twelve_growth_stages", "relation": "refers_to", "object": "concept:mu_tomb"},
+  {"subject": "L3_combinations/twelve_growth_stages", "relation": "refers_to", "object": "concept:jue_void"},
+  {"subject": "L3_combinations/twelve_growth_stages", "relation": "refers_to", "object": "concept:twelve_stages_cycle"}
+]

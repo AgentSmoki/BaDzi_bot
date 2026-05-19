@@ -1,0 +1,15 @@
+[
+  {"subject": "L1_foundational/03_four_pillars", "relation": "refers_to", "object": "concept:year_pillar"},
+  {"subject": "L1_foundational/03_four_pillars", "relation": "refers_to", "object": "concept:month_pillar"},
+  {"subject": "L1_foundational/03_four_pillars", "relation": "refers_to", "object": "concept:day_pillar"},
+  {"subject": "L1_foundational/03_four_pillars", "relation": "refers_to", "object": "concept:hour_pillar"},
+  {"subject": "L1_foundational/03_four_pillars", "relation": "refers_to", "object": "L1_foundational/04_day_master"},
+  {"subject": "L1_foundational/03_four_pillars", "relation": "refers_to", "object": "L1_foundational/06_seasons_and_calendar"},
+  {"subject": "L1_foundational/03_four_pillars", "relation": "refers_to", "object": "L1_foundational/02_bazi_and_wuxing"},
+  {"subject": "L1_foundational/03_four_pillars", "relation": "example_of", "object": "concept:wood_element"},
+  {"subject": "L1_foundational/03_four_pillars", "relation": "example_of", "object": "concept:metal_element"},
+  {"subject": "L1_foundational/03_four_pillars", "relation": "refers_to", "object": "concept:public_personality"},
+  {"subject": "L1_foundational/03_four_pillars", "relation": "refers_to", "object": "concept:marriage_partner"},
+  {"subject": "L1_foundational/03_four_pillars", "relation": "refers_to", "object": "concept:children_and_subordinates"},
+  {"subject": "L1_foundational/03_four_pillars", "relation": "refers_to", "object": "concept:career_and_parents"}
+]

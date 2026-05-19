@@ -1,0 +1,17 @@
+[
+  {"subject": "L7_predictive_patterns/dm_strength_analysis", "relation": "refers_to", "object": "concept:day_master_strength"},
+  {"subject": "L7_predictive_patterns/dm_strength_analysis", "relation": "refers_to", "object": "concept:seasonal_force_ling"},
+  {"subject": "L7_predictive_patterns/dm_strength_analysis", "relation": "refers_to", "object": "concept:shi_support"},
+  {"subject": "L7_predictive_patterns/dm_strength_analysis", "relation": "refers_to", "object": "concept:gen_root"},
+  {"subject": "L7_predictive_patterns/dm_strength_analysis", "relation": "refers_to", "object": "concept:earthly_branches_hidden_stems"},
+  {"subject": "L7_predictive_patterns/dm_strength_analysis", "relation": "refers_to", "object": "concept:resource_seal"},
+  {"subject": "L7_predictive_patterns/dm_strength_analysis", "relation": "refers_to", "object": "concept:brotherhood_robber"},
+  {"subject": "L7_predictive_patterns/dm_strength_analysis", "relation": "refers_to", "object": "concept:self_expression"},
+  {"subject": "L7_predictive_patterns/dm_strength_analysis", "relation": "refers_to", "object": "concept:wealth"},
+  {"subject": "L7_predictive_patterns/dm_strength_analysis", "relation": "refers_to", "object": "concept:power_officer"},
+  {"subject": "L7_predictive_patterns/dm_strength_analysis", "relation": "combines_with", "object": "concept:strong_dm_wang"},
+  {"subject": "L7_predictive_patterns/dm_strength_analysis", "relation": "combines_with", "object": "concept:weak_dm_ruo"},
+  {"subject": "L7_predictive_patterns/dm_strength_analysis", "relation": "combines_with", "object": "concept:cong_wang_following_strength"},
+  {"subject": "L7_predictive_patterns/dm_strength_analysis", "relation": "combines_with", "object": "concept:cong_ruo_following_weakness"},
+  {"subject": "L7_predictive_patterns/dm_strength_analysis", "relation": "controls", "object": "concept:five_elements_cycle"}
+]

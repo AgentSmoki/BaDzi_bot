@@ -136,12 +136,92 @@
 - [ ] 1.7.5 Fallback: Pillow-композиция из 24 PNG-ассетов если CairoSVG недоступен
 
 ### 1.9 Knowledge graph RAG (фрактальный) — отдельная итерация
-> Богдан хочет **fractal RAG-Graph** методику, не классический Kuzu schema. Требует отдельного исследования и плана.
-- [ ] 1.9.1 Исследовать fractal RAG-Graph (статьи + примеры внедрений)
-- [ ] 1.9.2 Спроектировать схему графа Бацзы (Element/Stem/Branch/Rule + fractal levels)
-- [ ] 1.9.3 Оцифровка [База/ba_zi_prompt_anastasia_v2.md](База/ba_zi_prompt_anastasia_v2.md) → граф
-- [ ] 1.9.4 RAG-поиск по концептам вопроса
-- [ ] 1.9.5 Интеграция в `compose_messages` (заменит часть system_prompt)
+> Богдан хочет **fractal RAG-Graph** методику. План: [~/.claude/plans/badzi-fractal-rag-graph.md](~/.claude/plans/badzi-fractal-rag-graph.md). MVP-ветка («KB lite») закрыта — keyword-индекс + интеграция в compose_messages работает. Полноценный fractal-граф (KuzuDB + ingest pipeline + concept-extractor) идёт фазами 0-3.
+- [x] 1.9.1 Исследовать fractal RAG-Graph:
+      - Subagent-attempt 2026-05-17 → [fractal_rag_2026-05-17.md](doc/research/fractal_rag_2026-05-17.md) (unverified, оставляю как историю)
+      - **Verified research 2026-05-19** через WebSearch + WebFetch → [retrieval_stack_2026-05-19.md](doc/research/retrieval_stack_2026-05-19.md) — содержит:
+        1. **KuzuDB archived 2025-10-10** (Apple acquisition) — VERIFIED через github.com/kuzudb/kuzu
+        2. Сравнение embedded graph DB alternatives → **рекомендация Apache AGE на Yandex Managed Postgres** (0 new infra, OpenCypher, pgvector для эмбеддингов в той же БД)
+        3. Embedding модели — **bge-m3** (unified dense+sparse+ColBERT, 100+ langs, +500MB image)
+        4. LLM concept extraction — **Qwen3-3B через YC** (5× дешевле Haiku, тот же провайдер что Анастасия, RU+ZH native)
+- [x] 1.9.2 Спроектировать схему графа Бацзы — [knowledge/schema.py](knowledge/schema.py): Node + 6 rel-tables.  
+      **Caveat / отклонение от плана:** Element / Stem / Branch / Rule **не** стали отдельными NODE-таблицами — унифицированы как `Node` c `level` (L1-L7). Причина: на 33+ docs неэффективно делать table-per-type; KuzuDB Cypher и так фильтрует через `WHERE n.level = ...`. Если корпус превысит 1000 узлов и появится таб-специфичная индексация, схему перерисуем.
+- [x] 1.9.3 Оцифровка [База/ba_zi_prompt_anastasia_v2.md](База/ba_zi_prompt_anastasia_v2.md) → граф:
+  - 13 секций вырезаны из 927-строчного промпта по gap-анализу (пропустили дубликаты с PDF — 4 столпа, 10 stems, 12 branches, элементы)
+  - Закрыли пробелы в L3 / L5 / L6 / L7:
+    - L3: `ten_gods/anastasia_methodology.md`, `twelve_growth_stages.md`
+    - L4: `empty_branches_kongwang.md`
+    - L5: `anastasia_shen_sha_catalog.md`, `anastasia_nobles_guiren.md`
+    - L6: `anastasia_25_classical.md` (структуры 格局)
+    - L7: `dm_strength_analysis`, `useful_harmful_god`, `career`, `relationships`, `health`, `talents`, `forecast_methodology`
+  - Все с `source: anastasia_system_prompt_v2`, `source_authority: 8`
+  - Граф вырос: **33 → 46 real Nodes, 445 → 548 edges**, L3 появился (0→2), L6 появился (0→1), L7 утроился (3→10)
+  - Smoke: «что такое 七杀?», «пустые ветви?», «格局 структуры?», «貴人?», «12 стадий?», «таланты?» — все 6 возвращают релевантный `[KNOWLEDGE]` блок
+- [x] 1.9.4 RAG-поиск по концептам вопроса — **апгрейд из KB-lite до KuzuDB-Cypher**: [ai/rag/retrieve.py](ai/rag/retrieve.py) делает 2 параллельные запросы (concept-overlap + title-substring CONTAINS), сливает scores, top-k + 1-hop expansion на typed edges
+- [x] 1.9.5 Интеграция в `compose_messages` — [ai/temporal_context.py:329-331](ai/temporal_context.py) блок `[KNOWLEDGE]` между `[CALENDAR_SELECTION]` и `[QUESTION]`. Импорт: `from ai.rag import load_knowledge_for_question`.
+- [x] 1.9.6 **Phase 0.3** Оцифровка [База/Основы Ба Цзы .pdf](База/Основы Ба Цзы .pdf):
+  - Извлечение PyMuPDF → [foundation_course_pdf.md](База/teacher/_audio_transcripts/foundation_course_pdf.md) (200 стр., 36 735 слов)
+  - **Разбивка по L1-L7** через subagent-pipeline [knowledge/ingest/from_pdf.py](knowledge/ingest/from_pdf.py) → 31 .md в L1_foundational (9) / L2_atoms/stems (10) / L2_atoms/branches (6) / L4_interactions (3) / L7_predictive_patterns (3). TOC: [foundation_course_pdf.toc.json](База/teacher/_audio_transcripts/foundation_course_pdf.toc.json)
+  - 1 chunk (#32 библиография) упал с socket error — пропущен (не predictive content)
+  - Fix: title с двоеточием экранируется в frontmatter-шаблоне (`title: "..."`)
+- [x] 1.9.7 **Phase 1.1** [knowledge/schema.py](knowledge/schema.py) — DDL для Node + 6 rel-tables (REFERS_TO/GENERATES/CONTROLS/COMBINES_WITH/CLASHES_WITH/EXAMPLE_OF), все `IF NOT EXISTS`.
+- [x] 1.9.8 **Phase 1.2** [knowledge/bootstrap.py](knowledge/bootstrap.py) — `python -m knowledge.bootstrap [--db-path P] [--recreate]`, идемпотентно, тесты 13/13.
+- [x] 1.9.9 **Phase 2** Ingestion pipeline — [knowledge/ingest/](knowledge/ingest/):
+  - [models.py](knowledge/ingest/models.py) `IngestedDoc` / `Triplet` / `IngestState` + `REL_KINDS`
+  - [parser.py](knowledge/ingest/parser.py) frontmatter + body → IngestedDoc, sha256 hash от body
+  - [extract.py](knowledge/ingest/extract.py) hybrid: sidecar `<file>.triplets.json` (subagent-output) OR heuristic из `related_concepts`
+  - [writer.py](knowledge/ingest/writer.py) MERGE Node + replace outgoing edges (идемпотентно), state-файл
+  - [cli.py](knowledge/ingest/cli.py) + `__main__.py` — `python -m knowledge.ingest [--source] [--file F] [--incremental] [--dry-run] [--list-pending-extracts]`
+  - [from_pdf.py](knowledge/ingest/from_pdf.py) — PDF → L1-L7 chunking helpers (TOC discovery + per-chapter prompt renderers)
+  - 47 тестов (parser/extract/writer/cli/from_pdf) — все зелёные, full suite 602/602
+  - **Sidecar enrichment пройден для всех 33 .md** (32 subagent + 1 baihu пилот): 32 sidecar JSON-файла рядом с .md
+  - **Production ingest с enriched sidecars**: 33 docs → 33 real Nodes + 264 concept stubs + **445 edges** (vs 220 при heuristic-only)
+  - **Typed edges распределение**: REFERS_TO 260 / COMBINES_WITH 64 / EXAMPLE_OF 53 / CLASHES_WITH 32 / GENERATES 20 / CONTROLS 15 — **184 typed edges vs 6 при heuristic** (рост ×30)
+  - **Hub концепты**: `day_master` (12), `day_master_strength` (12), `earthly_branches` (10), `tian_gan` (9), `liuchong` (5)
+  - **Cross-document links**: 12 REFERS_TO + 13 COMBINES_WITH между реальными доками (L1 → L1, L4 → L4, L7 → L7) — граф навигируется
+  - **Все 6 классических 沖** из doc 28 типизированы: zi-wu, chou-wei, yin-shen, mao-you, chen-xu, si-hai
+  - **Bibliography (#32) ретрай**: успешно (466 строк, 263с, без socket error)
+  - **luck_pillars frontmatter**: level исправлен L1 → L7 (subagent ошибся, поправил вручную)
+- [x] 1.9.10 **Phase 3** Retrieval pipeline — [ai/rag/](ai/rag/):
+  - [store.py](ai/rag/store.py) — KuzuDB read-only singleton + concept vocabulary cache
+  - [extract.py](ai/rag/extract.py) — `extract_concepts` (vocab match) + `extract_search_tokens` (Russian-suffix-stemmed tokens, stop-words filtered)
+  - [retrieve.py](ai/rag/retrieve.py) — два Cypher-пути (concept-overlap UNWIND + title CONTAINS), score-merge, level/authority tiebreak, optional 1-hop expansion на typed edges (COMBINES_WITH/EXAMPLE_OF/CLASHES_WITH/GENERATES/CONTROLS)
+  - [format.py](ai/rag/format.py) — `[KNOWLEDGE]` body renderer с budget (15 000 chars ≈ 5k tokens), paragraph-boundary truncation
+  - [public.py](ai/rag/public.py) — `load_knowledge_for_question(question, top_k)` entrypoint
+  - **35 тестов** в [tests/unit/test_ai/test_rag/](tests/unit/test_ai/test_rag/) — extract / format / public (e2e против embedded KuzuDB) / retrieve (concept + title + merge + tiebreak)
+  - **Удалён** `ai/knowledge_loader.py` + его тест (заменён, no backwards compat)
+  - **Production KuzuDB bootstrap**: `./knowledge/kuzu_db` собран из 33 .md (32 PDF + baihu) с 32 sidecar enrichments → 445 edges
+  - **Smoke 7/7** реалистичных вопросов: «Белый Тигр», «столпы удачи», «Гэн Металл Ян», «крыса лошадь», «цикл порождения», «баланс пяти стихий», «дракон и змея» — все попадают в правильные L5/L7/L2/L1 ноды
+  - **LLM-based concept extraction (Qwen-mini)** — отложен (плановый Phase 3.5): сейчас vocab+stem retrieval даёт recall 7/7 на пилоте, LLM-апгрейд имеет смысл когда корпус расширится до >100 файлов и точность станет узким местом
+- [x] 1.9.11 **Phase 4** Deploy:
+  - rsync working tree → `yc-user@130.193.51.15:~/BaDzi_bot/` (1 MB sent, исключая .git/.venv/cache/.env)
+  - Docker rebuild bot+worker (kuzu 0.10.0 в pyproject — match named-volume dir-format)
+  - `docker compose cp knowledge/kuzu_db/. bot:/app/knowledge/kuzu_db/` — KuzuDB-артефакт скопирован в `kuzu_data` named volume
+  - **Smoke in container**: kuzu 0.10.0 OK, vocab 206 концептов, 3 вопроса возвращают knowledge-блоки (12 866 / 5 789 / 15 000 chars)
+  - Контейнеры `badzi_bot-bot-1` + `badzi_bot-worker-1` healthy, polling started, errors=0
+  - **Lessons learned**: docker-compose volume `kuzu_data:/app/knowledge/kuzu_db` всегда монтирует DIR — несовместимо с kuzu 0.11+ file-format. Остаёмся на 0.10 пока volume mount не переделан. Это zafiksirovano в [docker-compose.yml](docker-compose.yml).
+- [x] 1.9.12 **Phase 4.3** Real Telegram smoke (2026-05-18):
+  - Богдан задал боту `@EdoHa_Badzi_bot`: «что значит Белый Тигр в дне?»
+  - Анастасия **дословно цитирует** baihu_white_tiger.md: «Натальное расположение определяет сферу: День → партнёрские разногласия», «Сильный ДМ + 白虎 → конкурентное преимущество, не нужно бояться», «天乙贵人 / 月德贵人 нейтрализуют до 70%», период такта 庚申 «усиливает Тигра — Тигр металлический»
+  - Phase 1.9.x end-to-end stack работает в проде с реальными цитатами.
+- [x] 1.9.13 Sidecar enrichment для 13 anastasia-секций (2026-05-19):
+  - 13 subagent'ов в параллель → 13 sidecar JSON. Anastasia chunks теперь дают типизированные edges (combines_with/clashes_with/generates/controls/example_of) вместо generic REFERS_TO
+  - Re-ingest: 46 docs / **617 edges** (было 548, +69 typed)
+  - Production VM получил обновлённый kuzu_db через `docker compose cp`, vocab 288 концептов (было 206)
+- [x] 1.9.14 **Phase 0.1 verified research** (2026-05-19) → [retrieval_stack_2026-05-19.md](doc/research/retrieval_stack_2026-05-19.md):
+  - **KuzuDB archived 2025-10-10** (verified github.com/kuzudb/kuzu) — Apple acquisition.
+  - Roadmap migration: Apache AGE на Yandex Managed Postgres (уже есть managed PG) — 0 new infra, OpenCypher, pgvector рядом для эмбеддингов.
+  - Embeddings (Phase 2.5) → bge-m3 (unified dense+sparse+ColBERT, +500 MB image).
+  - LLM concept extraction (Phase 3.5) → Qwen3-3B через YC (5× cheaper than Haiku, RU+ZH native).
+- [ ] 1.9.15 **KuzuDB → Apache AGE migration** (2026-Q3):
+  - Rewrite [knowledge/ingest/writer.py](knowledge/ingest/writer.py) Cypher → AGE-flavored OpenCypher (largely identical syntax)
+  - Rewrite [ai/rag/store.py](ai/rag/store.py) — SQLAlchemy + AGE extension вместо kuzu.Database
+  - Drop `kuzu_data` volume + `kuzu==0.10.0` из pyproject
+  - Update vision.mdc ADR-004
+  - Re-ingest via existing pipeline (no .md changes)
+  - **Effort:** ~6-8 часов. **Триггер:** kuzu 0.10 перестанет ставиться через pip ИЛИ CVE без патча
+- [ ] 1.9.16 **Phase 2.5 bge-m3 embeddings** — после миграции на AGE; pgvector рядом упрощает интеграцию
+- [ ] 1.9.17 **Phase 3.5 Qwen3-3B concept extraction** — последняя оптимизация retrieval, async-фицирует compose_messages
 
 ### 1.12 Монетизация — полная реализация
 - [ ] 1.12.1 Redis rate limiter (счётчик вопросов/день для free)

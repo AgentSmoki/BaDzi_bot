@@ -1,0 +1,17 @@
+[
+  {"subject": "L1_foundational/31_school_and_program", "relation": "refers_to", "object": "concept:bazi_chart"},
+  {"subject": "L1_foundational/31_school_and_program", "relation": "refers_to", "object": "concept:wuxing"},
+  {"subject": "L1_foundational/31_school_and_program", "relation": "refers_to", "object": "concept:heavenly_stems"},
+  {"subject": "L1_foundational/31_school_and_program", "relation": "refers_to", "object": "concept:earthly_branches"},
+  {"subject": "L1_foundational/31_school_and_program", "relation": "refers_to", "object": "concept:ten_gods"},
+  {"subject": "L1_foundational/31_school_and_program", "relation": "refers_to", "object": "concept:day_master_strength"},
+  {"subject": "L1_foundational/31_school_and_program", "relation": "refers_to", "object": "concept:twelve_qi_phases"},
+  {"subject": "L1_foundational/31_school_and_program", "relation": "refers_to", "object": "concept:special_structures"},
+  {"subject": "L1_foundational/31_school_and_program", "relation": "refers_to", "object": "concept:taohua"},
+  {"subject": "L1_foundational/31_school_and_program", "relation": "refers_to", "object": "concept:money_star"},
+  {"subject": "L1_foundational/31_school_and_program", "relation": "refers_to", "object": "concept:twelve_palaces"},
+  {"subject": "L1_foundational/31_school_and_program", "relation": "refers_to", "object": "concept:emptiness"},
+  {"subject": "L1_foundational/31_school_and_program", "relation": "combines_with", "object": "concept:qimen"},
+  {"subject": "L1_foundational/31_school_and_program", "relation": "combines_with", "object": "concept:fengshui"},
+  {"subject": "L1_foundational/31_school_and_program", "relation": "combines_with", "object": "concept:gua"}
+]

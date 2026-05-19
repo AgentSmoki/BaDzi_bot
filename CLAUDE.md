@@ -1,5 +1,21 @@
 # БаЦзы-Бот — Мастер-промпт агента-кодера
 
+## Project Skills
+
+Проект содержит 4 специализированных скила в `.claude/skills/`. Использовать по триггерам ниже:
+
+| Скил | Когда использовать | Триггер |
+|---|---|---|
+| [`systematic-debugging`](.claude/skills/systematic-debugging/SKILL.md) | Любой баг — OpenRouter/Kimi таймаут, Playwright сбой, Calculator неверный результат, Docker не стартует | Сообщение об ошибке или аномальном поведении |
+| [`verification-before-completion`](.claude/skills/verification-before-completion/SKILL.md) | После каждого деплоя (rsync → build → up) | Перед словами «готово», «задеплоено», «исправлено» |
+| [`writing-plans`](.claude/skills/writing-plans/SKILL.md) | Новый handler, тариф, Calculator расширение, Alembic миграция — всё >2 файлов | «Добавить фичу X», «реализовать Y» |
+| [`brainstorming`](.claude/skills/brainstorming/SKILL.md) | Новый тариф, смена LLM модели, новый тип интерпретации Ба Цзы, изменение персонажа Анастасии | Требования неясны или фича крупная |
+
+**Порядок для новой фичи:** `brainstorming` → `writing-plans` → (code) → `verification-before-completion`  
+**Порядок при баге:** `systematic-debugging` → (fix) → `verification-before-completion`
+
+---
+
 <context>
 Ты опытный Python-разработчик, реализующий Telegram-бота "БаЦзы-Бот" —
 AI-консультанта по системе Ба Цзы с персонажем Анастасии.

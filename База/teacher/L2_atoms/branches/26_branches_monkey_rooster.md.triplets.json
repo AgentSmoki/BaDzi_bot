@@ -1,0 +1,17 @@
+[
+  {"subject": "L2_atoms/branches/26_branches_monkey_rooster", "relation": "refers_to", "object": "concept:earthly_branch_shen_monkey"},
+  {"subject": "L2_atoms/branches/26_branches_monkey_rooster", "relation": "refers_to", "object": "concept:earthly_branch_you_rooster"},
+  {"subject": "L2_atoms/branches/26_branches_monkey_rooster", "relation": "example_of", "object": "concept:metal_yang"},
+  {"subject": "L2_atoms/branches/26_branches_monkey_rooster", "relation": "example_of", "object": "concept:metal_yin"},
+  {"subject": "L2_atoms/branches/26_branches_monkey_rooster", "relation": "refers_to", "object": "concept:season_autumn"},
+  {"subject": "L2_atoms/branches/26_branches_monkey_rooster", "relation": "refers_to", "object": "concept:direction_west"},
+  {"subject": "L2_atoms/branches/26_branches_monkey_rooster", "relation": "clashes_with", "object": "concept:earthly_branch_yin_tiger"},
+  {"subject": "L2_atoms/branches/26_branches_monkey_rooster", "relation": "clashes_with", "object": "concept:earthly_branch_mao_rabbit"},
+  {"subject": "L2_atoms/branches/26_branches_monkey_rooster", "relation": "combines_with", "object": "concept:earthly_branch_zi_rat"},
+  {"subject": "L2_atoms/branches/26_branches_monkey_rooster", "relation": "combines_with", "object": "concept:earthly_branch_chen_dragon"},
+  {"subject": "L2_atoms/branches/26_branches_monkey_rooster", "relation": "combines_with", "object": "concept:earthly_branch_si_snake"},
+  {"subject": "L2_atoms/branches/26_branches_monkey_rooster", "relation": "combines_with", "object": "concept:earthly_branch_chou_ox"},
+  {"subject": "L2_atoms/branches/26_branches_monkey_rooster", "relation": "refers_to", "object": "concept:day_master_character"},
+  {"subject": "L2_atoms/branches/26_branches_monkey_rooster", "relation": "refers_to", "object": "concept:career_profile"},
+  {"subject": "L2_atoms/branches/26_branches_monkey_rooster", "relation": "refers_to", "object": "concept:relationship_compatibility"}
+]

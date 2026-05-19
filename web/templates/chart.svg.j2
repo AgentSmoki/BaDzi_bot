@@ -233,16 +233,14 @@
       {% if el.is_dm %}
       <circle cx="{{ el.cx }}" cy="{{ el.cy }}" r="54" fill="none" stroke="#c69853" stroke-width="2.5" stroke-dasharray="5 4"/>
       {% endif %}
-      <!-- Coloured element disc + white SVG glyph: rendered unconditionally so
-           the wheel still reads correctly even when the emoji font on the
-           runtime can't draw colour glyphs (Pango/Cairo on Linux containers,
-           background threads on macOS, etc). -->
+      <!-- Coloured element disc as a clean background. The white SVG glyph
+           fallback was removed after OpenMoji Color landed (L-1, 2026-05-16):
+           with a working emoji font the fallback icons leak through OpenMoji's
+           translucent edges and the wheel reads as a double-stamp. If the
+           runtime ever loses its emoji font again, the prod symptom will be
+           a blank coloured disc rather than tofu — easier to diagnose than
+           the old overlapping look. -->
       <circle cx="{{ el.cx }}" cy="{{ el.cy }}" r="{{ ic_r }}" class="el-bg-{{ el.el }}"/>
-      <use xlink:href="#ic-{{ el.el }}"
-           x="{{ el.cx - ic_r }}" y="{{ el.cy - ic_r }}"
-           width="{{ ic_r * 2 }}" height="{{ ic_r * 2 }}"/>
-      <!-- Emoji on top: when the font is available it covers the glyph; when
-           it isn't, the white SVG icon underneath is what the user sees. -->
       <text x="{{ el.cx }}" y="{{ el.cy + (26 if el.is_dm else 20) }}"
             class="wuxing-emoji{% if el.is_dm %} wuxing-emoji-dm{% endif %}">{{ el.emoji }}</text>
       <text x="{{ el.label_cx }}" y="{{ el.label_cy }}"

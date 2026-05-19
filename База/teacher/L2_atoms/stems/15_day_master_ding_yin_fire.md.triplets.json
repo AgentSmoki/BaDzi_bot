@@ -1,0 +1,16 @@
+[
+  {"subject": "L2_atoms/stems/15_day_master_ding_yin_fire", "relation": "example_of", "object": "concept:day_master"},
+  {"subject": "L2_atoms/stems/15_day_master_ding_yin_fire", "relation": "example_of", "object": "concept:yin_fire"},
+  {"subject": "L2_atoms/stems/15_day_master_ding_yin_fire", "relation": "refers_to", "object": "concept:tian_gan"},
+  {"subject": "L2_atoms/stems/15_day_master_ding_yin_fire", "relation": "refers_to", "object": "concept:day_master_strength"},
+  {"subject": "L2_atoms/stems/15_day_master_ding_yin_fire", "relation": "refers_to", "object": "concept:candle"},
+  {"subject": "L2_atoms/stems/15_day_master_ding_yin_fire", "relation": "refers_to", "object": "concept:torch"},
+  {"subject": "L2_atoms/stems/15_day_master_ding_yin_fire", "relation": "refers_to", "object": "concept:wildfire"},
+  {"subject": "L2_atoms/stems/15_day_master_ding_yin_fire", "relation": "refers_to", "object": "concept:teaching"},
+  {"subject": "L2_atoms/stems/15_day_master_ding_yin_fire", "relation": "refers_to", "object": "concept:emotional_instability"},
+  {"subject": "L2_atoms/stems/15_day_master_ding_yin_fire", "relation": "refers_to", "object": "concept:mother_relationship"},
+  {"subject": "L2_atoms/stems/15_day_master_ding_yin_fire", "relation": "refers_to", "object": "concept:childhood_trauma"},
+  {"subject": "L2_atoms/stems/15_day_master_ding_yin_fire", "relation": "refers_to", "object": "concept:communication_skills"},
+  {"subject": "L2_atoms/stems/15_day_master_ding_yin_fire", "relation": "combines_with", "object": "concept:yang_wood"},
+  {"subject": "L2_atoms/stems/15_day_master_ding_yin_fire", "relation": "generates", "object": "concept:earth"}
+]

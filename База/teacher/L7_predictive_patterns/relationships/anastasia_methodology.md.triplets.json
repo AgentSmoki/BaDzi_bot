@@ -1,0 +1,15 @@
+[
+  {"subject": "L7_predictive_patterns/relationships/anastasia_methodology", "relation": "refers_to", "object": "concept:spouse_palace"},
+  {"subject": "L7_predictive_patterns/relationships/anastasia_methodology", "relation": "refers_to", "object": "concept:day_earthly_branch"},
+  {"subject": "L7_predictive_patterns/relationships/anastasia_methodology", "relation": "refers_to", "object": "concept:zheng_guan"},
+  {"subject": "L7_predictive_patterns/relationships/anastasia_methodology", "relation": "refers_to", "object": "concept:qi_sha"},
+  {"subject": "L7_predictive_patterns/relationships/anastasia_methodology", "relation": "refers_to", "object": "concept:zheng_cai"},
+  {"subject": "L7_predictive_patterns/relationships/anastasia_methodology", "relation": "refers_to", "object": "concept:pian_cai"},
+  {"subject": "L7_predictive_patterns/relationships/anastasia_methodology", "relation": "refers_to", "object": "concept:spouse_star"},
+  {"subject": "L7_predictive_patterns/relationships/anastasia_methodology", "relation": "refers_to", "object": "concept:taohua"},
+  {"subject": "L7_predictive_patterns/relationships/anastasia_methodology", "relation": "refers_to", "object": "concept:yong_shen"},
+  {"subject": "L7_predictive_patterns/relationships/anastasia_methodology", "relation": "combines_with", "object": "concept:day_pillar_compatibility"},
+  {"subject": "L7_predictive_patterns/relationships/anastasia_methodology", "relation": "combines_with", "object": "concept:month_pillar_compatibility"},
+  {"subject": "L7_predictive_patterns/relationships/anastasia_methodology", "relation": "clashes_with", "object": "concept:spouse_palace_clash"},
+  {"subject": "L7_predictive_patterns/relationships/anastasia_methodology", "relation": "generates", "object": "concept:favorable_relationship_period"}
+]

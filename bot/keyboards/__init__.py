@@ -113,7 +113,7 @@ def returning_user_kb(
 
 
 def chart_actions_kb() -> InlineKeyboardMarkup:
-    """Focused inline keyboard attached to a chart photo.
+    """Focused inline keyboard attached to a chart photo (pre-interpretation).
 
     «Тарифы» намеренно скрыты — они появятся только когда пользователь
     упирается в лимит free-tier (после 1.12). Сейчас фокус на бесплатных
@@ -121,6 +121,22 @@ def chart_actions_kb() -> InlineKeyboardMarkup:
     """
     builder = InlineKeyboardBuilder()
     builder.button(text="Получить разбор карты", callback_data="chart:interpret")
+    builder.button(text="Задать вопрос по карте", callback_data="menu:ask")
+    builder.button(text="В меню", callback_data="menu:back")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def chart_actions_kb_post_interpret() -> InlineKeyboardMarkup:
+    """Same as ``chart_actions_kb`` minus «Получить разбор карты».
+
+    Sent after the 6-block base interpretation is delivered — the user
+    has already seen it, so re-offering the same button is noise and
+    invites accidental re-generation that would burn a free-question
+    slot or LLM budget. Re-generation is still available via /start
+    (а через chat:open: re-route в start_router).
+    """
+    builder = InlineKeyboardBuilder()
     builder.button(text="Задать вопрос по карте", callback_data="menu:ask")
     builder.button(text="В меню", callback_data="menu:back")
     builder.adjust(1)
@@ -147,11 +163,21 @@ def topics_kb() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def pricing_kb() -> InlineKeyboardMarkup:
+def pricing_kb(*, allow_skip: bool = False) -> InlineKeyboardMarkup:
+    """Pricing keyboard shown after the free question is consumed.
+
+    ``allow_skip``: when True, adds a hidden «Пропустить (тест)» button
+    that resets ``free_question_used`` so the same user can keep asking
+    (admin-only, used during pre-release testing). The handler is
+    behind an explicit admin-id check, so a leaked callback_data on
+    a non-admin chat is inert.
+    """
     builder = InlineKeyboardBuilder()
     builder.button(text="Месяц — 290 ₽", callback_data="pay:monthly")
     builder.button(text="3 месяца — 990 ₽", callback_data="pay:quarterly")
     builder.button(text="Год — 2 490 ₽", callback_data="pay:annual")
+    if allow_skip:
+        builder.button(text="🔧 Пропустить (тест)", callback_data="pricing:skip")
     builder.button(text="Назад", callback_data="menu:back")
     builder.adjust(1)
     return builder.as_markup()
@@ -160,6 +186,7 @@ def pricing_kb() -> InlineKeyboardMarkup:
 __all__ = [
     "back_to_time_kb",
     "chart_actions_kb",
+    "chart_actions_kb_post_interpret",
     "city_choice_kb",
     "confirm_kb",
     "edit_menu_kb",

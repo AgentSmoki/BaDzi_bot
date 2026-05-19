@@ -125,7 +125,9 @@ def test_compose_messages_with_history_preserves_order(reference_chart) -> None:
         "user",
     ]
     assert msgs[1].content == "первый вопрос"
-    assert msgs[-1].content.endswith("Вопрос: третий вопрос")
+    # New v3 format wraps the user-message in structured tags; the
+    # question text lives inside [QUESTION]...[/QUESTION].
+    assert "[QUESTION]\nтретий вопрос\n[/QUESTION]" in msgs[-1].content
 
 
 def test_compose_messages_with_temporal_appends_now_block(reference_chart) -> None:  # type: ignore[no-untyped-def]
@@ -161,3 +163,196 @@ def test_compose_messages_temporal_uses_provided_now_chart(reference_chart) -> N
     )
     # Pinned chart's day master must show up in the temporal block
     assert pinned.day_master in msgs[-1].content
+
+
+# ── Symbolic stars in LLM payload (task 2.2.3) ────────────────────────────
+
+
+def test_render_chart_block_includes_natal_stars_for_reference_chart(  # type: ignore[no-untyped-def]
+    reference_chart,
+) -> None:
+    """Bogdan's reference chart has 13 detected stars including 白虎.
+    All of them must surface in the LLM payload now — without this,
+    Anastasia can't cite stars the user feels active today."""
+    md = render_chart_block(reference_chart)
+    assert "**Натальные звёзды (神煞):**" in md
+    # Specific stars Bogdan asked about in live session
+    assert "白虎" in md
+    assert "Белый Тигр" in md
+    assert "天乙贵人" in md
+    assert "将星" in md
+    # Source citation must be present so the LLM can quote provenance
+    assert "渊海子平" in md or "三命通会" in md
+
+
+def test_natal_stars_block_omitted_for_chart_with_no_stars() -> None:
+    """Defensive: if a chart accidentally has empty symbolic_stars,
+    no stub heading appears in the payload."""
+    # Pick a date that triggers minimal star detection — but in practice
+    # almost any chart has at least 1 star. We just verify the function
+    # is idempotent when stars are present (smoke for code path).
+    chart = calculate_chart(
+        ChartInput(
+            birth_datetime=datetime(2000, 6, 15, 14, 30),
+            latitude=55.75,
+            longitude=37.62,
+            tz_offset=3.0,
+            early_rat=False,
+        )
+    )
+    md = render_chart_block(chart)
+    if chart.symbolic_stars and chart.symbolic_stars.stars:
+        assert "**Натальные звёзды (神煞):**" in md
+    else:
+        assert "**Натальные звёзды (神煞):**" not in md
+
+
+def test_temporal_block_includes_now_stars_when_present() -> None:
+    """The current-moment block should list stars active on today's
+    pillars (separately from natal stars)."""
+    when = datetime(2026, 5, 16, 12, 0, tzinfo=UTC)
+    now_chart = get_current_bazi(when=when)
+    md = render_temporal_block(now_chart, when=when)
+    # Even if specific stars vary by date, the heading should appear
+    # when at least one star is detected (almost always the case).
+    if now_chart.symbolic_stars and now_chart.symbolic_stars.stars:
+        assert "**Активные звёзды сегодня" in md
+
+
+def test_temporal_block_detects_resonance_between_natal_and_now(  # type: ignore[no-untyped-def]
+    reference_chart,
+) -> None:
+    """Bogdan's natal hour pillar is 辛亥 (branch 亥).
+    A "now" chart whose day branch is 寅 should trigger 寅亥合 — exactly
+    the resonance Bogdan felt on 2026-05-16 (day pillar 庚寅)."""
+    when = datetime(2026, 5, 16, 12, 0, tzinfo=UTC)
+    now_chart = get_current_bazi(when=when)
+    md = render_temporal_block(now_chart, when=when, natal_chart=reference_chart)
+    # 2026-05-16 day pillar is 庚寅 → 寅 should harmonize with natal 亥
+    assert "**Резонансы натала с текущим моментом:**" in md
+    assert "寅" in md
+    assert "亥" in md
+    assert "六合" in md
+
+
+def test_temporal_block_omits_resonance_when_no_natal_chart_given() -> None:
+    """If natal is not passed, no resonance block — keep contract minimal."""
+    when = datetime(2026, 5, 16, 12, 0, tzinfo=UTC)
+    now_chart = get_current_bazi(when=when)
+    md = render_temporal_block(now_chart, when=when)
+    assert "Резонансы натала" not in md
+
+
+def test_compose_messages_temporal_passes_natal_for_resonance_detection(  # type: ignore[no-untyped-def]
+    reference_chart,
+) -> None:
+    """End-to-end: when a temporal question is composed, the user body
+    must carry both the natal stars block AND the resonance block."""
+    when = datetime(2026, 5, 16, 12, 0, tzinfo=UTC)
+    now_chart = get_current_bazi(when=when)
+    msgs = compose_messages(
+        system_prompt="Ты Анастасия.",
+        chart=reference_chart,
+        question="что про 16 мая для меня?",
+        include_temporal=True,
+        now_chart=now_chart,
+    )
+    body = msgs[-1].content
+    assert "**Натальные звёзды (神煞):**" in body
+    assert "**Резонансы натала с текущим моментом:**" in body
+
+
+# ── v3 structured-tag format (task 2.2.5) ─────────────────────────────────
+
+
+def test_compose_messages_v3_wraps_chart_in_bazi_data_tags(  # type: ignore[no-untyped-def]
+    reference_chart,
+) -> None:
+    """v3 protocol: chart block lives inside [BAZI_DATA]...[/BAZI_DATA]
+    so the LLM can reason about scope ('quote only what's inside')."""
+    msgs = compose_messages(
+        system_prompt="Ты Анастасия.",
+        chart=reference_chart,
+        question="Расскажи про карту.",
+    )
+    body = msgs[-1].content
+    assert "[BAZI_DATA]" in body
+    assert "[/BAZI_DATA]" in body
+    # The chart block lives inside the tags
+    bazi_start = body.index("[BAZI_DATA]")
+    bazi_end = body.index("[/BAZI_DATA]")
+    assert "Бацзы карта" in body[bazi_start:bazi_end]
+
+
+def test_compose_messages_v3_wraps_temporal_in_current_moment_tags(  # type: ignore[no-untyped-def]
+    reference_chart,
+) -> None:
+    """Temporal block lives inside [CURRENT_MOMENT]...[/CURRENT_MOMENT].
+    Separation from [BAZI_DATA] is critical so the LLM can distinguish
+    natal (permanent) data from transient daily activations."""
+    msgs = compose_messages(
+        system_prompt="Ты Анастасия.",
+        chart=reference_chart,
+        question="Что сегодня?",
+        include_temporal=True,
+    )
+    body = msgs[-1].content
+    assert "[CURRENT_MOMENT]" in body
+    assert "[/CURRENT_MOMENT]" in body
+    cm_start = body.index("[CURRENT_MOMENT]")
+    cm_end = body.index("[/CURRENT_MOMENT]")
+    assert "Текущий момент" in body[cm_start:cm_end]
+
+
+def test_compose_messages_v3_includes_instruction_prefix(  # type: ignore[no-untyped-def]
+    reference_chart,
+) -> None:
+    """Every user-message carries the anti-hallucination instruction
+    prefix between data blocks and the question. Without this layer
+    the LLM ignores strict-cite rules and fabricates percentages."""
+    msgs = compose_messages(
+        system_prompt="Ты Анастасия.",
+        chart=reference_chart,
+        question="Расскажи про карту.",
+    )
+    body = msgs[-1].content
+    assert "[INSTRUCTIONS]" in body
+    assert "[/INSTRUCTIONS]" in body
+    # Key strict-cite phrase must survive
+    assert "дословно" in body
+    # 4-section structure must be present
+    assert "4 раздела" in body or "4 раздела" in body  # russian variants
+
+
+def test_compose_messages_v3_wraps_question_in_question_tags(  # type: ignore[no-untyped-def]
+    reference_chart,
+) -> None:
+    """The user's actual question is in its own [QUESTION] block so
+    the LLM doesn't conflate it with instructions or data."""
+    msgs = compose_messages(
+        system_prompt="Ты Анастасия.",
+        chart=reference_chart,
+        question="что про 16 мая для меня?",
+    )
+    body = msgs[-1].content
+    assert "[QUESTION]\nчто про 16 мая для меня?\n[/QUESTION]" in body
+
+
+def test_compose_messages_v3_section_order(  # type: ignore[no-untyped-def]
+    reference_chart,
+) -> None:
+    """Section order matters for the LLM's reasoning flow:
+    BAZI_DATA → CURRENT_MOMENT → INSTRUCTIONS → QUESTION.
+    Each block depends on what came before."""
+    msgs = compose_messages(
+        system_prompt="Ты Анастасия.",
+        chart=reference_chart,
+        question="Что сегодня?",
+        include_temporal=True,
+    )
+    body = msgs[-1].content
+    idx_bazi = body.index("[BAZI_DATA]")
+    idx_cm = body.index("[CURRENT_MOMENT]")
+    idx_instr = body.index("[INSTRUCTIONS]")
+    idx_q = body.index("[QUESTION]")
+    assert idx_bazi < idx_cm < idx_instr < idx_q

@@ -68,6 +68,9 @@ dependencies = [
 
     # --- Logging ---
     "structlog==25.3.0",
+
+    # --- Knowledge base frontmatter (teacher's KB, Plan 4 lite) ---
+    "PyYAML==6.0.2",
 ]
 
 [project.optional-dependencies]
@@ -116,14 +119,17 @@ ignore = [
 "tests/**/*.py" = ["S", "ANN"]
 "migrations/**/*.py" = ["ANN", "N999"]
 "calculator/symbolic_stars_tables.py" = ["E501", "RUF001"]
+"calculator/calendar_select.py" = ["RUF001", "RUF002", "RUF003"]
 "scripts/**/*.py" = ["E501", "RUF001"]
 "bot/routers/**/*.py" = ["RUF001", "RUF002", "RUF003"]
 "bot/keyboards/**/*.py" = ["RUF001", "RUF002", "RUF003"]
 "bot/services/**/*.py" = ["RUF001", "RUF002", "RUF003"]
 "ai/**/*.py" = ["RUF001", "RUF002", "RUF003"]
+"knowledge/**/*.py" = ["RUF001", "RUF002", "RUF003"]
 "tasks/**/*.py" = ["RUF001", "RUF002", "RUF003"]
 "tests/unit/test_ai/**/*.py" = ["RUF001", "RUF002", "RUF003"]
 "tests/unit/test_bot/**/*.py" = ["RUF001", "RUF002", "RUF003"]
+"tests/unit/test_knowledge/**/*.py" = ["RUF001", "RUF002", "RUF003", "E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["bot", "calculator", "ai", "db", "web", "tasks", "monitoring", "knowledge"]

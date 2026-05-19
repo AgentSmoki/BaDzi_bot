@@ -67,3 +67,12 @@ class UserRepository:
         await session.execute(
             sa.update(User).where(User.id == user_id).values(free_question_used=True)
         )
+
+    async def reset_free_question(self, session: AsyncSession, user_id: uuid.UUID) -> None:
+        """Flip the free-question flag back to False. Admin testing aid —
+        not exposed to regular users (the pricing screen's «Пропустить
+        (тест)» button is rendered only when the caller is the admin,
+        and the callback handler re-validates admin status)."""
+        await session.execute(
+            sa.update(User).where(User.id == user_id).values(free_question_used=False)
+        )

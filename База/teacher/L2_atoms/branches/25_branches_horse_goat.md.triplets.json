@@ -1,0 +1,17 @@
+[
+  {"subject": "L2_atoms/branches/25_branches_horse_goat", "relation": "refers_to", "object": "concept:earthly_branch_wu_horse"},
+  {"subject": "L2_atoms/branches/25_branches_horse_goat", "relation": "refers_to", "object": "concept:earthly_branch_wei_goat"},
+  {"subject": "L2_atoms/branches/25_branches_horse_goat", "relation": "refers_to", "object": "concept:fire_yang"},
+  {"subject": "L2_atoms/branches/25_branches_horse_goat", "relation": "refers_to", "object": "concept:earth_yin"},
+  {"subject": "L2_atoms/branches/25_branches_horse_goat", "relation": "refers_to", "object": "concept:season_summer"},
+  {"subject": "L2_atoms/branches/25_branches_horse_goat", "relation": "refers_to", "object": "concept:direction_south"},
+  {"subject": "L2_atoms/branches/25_branches_horse_goat", "relation": "clashes_with", "object": "concept:earthly_branch_zi_rat"},
+  {"subject": "L2_atoms/branches/25_branches_horse_goat", "relation": "clashes_with", "object": "concept:earthly_branch_chou_ox"},
+  {"subject": "L2_atoms/branches/25_branches_horse_goat", "relation": "combines_with", "object": "concept:earthly_branch_wei_goat"},
+  {"subject": "L2_atoms/branches/25_branches_horse_goat", "relation": "combines_with", "object": "concept:earthly_branch_wu_horse"},
+  {"subject": "L2_atoms/branches/25_branches_horse_goat", "relation": "combines_with", "object": "concept:sanhe_fire_frame"},
+  {"subject": "L2_atoms/branches/25_branches_horse_goat", "relation": "refers_to", "object": "concept:branch_personality_traits"},
+  {"subject": "L2_atoms/branches/25_branches_horse_goat", "relation": "refers_to", "object": "concept:career_communication"},
+  {"subject": "L2_atoms/branches/25_branches_horse_goat", "relation": "refers_to", "object": "concept:career_creative_arts"},
+  {"subject": "L2_atoms/branches/25_branches_horse_goat", "relation": "refers_to", "object": "concept:bazi_full_chart_context"}
+]

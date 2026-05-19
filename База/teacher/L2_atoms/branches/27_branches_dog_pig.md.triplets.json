@@ -1,0 +1,16 @@
+[
+  {"subject": "L2_atoms/branches/27_branches_dog_pig", "relation": "refers_to", "object": "concept:earthly_branch_xu_dog"},
+  {"subject": "L2_atoms/branches/27_branches_dog_pig", "relation": "refers_to", "object": "concept:earthly_branch_hai_pig"},
+  {"subject": "L2_atoms/branches/27_branches_dog_pig", "relation": "refers_to", "object": "concept:earth_yang"},
+  {"subject": "L2_atoms/branches/27_branches_dog_pig", "relation": "refers_to", "object": "concept:water_yin"},
+  {"subject": "L2_atoms/branches/27_branches_dog_pig", "relation": "refers_to", "object": "concept:season_autumn"},
+  {"subject": "L2_atoms/branches/27_branches_dog_pig", "relation": "refers_to", "object": "concept:season_winter"},
+  {"subject": "L2_atoms/branches/27_branches_dog_pig", "relation": "combines_with", "object": "L2_atoms/branches/26_branches_monkey_rooster"},
+  {"subject": "L2_atoms/branches/27_branches_dog_pig", "relation": "combines_with", "object": "L2_atoms/branches/22_branches_rat_ox"},
+  {"subject": "L2_atoms/branches/27_branches_dog_pig", "relation": "combines_with", "object": "L2_atoms/branches/25_branches_horse_goat"},
+  {"subject": "L2_atoms/branches/27_branches_dog_pig", "relation": "combines_with", "object": "L2_atoms/branches/23_branches_tiger_rabbit"},
+  {"subject": "L2_atoms/branches/27_branches_dog_pig", "relation": "clashes_with", "object": "concept:earthly_branch_chen_dragon"},
+  {"subject": "L2_atoms/branches/27_branches_dog_pig", "relation": "clashes_with", "object": "concept:earthly_branch_si_snake"},
+  {"subject": "L2_atoms/branches/27_branches_dog_pig", "relation": "refers_to", "object": "concept:liuchong"},
+  {"subject": "L2_atoms/branches/27_branches_dog_pig", "relation": "refers_to", "object": "concept:wu_xing_balance"}
+]

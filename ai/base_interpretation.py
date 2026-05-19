@@ -36,7 +36,6 @@ from pydantic import BaseModel
 from ai.fallback import FallbackResult, chat_with_fallback
 from ai.prompts import load_system_prompt
 from ai.temporal_context import compose_messages, get_current_bazi
-from bot.config import get_settings
 from calculator.models import ChartOutput
 
 logger = structlog.get_logger(__name__)
@@ -138,7 +137,6 @@ async def generate_base_interpretation(
     """Run the 6-block interpretation against the configured primary
     model with Claude fallback. Always includes the current Bazi
     block so block 6 ("influence of the current year") is grounded."""
-    settings = get_settings()
     snapshot = now_chart or get_current_bazi()
     system = load_system_prompt()
 
@@ -156,7 +154,10 @@ async def generate_base_interpretation(
         # across re-rolls; we don't want the same chart described in
         # contradictory ways on retry.
         temperature=0.5,
-        max_tokens=settings.max_output_tokens,
+        # 6 blocks × 100-180 words ≈ 3-5k output tokens. ``interpretation``
+        # intent gives ratio 0.4 — plenty of headroom on Qwen3.6 (262k)
+        # and Claude (200k).
+        intent="interpretation",
         trace_id=trace_id,
     )
     parsed = parse_blocks(out.result.text)

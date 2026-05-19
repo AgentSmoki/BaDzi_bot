@@ -1,0 +1,16 @@
+[
+  {"subject": "L4_interactions/30_branches_punishments", "relation": "refers_to", "object": "concept:xing_punishment"},
+  {"subject": "L4_interactions/30_branches_punishments", "relation": "refers_to", "object": "concept:earthly_branches"},
+  {"subject": "L4_interactions/30_branches_punishments", "relation": "refers_to", "object": "concept:favorable_unfavorable_elements"},
+  {"subject": "L4_interactions/30_branches_punishments", "relation": "refers_to", "object": "concept:adjacent_pillars_rule"},
+  {"subject": "L4_interactions/30_branches_punishments", "relation": "clashes_with", "object": "concept:fire_punishment_yin_si_shen"},
+  {"subject": "L4_interactions/30_branches_punishments", "relation": "clashes_with", "object": "concept:earth_punishment_wei_xu_chou"},
+  {"subject": "L4_interactions/30_branches_punishments", "relation": "clashes_with", "object": "concept:uncivilized_punishment_zi_mao"},
+  {"subject": "L4_interactions/30_branches_punishments", "relation": "clashes_with", "object": "concept:self_punishment"},
+  {"subject": "L4_interactions/30_branches_punishments", "relation": "combines_with", "object": "concept:branch_chen_chen"},
+  {"subject": "L4_interactions/30_branches_punishments", "relation": "combines_with", "object": "concept:branch_wu_wu"},
+  {"subject": "L4_interactions/30_branches_punishments", "relation": "combines_with", "object": "concept:branch_you_you"},
+  {"subject": "L4_interactions/30_branches_punishments", "relation": "combines_with", "object": "concept:branch_hai_hai"},
+  {"subject": "L4_interactions/30_branches_punishments", "relation": "refers_to", "object": "L4_interactions/28_branches_six_clashes"},
+  {"subject": "L4_interactions/30_branches_punishments", "relation": "refers_to", "object": "L4_interactions/29_branches_harm"}
+]

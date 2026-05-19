@@ -1,14 +1,14 @@
-"""Lightweight semantic router for incoming user questions.
+"""Lightweight semantic router for incoming user questions (ADR-009).
 
-Decides three things up front, before the LLM call leaves our process:
-1. **Intent class** — simple, normal, or complex. Keeps trivial questions
-   from spending big-model latency, and lets the temporal context (1.8.6)
-   skip the time-aware lookup when the user is asking about personality.
-2. **Model hint** — non-thinking K2-0905 by default; thinking K2.6 only
-   for explicitly complex questions (and even then via 1.13's opt-in,
-   not blanket).
-3. **Generation knobs** — temperature + max_tokens tuned per class so
-   the orchestrator (1.8.1) doesn't have to know about persona policy.
+Decides two things up front, before the LLM call leaves our process:
+1. **Intent class** — simple, normal, or complex. Used by ``ai.budget``
+   to size ``max_tokens`` proportionally to the model's context window
+   (different per tier — Qwen3.6 native 262k vs Claude 200k).
+2. **Generation knobs** — temperature + temporal-context flag.
+
+Model selection lives in ``ai.fallback`` now (tier 1/2 chain), not
+here. The router classifies the question's *shape*; the fallback
+layer picks which infrastructure answers.
 
 This is a deliberately simple rule-based classifier. A learned router
 is overkill for an MVP and harder to debug; the rules below cover ~95%
@@ -20,12 +20,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Final, Literal
+from typing import Final
 
-from bot.config import get_settings
-
-IntentClass = Literal["simple", "normal", "complex"]
-
+from ai.budget import IntentClass
 
 # ── Lexicon ────────────────────────────────────────────────────────────────
 #
@@ -126,18 +123,16 @@ def _temporal_in(text: str) -> bool:
 
 @dataclass(frozen=True)
 class RouteDecision:
-    """All policy choices for one user turn.
+    """Policy choices for one user turn.
 
-    The orchestrator (1.8.1) reads `model`, `temperature`, `max_tokens`.
-    The temporal context builder (1.8.6) reads `needs_temporal_context`
-    so it can skip the *current* Bazi lookup when the question is purely
-    about personality.
+    ``intent`` feeds into ``ai.budget.compute_max_tokens`` which sizes
+    the output cap proportionally to the chosen tier's context window.
+    ``needs_temporal_context`` toggles the *current* Bazi block append
+    in ``ai.temporal_context.compose_messages``.
     """
 
     intent: IntentClass
-    model: str
     temperature: float
-    max_tokens: int
     needs_temporal_context: bool
     reason: str  # Human-readable explanation, useful in /admin debugging
 
@@ -145,10 +140,9 @@ class RouteDecision:
 def route(text: str) -> RouteDecision:
     """Classify a single user message and return a routing decision.
 
-    Pure function — no side effects, no external state apart from
-    settings (for default model id). Safe to call from any layer.
+    Pure function — no side effects, no external state. Safe to call
+    from any layer.
     """
-    settings = get_settings()
     raw = text or ""
     norm = _normalise(raw)
     word_count = len(re.findall(r"\b\w+\b", norm))
@@ -159,47 +153,32 @@ def route(text: str) -> RouteDecision:
     # ── Decision tree ─────────────────────────────────────────────
     # Priority order: complex > temporal > simple > normal.
     # Complex wins because a question can be both temporal and complex
-    # (e.g. "почему карьера в этом году не идёт") — we want the
-    # heavier model with temporal context attached.
-    # Token budgets sized for K2.6 thinking with the full Anastasia
-    # system prompt (~39k chars / ~12k tokens). A real run with
-    # max_tokens=4000 truncated on reasoning at 4 minutes of latency,
-    # so floors must be much higher: simple ≥4000, normal ≥8000,
-    # complex ≥12000. settings.max_output_tokens=8192 is the cap on
-    # any single intent except complex.
-    cap = settings.max_output_tokens
+    # (e.g. "почему карьера в этом году не идёт") — we want the deeper
+    # output budget plus temporal context attached.
     if has_complex:
         return RouteDecision(
             intent="complex",
-            model=settings.default_llm_model,
             temperature=0.55,
-            max_tokens=max(cap, 12000),
             needs_temporal_context=has_temporal,
             reason="complex keyword match",
         )
     if has_temporal:
         return RouteDecision(
             intent="normal",
-            model=settings.default_llm_model,
             temperature=0.6,
-            max_tokens=cap,
             needs_temporal_context=True,
             reason="temporal keyword match",
         )
     if has_simple and word_count <= 12:
         return RouteDecision(
             intent="simple",
-            model=settings.default_llm_model,
             temperature=0.45,
-            max_tokens=min(cap, 4000),
             needs_temporal_context=False,
             reason="short factual question",
         )
     return RouteDecision(
         intent="normal",
-        model=settings.default_llm_model,
         temperature=0.6,
-        max_tokens=cap,
         needs_temporal_context=False,
         reason="default conversational",
     )

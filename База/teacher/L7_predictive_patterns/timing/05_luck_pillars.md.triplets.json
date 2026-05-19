@@ -1,0 +1,15 @@
+[
+  {"subject": "L7_predictive_patterns/timing/05_luck_pillars", "relation": "refers_to", "object": "concept:day_master"},
+  {"subject": "L7_predictive_patterns/timing/05_luck_pillars", "relation": "refers_to", "object": "concept:luck_pillars"},
+  {"subject": "L7_predictive_patterns/timing/05_luck_pillars", "relation": "refers_to", "object": "concept:annual_pillar"},
+  {"subject": "L7_predictive_patterns/timing/05_luck_pillars", "relation": "refers_to", "object": "concept:yang_year"},
+  {"subject": "L7_predictive_patterns/timing/05_luck_pillars", "relation": "refers_to", "object": "concept:yin_year"},
+  {"subject": "L7_predictive_patterns/timing/05_luck_pillars", "relation": "refers_to", "object": "concept:earthly_branches"},
+  {"subject": "L7_predictive_patterns/timing/05_luck_pillars", "relation": "refers_to", "object": "concept:heavenly_stems"},
+  {"subject": "L7_predictive_patterns/timing/05_luck_pillars", "relation": "refers_to", "object": "concept:bazi_chart"},
+  {"subject": "L7_predictive_patterns/timing/05_luck_pillars", "relation": "combines_with", "object": "concept:annual_pillar"},
+  {"subject": "L7_predictive_patterns/timing/05_luck_pillars", "relation": "combines_with", "object": "concept:bazi_chart"},
+  {"subject": "L7_predictive_patterns/timing/05_luck_pillars", "relation": "refers_to", "object": "concept:hour_pillar"},
+  {"subject": "L7_predictive_patterns/timing/05_luck_pillars", "relation": "refers_to", "object": "concept:child_luck_pillars"},
+  {"subject": "L7_predictive_patterns/timing/05_luck_pillars", "relation": "example_of", "object": "concept:hai_pig_branch"}
+]

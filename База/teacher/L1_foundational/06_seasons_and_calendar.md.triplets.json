@@ -1,0 +1,17 @@
+[
+  {"subject": "L1_foundational/06_seasons_and_calendar", "relation": "refers_to", "object": "concept:chinese_solar_lunar_calendar"},
+  {"subject": "L1_foundational/06_seasons_and_calendar", "relation": "refers_to", "object": "concept:sixty_year_cycle"},
+  {"subject": "L1_foundational/06_seasons_and_calendar", "relation": "refers_to", "object": "concept:four_seasons"},
+  {"subject": "L1_foundational/06_seasons_and_calendar", "relation": "refers_to", "object": "concept:traveling_horse"},
+  {"subject": "L1_foundational/06_seasons_and_calendar", "relation": "refers_to", "object": "concept:taohua"},
+  {"subject": "L1_foundational/06_seasons_and_calendar", "relation": "refers_to", "object": "concept:storage_grave"},
+  {"subject": "L1_foundational/06_seasons_and_calendar", "relation": "refers_to", "object": "concept:earthly_branches"},
+  {"subject": "L1_foundational/06_seasons_and_calendar", "relation": "refers_to", "object": "concept:wuxing"},
+  {"subject": "L1_foundational/06_seasons_and_calendar", "relation": "example_of", "object": "concept:tiger_branch_yin"},
+  {"subject": "L1_foundational/06_seasons_and_calendar", "relation": "example_of", "object": "concept:rabbit_branch_mao"},
+  {"subject": "L1_foundational/06_seasons_and_calendar", "relation": "example_of", "object": "concept:dragon_branch_chen"},
+  {"subject": "L1_foundational/06_seasons_and_calendar", "relation": "generates", "object": "concept:generation_cycle"},
+  {"subject": "L1_foundational/06_seasons_and_calendar", "relation": "controls", "object": "concept:control_cycle"},
+  {"subject": "L1_foundational/06_seasons_and_calendar", "relation": "combines_with", "object": "L1_foundational/07_five_elements_cycles"},
+  {"subject": "L1_foundational/06_seasons_and_calendar", "relation": "combines_with", "object": "L1_foundational/08_elements_strength_by_season"}
+]

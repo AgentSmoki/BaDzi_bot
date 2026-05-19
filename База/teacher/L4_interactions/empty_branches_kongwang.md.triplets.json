@@ -1,0 +1,12 @@
+[
+  {"subject": "L4_interactions/empty_branches_kongwang", "relation": "refers_to", "object": "concept:kongwang"},
+  {"subject": "L4_interactions/empty_branches_kongwang", "relation": "refers_to", "object": "concept:day_pillar"},
+  {"subject": "L4_interactions/empty_branches_kongwang", "relation": "refers_to", "object": "concept:earthly_branches"},
+  {"subject": "L4_interactions/empty_branches_kongwang", "relation": "refers_to", "object": "concept:emptiness"},
+  {"subject": "L4_interactions/empty_branches_kongwang", "relation": "refers_to", "object": "concept:unrealized_potential"},
+  {"subject": "L4_interactions/empty_branches_kongwang", "relation": "refers_to", "object": "concept:delays"},
+  {"subject": "L4_interactions/empty_branches_kongwang", "relation": "refers_to", "object": "concept:empty_promises"},
+  {"subject": "L4_interactions/empty_branches_kongwang", "relation": "combines_with", "object": "concept:luck_pillar"},
+  {"subject": "L4_interactions/empty_branches_kongwang", "relation": "combines_with", "object": "concept:annual_pillar"},
+  {"subject": "L4_interactions/empty_branches_kongwang", "relation": "refers_to", "object": "concept:activation"}
+]

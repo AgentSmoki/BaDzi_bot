@@ -1,0 +1,15 @@
+[
+  {"subject": "L1_foundational/08_elements_strength_by_season", "relation": "refers_to", "object": "concept:five_elements"},
+  {"subject": "L1_foundational/08_elements_strength_by_season", "relation": "refers_to", "object": "concept:element_strength_states"},
+  {"subject": "L1_foundational/08_elements_strength_by_season", "relation": "refers_to", "object": "concept:seasonal_qi"},
+  {"subject": "L1_foundational/08_elements_strength_by_season", "relation": "refers_to", "object": "concept:day_master_strength"},
+  {"subject": "L1_foundational/08_elements_strength_by_season", "relation": "refers_to", "object": "concept:month_pillar_branch"},
+  {"subject": "L1_foundational/08_elements_strength_by_season", "relation": "generates", "object": "L1_foundational/07_five_elements_cycles"},
+  {"subject": "L1_foundational/08_elements_strength_by_season", "relation": "controls", "object": "L1_foundational/07_five_elements_cycles"},
+  {"subject": "L1_foundational/08_elements_strength_by_season", "relation": "refers_to", "object": "L1_foundational/06_seasons_and_calendar"},
+  {"subject": "L1_foundational/08_elements_strength_by_season", "relation": "refers_to", "object": "L1_foundational/04_day_master"},
+  {"subject": "L1_foundational/08_elements_strength_by_season", "relation": "example_of", "object": "concept:wood_prosperous_in_spring"},
+  {"subject": "L1_foundational/08_elements_strength_by_season", "relation": "example_of", "object": "concept:fire_prosperous_in_summer"},
+  {"subject": "L1_foundational/08_elements_strength_by_season", "relation": "example_of", "object": "concept:metal_prosperous_in_autumn"},
+  {"subject": "L1_foundational/08_elements_strength_by_season", "relation": "example_of", "object": "concept:water_prosperous_in_winter"}
+]

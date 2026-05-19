@@ -24,8 +24,12 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Final
 
+from ai.calendar_context import render_calendar_block
 from ai.orchestrator import ChatMessage
+from ai.prompts import get_instruction_prefix
+from ai.rag import load_knowledge_for_question
 from calculator import calculate_chart
+from calculator.calendar_select import ScoredDay
 from calculator.models import ChartInput, ChartOutput
 
 # Default location for "current Bazi" computations: Moscow. Bazi day
@@ -49,6 +53,11 @@ def render_chart_block(chart: ChartOutput) -> str:
     schema across requests. Hidden stems / ten gods print as
     ``year: 乙`` lines — short enough to keep the prompt tight, named
     enough that the model can quote them.
+
+    Includes natal symbolic stars (神煞) since 2.2.3 — the calculator
+    detects 60+ classical stars, and Анастасия needs to cite them
+    by name (with category + source) so users like Bogdan who feel
+    a particular star activating today get a grounded answer.
     """
     pillars_summary = " · ".join(_format_pillar(p.stem, p.branch) for p in chart.pillars)
     hidden = "\n".join(
@@ -85,23 +94,154 @@ def render_chart_block(chart: ChartOutput) -> str:
         parts.append("")
         parts.append("**Ближайшие столпы удачи:**")
         parts.extend(luck_lines)
+    stars_block = _render_natal_stars_block(chart)
+    if stars_block:
+        parts.append("")
+        parts.append(stars_block)
     return "\n".join(parts)
 
 
-def render_temporal_block(now_chart: ChartOutput, *, when: datetime | None = None) -> str:
+def _render_natal_stars_block(chart: ChartOutput) -> str:
+    """Format detected natal Шэнь Ша as a sorted, grouped markdown list.
+
+    Ordering: auspicious first → mixed → inauspicious, then by category
+    inside each nature group. Within a category, stars are sorted by
+    canonical Chinese name so the same chart always serializes to the
+    same string (important for prompt caching and snapshot tests).
+
+    Empty output (no stars detected) returns an empty string — caller
+    skips the section so the prompt doesn't carry a stub heading.
+    """
+    if chart.symbolic_stars is None or not chart.symbolic_stars.stars:
+        return ""
+    nature_order = {"auspicious": 0, "mixed": 1, "inauspicious": 2}
+    sorted_stars = sorted(
+        chart.symbolic_stars.stars,
+        key=lambda s: (nature_order.get(s.nature, 9), s.category, s.name_zh),
+    )
+    lines = ["**Натальные звёзды (神煞):**"]
+    for s in sorted_stars:
+        pillars_str = "/".join(s.pillars)
+        lines.append(
+            f"  - {s.name_zh} {s.name_ru} "
+            f"({s.category}, {s.nature}, столбы: {pillars_str}, источник: {s.source})"
+        )
+    return "\n".join(lines)
+
+
+def render_temporal_block(
+    now_chart: ChartOutput,
+    *,
+    when: datetime | None = None,
+    natal_chart: ChartOutput | None = None,
+) -> str:
     """Render the *current moment* as a Bazi snapshot the LLM can
     diff against the user's natal chart. Includes the calendar
     timestamp explicitly so the model doesn't have to guess what
-    "now" means."""
+    "now" means.
+
+    When ``natal_chart`` is supplied, also computes:
+    - Active stars on the "now" pillars (separate from natal stars).
+    - Resonances: natal branches that 合 (combine) or 冲 (clash) with
+      a current pillar branch — these are the days Bogdan literally
+      *feels* (e.g. 白虎 in his hour pillar 亥 activates on day 寅 via
+      寅亥合 from today, 2026-05-16).
+    """
     label_dt = (when or datetime.now(UTC)).strftime("%Y-%m-%d %H:%M UTC")
     pillars_summary = " · ".join(_format_pillar(p.stem, p.branch) for p in now_chart.pillars)
-    return "\n".join(
-        [
-            f"**Текущий момент ({label_dt})**",
-            f"- Дневной Хозяин дня: {now_chart.day_master}",
-            f"- Столпы (Y·M·D·H): {pillars_summary}",
-        ]
+    parts = [
+        f"**Текущий момент ({label_dt})**",
+        f"- Дневной Хозяин дня: {now_chart.day_master}",
+        f"- Столпы (Y·M·D·H): {pillars_summary}",
+    ]
+    now_stars_block = _render_now_stars_block(now_chart)
+    if now_stars_block:
+        parts.append("")
+        parts.append(now_stars_block)
+    if natal_chart is not None:
+        resonance_block = _render_resonance_block(natal_chart, now_chart)
+        if resonance_block:
+            parts.append("")
+            parts.append(resonance_block)
+    return "\n".join(parts)
+
+
+# ── Resonance tables (六合 / 六冲) ────────────────────────────────────────
+#
+# Embedded here as small constants rather than imported from
+# calculator.interactions because we only need the *direct* branch-pair
+# tests, not the full 9-interaction matrix. Keeps temporal_context
+# self-contained and trivially testable.
+_SIX_HARMONIES: dict[str, str] = {
+    "子": "丑",
+    "丑": "子",
+    "寅": "亥",
+    "亥": "寅",
+    "卯": "戌",
+    "戌": "卯",
+    "辰": "酉",
+    "酉": "辰",
+    "巳": "申",
+    "申": "巳",
+    "午": "未",
+    "未": "午",
+}
+_SIX_CLASHES: dict[str, str] = {
+    "子": "午",
+    "午": "子",
+    "丑": "未",
+    "未": "丑",
+    "寅": "申",
+    "申": "寅",
+    "卯": "酉",
+    "酉": "卯",
+    "辰": "戌",
+    "戌": "辰",
+    "巳": "亥",
+    "亥": "巳",
+}
+
+
+def _render_now_stars_block(now_chart: ChartOutput) -> str:
+    """Stars active on the current moment's pillars. Same format as
+    natal but headlined separately so Анастасия doesn't conflate
+    transient activations with the user's permanent natal stars."""
+    if now_chart.symbolic_stars is None or not now_chart.symbolic_stars.stars:
+        return ""
+    nature_order = {"auspicious": 0, "mixed": 1, "inauspicious": 2}
+    sorted_stars = sorted(
+        now_chart.symbolic_stars.stars,
+        key=lambda s: (nature_order.get(s.nature, 9), s.category, s.name_zh),
     )
+    lines = ["**Активные звёзды сегодня (на столпах текущего момента):**"]
+    for s in sorted_stars:
+        lines.append(f"  - {s.name_zh} {s.name_ru} ({s.category}, {s.nature})")
+    return "\n".join(lines)
+
+
+def _render_resonance_block(natal: ChartOutput, now: ChartOutput) -> str:
+    """Detect 六合 / 六冲 between natal pillar branches and current
+    moment pillar branches. These are the activations that make a
+    user *feel* a natal star — e.g. 白虎 in natal hour pillar 亥 lights
+    up on a day where 寅 appears (寅亥合)."""
+    natal_branches = [(p.branch, p.name) for p in natal.pillars]
+    now_branches = [(p.branch, p.name) for p in now.pillars]
+    hits: list[str] = []
+    for nb, n_name in natal_branches:
+        for cb, c_name in now_branches:
+            if _SIX_HARMONIES.get(nb) == cb:
+                hits.append(
+                    f"  - 六合 (гармония): натальная ветвь {nb} ({n_name}) ↔ "
+                    f"текущая {cb} ({c_name}) → активирует столп {n_name}"
+                )
+            elif _SIX_CLASHES.get(nb) == cb:
+                hits.append(
+                    f"  - 六冲 (столкновение): натальная ветвь {nb} ({n_name}) ↔ "
+                    f"текущая {cb} ({c_name}) → возмущает столп {n_name}"
+                )
+    if not hits:
+        return ""
+    return "\n".join(["**Резонансы натала с текущим моментом:**", *hits])
 
 
 def get_current_bazi(
@@ -139,28 +279,59 @@ def compose_messages(
     history: list[ChatMessage] | None = None,
     include_temporal: bool = False,
     now_chart: ChartOutput | None = None,
+    calendar_top: list[ScoredDay] | None = None,
+    calendar_bottom: list[ScoredDay] | None = None,
+    calendar_event_type: str | None = None,
+    calendar_start_iso: str | None = None,
+    calendar_end_iso: str | None = None,
 ) -> list[ChatMessage]:
     """Build the final ``messages`` list for the orchestrator.
 
     Order:
-    1. system (Anastasia persona)
+    1. system (Anastasia persona — 39 KB, cache-friendly stable prefix)
     2. cached history (oldest → newest, from 1.8.4)
-    3. one fresh user message containing the chart, optionally the
-       "now" block, and the question
+    3. one fresh user message with the structured format (task 2.2.5):
+
+       [BAZI_DATA] natal chart + stars + luck pillars [/BAZI_DATA]
+       [CURRENT_MOMENT] today's pillars + active stars + resonances [/CURRENT_MOMENT]
+       [INSTRUCTIONS] strict-cite + 4-section output + anti-hallucination [/INSTRUCTIONS]
+       [QUESTION] user's text [/QUESTION]
 
     Putting the chart inside the *current* user turn (instead of as a
     separate system message) keeps the LLM aware that the chart is
-    what the user is asking *about*, not background trivia. History
-    is preserved verbatim so the LLM can refer back to earlier
-    answers.
+    what the user is asking *about*, not background trivia.
+
+    Structured tags ([BAZI_DATA] etc.) replace the prior `**Бацзы карта**`
+    headers: the explicit close-tags let the LLM reason about scope —
+    «эти проценты — только то что внутри [BAZI_DATA]» — which
+    measurably reduces fabrication of percentages and star names per
+    research findings 2026-05-16. History is preserved verbatim so the
+    LLM can refer back to earlier answers.
     """
     chart_block = render_chart_block(chart)
+    sections = [f"[BAZI_DATA]\n{chart_block}\n[/BAZI_DATA]"]
     if include_temporal:
         snapshot = now_chart or get_current_bazi()
-        temporal_block = render_temporal_block(snapshot)
-        body = f"{chart_block}\n\n{temporal_block}\n\nВопрос: {question}"
-    else:
-        body = f"{chart_block}\n\nВопрос: {question}"
+        temporal_block = render_temporal_block(snapshot, natal_chart=chart)
+        sections.append(f"[CURRENT_MOMENT]\n{temporal_block}\n[/CURRENT_MOMENT]")
+    if calendar_top is not None and calendar_bottom is not None:
+        # Type narrowing: event_type is Literal in calendar_select, but
+        # we accept str here for caller flexibility. The renderer
+        # tolerates any string (falls back to a generic label).
+        cal_block = render_calendar_block(
+            top=calendar_top,
+            bottom=calendar_bottom,
+            event_type=calendar_event_type,  # type: ignore[arg-type]
+            start_iso=calendar_start_iso or "",
+            end_iso=calendar_end_iso or "",
+        )
+        sections.append(f"[CALENDAR_SELECTION]\n{cal_block}\n[/CALENDAR_SELECTION]")
+    knowledge_block = load_knowledge_for_question(question)
+    if knowledge_block:
+        sections.append(f"[KNOWLEDGE]\n{knowledge_block}\n[/KNOWLEDGE]")
+    sections.append(get_instruction_prefix())
+    sections.append(f"[QUESTION]\n{question}\n[/QUESTION]")
+    body = "\n\n".join(sections)
 
     out: list[ChatMessage] = [ChatMessage(role="system", content=system_prompt)]
     if history:

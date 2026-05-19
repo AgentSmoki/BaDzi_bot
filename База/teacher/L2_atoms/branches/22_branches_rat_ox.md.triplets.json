@@ -1,0 +1,17 @@
+[
+  {"subject": "L2_atoms/branches/22_branches_rat_ox", "relation": "refers_to", "object": "concept:earthly_branches"},
+  {"subject": "L2_atoms/branches/22_branches_rat_ox", "relation": "refers_to", "object": "concept:day_pillar"},
+  {"subject": "L2_atoms/branches/22_branches_rat_ox", "relation": "refers_to", "object": "concept:hour_pillar"},
+  {"subject": "L2_atoms/branches/22_branches_rat_ox", "relation": "refers_to", "object": "concept:chinese_calendar"},
+  {"subject": "L2_atoms/branches/22_branches_rat_ox", "relation": "refers_to", "object": "concept:yang_water"},
+  {"subject": "L2_atoms/branches/22_branches_rat_ox", "relation": "refers_to", "object": "concept:yin_earth"},
+  {"subject": "L2_atoms/branches/22_branches_rat_ox", "relation": "combines_with", "object": "concept:branch_rat_zi"},
+  {"subject": "L2_atoms/branches/22_branches_rat_ox", "relation": "combines_with", "object": "concept:branch_ox_chou"},
+  {"subject": "L2_atoms/branches/22_branches_rat_ox", "relation": "clashes_with", "object": "concept:branch_horse_wu"},
+  {"subject": "L2_atoms/branches/22_branches_rat_ox", "relation": "clashes_with", "object": "concept:branch_goat_wei"},
+  {"subject": "L2_atoms/branches/22_branches_rat_ox", "relation": "combines_with", "object": "concept:sanhe_rat_dragon_monkey"},
+  {"subject": "L2_atoms/branches/22_branches_rat_ox", "relation": "combines_with", "object": "concept:sanhe_ox_snake_rooster"},
+  {"subject": "L2_atoms/branches/22_branches_rat_ox", "relation": "example_of", "object": "concept:day_master_rat"},
+  {"subject": "L2_atoms/branches/22_branches_rat_ox", "relation": "example_of", "object": "concept:day_master_ox"},
+  {"subject": "L2_atoms/branches/22_branches_rat_ox", "relation": "example_of", "object": "concept:hour_branch_identification"}
+]

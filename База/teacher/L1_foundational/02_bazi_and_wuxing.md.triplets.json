@@ -1,0 +1,16 @@
+[
+  {"subject": "L1_foundational/02_bazi_and_wuxing", "relation": "refers_to", "object": "concept:bazi_chart"},
+  {"subject": "L1_foundational/02_bazi_and_wuxing", "relation": "refers_to", "object": "concept:four_pillars"},
+  {"subject": "L1_foundational/02_bazi_and_wuxing", "relation": "refers_to", "object": "concept:eight_characters"},
+  {"subject": "L1_foundational/02_bazi_and_wuxing", "relation": "refers_to", "object": "concept:heavenly_stems"},
+  {"subject": "L1_foundational/02_bazi_and_wuxing", "relation": "refers_to", "object": "concept:earthly_branches"},
+  {"subject": "L1_foundational/02_bazi_and_wuxing", "relation": "refers_to", "object": "concept:wuxing"},
+  {"subject": "L1_foundational/02_bazi_and_wuxing", "relation": "refers_to", "object": "concept:yin_yang"},
+  {"subject": "L1_foundational/02_bazi_and_wuxing", "relation": "refers_to", "object": "concept:i_ching"},
+  {"subject": "L1_foundational/02_bazi_and_wuxing", "relation": "refers_to", "object": "concept:five_elements"},
+  {"subject": "L1_foundational/02_bazi_and_wuxing", "relation": "refers_to", "object": "concept:luck_pillars"},
+  {"subject": "L1_foundational/02_bazi_and_wuxing", "relation": "refers_to", "object": "concept:chinese_calendar"},
+  {"subject": "L1_foundational/02_bazi_and_wuxing", "relation": "combines_with", "object": "L1_foundational/01_bazi_introduction"},
+  {"subject": "L1_foundational/02_bazi_and_wuxing", "relation": "combines_with", "object": "L1_foundational/03_four_pillars"},
+  {"subject": "L1_foundational/02_bazi_and_wuxing", "relation": "combines_with", "object": "L1_foundational/07_five_elements_cycles"}
+]

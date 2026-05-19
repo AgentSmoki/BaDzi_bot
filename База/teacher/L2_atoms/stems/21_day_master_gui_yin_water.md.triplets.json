@@ -1,0 +1,15 @@
+[
+  {"subject": "L2_atoms/stems/21_day_master_gui_yin_water", "relation": "example_of", "object": "concept:day_master"},
+  {"subject": "L2_atoms/stems/21_day_master_gui_yin_water", "relation": "example_of", "object": "concept:yin_water"},
+  {"subject": "L2_atoms/stems/21_day_master_gui_yin_water", "relation": "refers_to", "object": "concept:tian_gan"},
+  {"subject": "L2_atoms/stems/21_day_master_gui_yin_water", "relation": "refers_to", "object": "concept:bazi"},
+  {"subject": "L2_atoms/stems/21_day_master_gui_yin_water", "relation": "refers_to", "object": "concept:day_master_strength"},
+  {"subject": "L2_atoms/stems/21_day_master_gui_yin_water", "relation": "generates", "object": "concept:yang_wood"},
+  {"subject": "L2_atoms/stems/21_day_master_gui_yin_water", "relation": "generates", "object": "concept:yin_wood"},
+  {"subject": "L2_atoms/stems/21_day_master_gui_yin_water", "relation": "controls", "object": "concept:fire"},
+  {"subject": "L2_atoms/stems/21_day_master_gui_yin_water", "relation": "refers_to", "object": "concept:wealth_star"},
+  {"subject": "L2_atoms/stems/21_day_master_gui_yin_water", "relation": "refers_to", "object": "concept:career_palace"},
+  {"subject": "L2_atoms/stems/21_day_master_gui_yin_water", "relation": "refers_to", "object": "concept:leadership"},
+  {"subject": "L2_atoms/stems/21_day_master_gui_yin_water", "relation": "refers_to", "object": "concept:creativity"},
+  {"subject": "L2_atoms/stems/21_day_master_gui_yin_water", "relation": "refers_to", "object": "concept:communication"}
+]

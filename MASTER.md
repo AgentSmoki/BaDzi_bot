@@ -23,6 +23,99 @@ _(пока пусто)_
 
 ---
 
+## Сессия 2026-05-18 / 2026-05-19 — Fractal RAG follow-up: tech debt cleanup — 1.9.12–1.9.17
+
+**Что сделано:**
+
+| # | Артефакт | Содержание |
+|---|---|---|
+| 1.9.12 / Phase 4.3 | TG-чат `@EdoHa_Badzi_bot` | Богдан задал боту «что значит Белый Тигр в дне?» — Анастасия **дословно процитировала** baihu_white_tiger.md: «День → партнёрские разногласия», «Сильный ДМ + 白虎 → конкурентное преимущество», «天乙贵人/月德贵人 нейтрализуют до 70%», период такта 庚申 «усиливает Тигра». **End-to-end RAG-stack работает в проде с реальными цитатами учителя.** |
+| 1.9.13 / Sidecar enrichment | 13 subagent-вызовов в параллель | Anastasia-секции получили типизированные edges (combines_with/clashes_with/generates/controls/example_of) вместо generic REFERS_TO. Граф: **46 docs / 617 edges** (было 548, +69 typed). Vocab в проде: **288 концептов** (было 206). |
+| 1.9.14 / Verified research | [doc/research/retrieval_stack_2026-05-19.md](doc/research/retrieval_stack_2026-05-19.md) | WebSearch + WebFetch (не subagent — никаких галлюцинаций). Подтверждено: **KuzuDB archived 2025-10-10 (Apple).** Рекомендации: миграция на Apache AGE (Yandex Managed PG), эмбеддинги — bge-m3, LLM-extract — Qwen3-3B через YC. |
+| 1.9.15 / Migration roadmap | tasks.md backlog | KuzuDB → Apache AGE: ~6-8 часов работы, 0 нового infra (используем уже-managed PG). Триггер: pip перестанет ставить kuzu 0.10 ИЛИ CVE без патча. |
+
+**Ключевые решения:**
+
+1. **Phase 7 «upgrade KuzuDB 0.11+» **закрыт без действия**.** Проект archived — апгрейд не имеет долгосрочного смысла. Вместо него — миграционный план на Apache AGE.
+2. **Phase 0.1 теперь verified.** Subagent-research 2026-05-17 (`doc/research/fractal_rag_2026-05-17.md`) оставлен как история. Свежий research через прямые WebSearch/WebFetch без LLM-посредников.
+3. **Phase 4.3 закрыт реальным TG-смок.** Цитата из тела `baihu_white_tiger.md` в ответе Анастасии — доказательство что весь stack 1.9.x работает: parser → ingest → KuzuDB → retrieve → format → [KNOWLEDGE] → LLM → пользователь.
+
+**Pending (отложено по приоритету и триггерам):**
+- 1.9.15 KuzuDB → Apache AGE migration (Q3 2026 или при наступлении триггера)
+- 1.9.16 Phase 2.5 bge-m3 embeddings (после миграции на AGE — pgvector рядом)
+- 1.9.17 Phase 3.5 Qwen3-3B concept extraction (последний slot, async-фицирует compose_messages)
+
+---
+
+## Сессия 2026-05-17 — Fractal RAG-Graph closure (Phase 0-4) — 1.9.4–1.9.11
+
+**Что сделано:** план [~/.claude/plans/badzi-fractal-rag-graph.md](~/.claude/plans/badzi-fractal-rag-graph.md) закрыт фазами 0-4, runtime-граф знаний учителя интегрирован в `compose_messages`.
+
+| # | Файл / артефакт | Содержание |
+|---|---|---|
+| 1.9.7 / Phase 1.1 | [knowledge/schema.py](knowledge/schema.py) (new) | KuzuDB DDL — `Node` table (id/level/topic/title/body/summary/source/source_authority/applicable_when/related_concepts/embedding/content_hash/last_updated) + 6 REL tables (REFERS_TO с `kind`, GENERATES, CONTROLS, COMBINES_WITH, CLASHES_WITH, EXAMPLE_OF). Все `IF NOT EXISTS`. 5 тестов |
+| 1.9.8 / Phase 1.2 | [knowledge/bootstrap.py](knowledge/bootstrap.py) (new) | `python -m knowledge.bootstrap [--db-path P] [--recreate]` — идемпотентный bootstrap. 8 тестов (end-to-end Node + REFERS_TO insert) |
+| 1.9.9 / Phase 2 | [knowledge/ingest/](knowledge/ingest/) (new) | Pipeline `.md → IngestedDoc → triplets → KuzuDB`: `models.py` (`IngestedDoc/Triplet/IngestState`), `parser.py` (YAML frontmatter + sha256 hash от body), `extract.py` (hybrid: sidecar `<file>.triplets.json` ИЛИ heuristic из `related_concepts`), `writer.py` (MERGE Node + replace edges, идемпотентно), `cli.py` + `__main__.py`. 28 тестов |
+| 1.9.6 / Phase 0.3 | [knowledge/ingest/from_pdf.py](knowledge/ingest/from_pdf.py) + [foundation_course_pdf.toc.json](База/teacher/_audio_transcripts/foundation_course_pdf.toc.json) | PDF → L1-L7 chunking pipeline (TOC discovery subagent + per-chapter subagents). [Основы Ба Цзы.pdf](База/Основы Ба Цзы .pdf) (200 стр., 36 735 слов) → 31 .md в L1/L2/L4/L7. 11 тестов |
+| 1.9.10 / Phase 3 | [ai/rag/](ai/rag/) (new) | KuzuDB-backed retrieval — `store.py` (read-only singleton + concept vocabulary), `extract.py` (concept matching + Russian-stem tokens), `retrieve.py` (2 Cypher-пути: related_concepts overlap + title CONTAINS, score merge, 1-hop typed-edge expansion), `format.py` (15K char budget), `public.py` (load_knowledge_for_question). 35 тестов |
+| 1.9.5 / wire-up | [ai/temporal_context.py:28](ai/temporal_context.py#L28) | `from ai.rag import load_knowledge_for_question` — заменил удалённый `ai/knowledge_loader.py` без изменения сигнатуры |
+| Cleanup | — | Удалены `ai/knowledge_loader.py` + `tests/unit/test_ai/test_knowledge_loader.py` (заменены `ai/rag/`, no backwards compat) |
+| Content | `База/teacher/` | 33 .md (32 PDF chunks + baihu seed) + 32 sidecar JSON. 64 enrichment-subagent-вызова (32 chunk-creation + 32 triplet-extraction) — суммарно в KuzuDB 33 real Nodes + 264 concept stubs + 445 edges (184 typed: COMBINES_WITH 64, EXAMPLE_OF 53, CLASHES_WITH 32, GENERATES 20, CONTROLS 15; плюс 260 REFERS_TO) |
+| 1.9.11 / Phase 4 | rsync + Docker rebuild + smoke | Working tree → VM (`yc-user@130.193.51.15`). Kuzu **0.10.0** в pyproject (см. ADR-004 gotcha ниже). `docker compose cp knowledge/kuzu_db/. bot:/app/knowledge/kuzu_db/` для named volume. Smoke в контейнере: vocab 206 концептов, 3 русских вопроса → [KNOWLEDGE]-блоки 12866/5789/15000 chars. `badzi_bot-bot-1` + `badzi_bot-worker-1` healthy |
+| Tests | `tests/unit/test_knowledge/` (12 файлов) + `tests/unit/test_ai/test_rag/` (4 файла) | +87 новых тестов (47 knowledge + 35 rag, удалено 14 knowledge_loader). Финал: **623 passed**, ruff + mypy strict clean |
+| Tooling | `~/.claude/skills/graphify` | `/graphify . --update` — обновил seman-граф проекта: 2274 → 2735 nodes / 3712 → 4426 edges / 164 communities |
+
+**Ключевые архитектурные решения:**
+
+1. **Hybrid extract** (Phase 2.2) — extract.py берёт sidecar `<file>.triplets.json` (subagent-output) если есть, иначе heuristic из `related_concepts`. Decoupling runtime от Claude Code subagent: ingest работает всегда, sidecar-enrichment — отдельный workflow. См. [knowledge/ingest/README.md](knowledge/ingest/README.md).
+2. **Vocab + Russian-stem retrieval** (Phase 3.1) — LLM concept extraction отложен (план рекомендовал Qwen-mini). Vocab матчится против KuzuDB `related_concepts`, доп. сигналом — токены вопроса (len≥3 после Russian suffix-strip) против `lower(n.title) CONTAINS`. 7/7 русских вопросов попадают в правильные L5/L7/L2/L1 узлы. LLM-апгрейд оставлен как Phase 3.5 slot.
+3. **Sync retrieval** — `compose_messages` остался синхронным, чтобы не менять сигнатуру callers (`ai/base_interpretation.py`, `bot/routers/consultation.py`). KuzuDB Python client тоже sync; асинхронность нужна была бы только при добавлении LLM extraction (Phase 3.5).
+4. **Kuzu 0.10 lock-in** — docker-compose named volume `kuzu_data:/app/knowledge/kuzu_db` всегда монтирует **директорию**, kuzu 0.11+ ждёт файл. Остаёмся на 0.10 до рефакторинга volume mount (см. обновлённый ADR-004 ниже).
+
+**Pending tech debt:**
+- Phase 0.1 — research-документ через `Dev_Architect/research_tool` (subagent-результат имеется в `doc/research/fractal_rag_2026-05-17.md` но не верифицирован)
+- Phase 2.5 — bge-m3 embeddings (опционально)
+- Phase 3.5 — Qwen-mini concept extraction для увеличения recall на >100 docs
+- Phase 4.3 — реальный Telegram-чат-smoke (in-container Python smoke ✓, TG-диалог не проверяли)
+- Content — L3 (ten_gods), L5 (stars), L6 (structures) папки почти пустые; рост через workflow в knowledge/ingest/README.md
+- Кода в working tree (137 modified + Phase 1-3 untracked) **не закоммичено** — на VM есть, в git нет
+
+---
+
+## Сессия 2026-05-16 — AI migration: OpenRouter → Yandex AI Studio (Qwen3.6) — 1.8.7
+
+**Что сделано:**
+
+| # | Файл | Содержание |
+|---|------|-----------|
+| Plan | `~/.claude/plans/badzi-yc-ai-migration.md` v3 | 2-tier план: Qwen3.6-35B-A3B @ YC → Claude 3.5 Sonnet @ OpenRouter. Dynamic max_tokens per-tier через ctx-window |
+| Infra | YC SA `badzi-ai-sa` (ajenqtfnjgtdnn3iruo8) | Роль `ai.languageModels.user` на folder `b1gtu3ebh1mbqbmkqm9t`. API-key выпущен, записан в .env |
+| 1.8.7-1 | [ai/budget.py](ai/budget.py) (new) | `compute_max_tokens(messages, ctx_window, intent, floor, ceiling)`. Char-based token estimate (3.2 chars/tok). DEFAULT_RATIO: simple=0.05, normal=0.15, complex=0.30, interpretation=0.40. 12 unit-тестов |
+| 1.8.7-2 | [ai/orchestrator.py](ai/orchestrator.py) | Provider-agnostic refactor. `Provider = Literal["yc", "openrouter"]`. Per-provider httpx singleton clients в `_clients: dict[Provider, AsyncClient]`. `close_clients()` plural. `ChatResult.provider` поле добавлено. `_parse_result` ловит и YC `reasoning_content`, и OR `reasoning` для thinking-truncation guard |
+| 1.8.7-3 | [bot/config.py](bot/config.py) + [.env.example](.env.example) | `yc_ai_api_key`, `yc_ai_folder_id`, `yc_primary_model="qwen3.6-35b-a3b"`, `yc_qwen36_context=262_144`. OpenRouter секция переименована — `openrouter_emergency_model`, `openrouter_claude_context=200_000`. `max_output_tokens_ceiling=32_000` |
+| 1.8.7-4 | [ai/fallback.py](ai/fallback.py) | 2-tier chain: Tier 1 = YC Qwen3.6, Tier 2 = OR Claude. `FallbackResult` теперь несёт `tier` (1/2) + `provider` (yc/openrouter). Per-tier dynamic `max_tokens` через `compute_max_tokens(ctx_window=cfg.context_window, ...)`. 4xx-other = raise без fallback. 7 unit-тестов |
+| 1.8.7-5 | [ai/router.py](ai/router.py) | `RouteDecision` упрощён — `model` и `max_tokens` убраны (sizing переехал в budget). Остались `intent` + `temperature` + `needs_temporal_context` + `reason` |
+| 1.8.7-6 | [ai/base_interpretation.py](ai/base_interpretation.py) | `chat_with_fallback(intent="interpretation")` вместо `max_tokens=settings.max_output_tokens` |
+| 1.8.7-7 | [bot/routers/consultation.py](bot/routers/consultation.py) | `chat_with_fallback(intent=decision.intent)`. Лог `consultation.completed` теперь содержит `tier` + `provider` |
+| 1.8.7-8 | [bot/main.py](bot/main.py) | `close_openrouter_client` → `close_llm_clients` (plural) |
+| 1.8.7-9 | [.cursor/rules/vision.mdc](.cursor/rules/vision.mdc) | ADR-002 помечен Superseded by ADR-009. Новый ADR-009 описывает 2-tier цепочку, провайдеры, динамический budget |
+| Tests | tests/unit/test_ai/test_budget.py (new), test_orchestrator.py, test_fallback.py, test_router.py, test_base_interpretation.py, tests/unit/test_bot/test_consultation.py | 484/484 ✓ (старые 460 + новые 24 для budget/2-tier/provider) |
+
+**Probe results (live YC API, 2026-05-16):**
+- Model `qwen3.6-35b-a3b` отвечает HTTP 200 на `gpt://b1gtu3ebh1mbqbmkqm9t/qwen3.6-35b-a3b/latest`
+- Thinking-модель: возвращает `reasoning_content` + `content` (как K2.6 — `_parse_result` уже умеет)
+- Smoke (system+user, max_tokens=2000): 55 prompt + 1486 completion, finish_reason=stop, тёплый русский ответ без `!`
+- Style guide подтверждается без `_strip_exclaim` поверх
+
+**Чего ещё нет (Phase 8 миграции, осталось):**
+- [ ] ruff + mypy --strict проверка после ребрендинга
+- [ ] Локальный e2e smoke в Docker (с реальными YC + OR ключами в .env)
+- [ ] rsync + rebuild на YC VM
+- [ ] Telegram live (закрывает L-2)
+- [ ] Tier 2 «огневая» проверка (временно сломать YC key → убедиться что Claude отвечает)
+
+---
+
 ## Суть проекта
 
 AI-бот в Telegram, который:
@@ -49,9 +142,9 @@ AI-бот в Telegram, который:
 
 | Решение        | Выбор                                 | Почему                                               |
 | -------------- | ------------------------------------- | ---------------------------------------------------- |
-| AI провайдер   | OpenRouter API                        | Один ключ: Kimi + Claude                            |
-| AI основная    | Kimi 2.6 (moonshotai)                 | Специализация на китайских текстах (Бацзы)           |
-| AI fallback    | Claude 3.5 Sonnet                     | Резервная при недоступности Kimi                     |
+| AI провайдер Tier 1 | Yandex AI Studio Foundation Models | Российский биллинг + инфраструктура (ADR-009)     |
+| AI основная    | Qwen3.6-35B-A3B (Alibaba, MoE 35B/3B active) | 262k native context, CJK-нативная             |
+| AI Tier 2 emergency | Claude 3.5 Sonnet via OpenRouter | Независимый cloud — резерв при YC outage             |
 | Визуал карты   | Playwright HTML→PNG                   | 100% точные иероглифы, CSS верстка в стиле Mingli   |
 | Ассеты         | 24 PNG иероглифов ✅                  | Иероглифы как картинки, Pillow fallback              |
 | База знаний    | KuzuDB (embedded graph)               | RAG: граф правил Бацзы → в контекст LLM             |

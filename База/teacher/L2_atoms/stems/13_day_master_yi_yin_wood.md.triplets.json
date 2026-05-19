@@ -1,0 +1,15 @@
+[
+  {"subject": "L2_atoms/stems/13_day_master_yi_yin_wood", "relation": "example_of", "object": "concept:day_master"},
+  {"subject": "L2_atoms/stems/13_day_master_yi_yin_wood", "relation": "example_of", "object": "concept:yin_wood"},
+  {"subject": "L2_atoms/stems/13_day_master_yi_yin_wood", "relation": "refers_to", "object": "concept:tian_gan"},
+  {"subject": "L2_atoms/stems/13_day_master_yi_yin_wood", "relation": "refers_to", "object": "concept:wu_xing"},
+  {"subject": "L2_atoms/stems/13_day_master_yi_yin_wood", "relation": "refers_to", "object": "concept:yin_yang"},
+  {"subject": "L2_atoms/stems/13_day_master_yi_yin_wood", "relation": "refers_to", "object": "concept:communication_skills"},
+  {"subject": "L2_atoms/stems/13_day_master_yi_yin_wood", "relation": "refers_to", "object": "concept:leadership"},
+  {"subject": "L2_atoms/stems/13_day_master_yi_yin_wood", "relation": "refers_to", "object": "concept:analyst_career"},
+  {"subject": "L2_atoms/stems/13_day_master_yi_yin_wood", "relation": "refers_to", "object": "concept:lawyer_career"},
+  {"subject": "L2_atoms/stems/13_day_master_yi_yin_wood", "relation": "refers_to", "object": "concept:resilience"},
+  {"subject": "L2_atoms/stems/13_day_master_yi_yin_wood", "relation": "combines_with", "object": "concept:metal"},
+  {"subject": "L2_atoms/stems/13_day_master_yi_yin_wood", "relation": "refers_to", "object": "concept:wealth_planning"},
+  {"subject": "L2_atoms/stems/13_day_master_yi_yin_wood", "relation": "refers_to", "object": "concept:risk_taking"}
+]

@@ -1,0 +1,15 @@
+[
+  {"subject": "L7_predictive_patterns/career/anastasia_methodology", "relation": "refers_to", "object": "concept:wealth_star"},
+  {"subject": "L7_predictive_patterns/career/anastasia_methodology", "relation": "refers_to", "object": "concept:zheng_cai"},
+  {"subject": "L7_predictive_patterns/career/anastasia_methodology", "relation": "refers_to", "object": "concept:pian_cai"},
+  {"subject": "L7_predictive_patterns/career/anastasia_methodology", "relation": "refers_to", "object": "concept:day_master_strength"},
+  {"subject": "L7_predictive_patterns/career/anastasia_methodology", "relation": "refers_to", "object": "concept:guansha"},
+  {"subject": "L7_predictive_patterns/career/anastasia_methodology", "relation": "refers_to", "object": "concept:zheng_guan"},
+  {"subject": "L7_predictive_patterns/career/anastasia_methodology", "relation": "refers_to", "object": "concept:qi_sha"},
+  {"subject": "L7_predictive_patterns/career/anastasia_methodology", "relation": "refers_to", "object": "concept:shi_shang"},
+  {"subject": "L7_predictive_patterns/career/anastasia_methodology", "relation": "generates", "object": "concept:wealth_star"},
+  {"subject": "L7_predictive_patterns/career/anastasia_methodology", "relation": "refers_to", "object": "concept:yong_shen"},
+  {"subject": "L7_predictive_patterns/career/anastasia_methodology", "relation": "refers_to", "object": "concept:five_elements_industries"},
+  {"subject": "L7_predictive_patterns/career/anastasia_methodology", "relation": "refers_to", "object": "concept:luck_pillars"},
+  {"subject": "L7_predictive_patterns/career/anastasia_methodology", "relation": "clashes_with", "object": "concept:financial_pillar_clash"}
+]

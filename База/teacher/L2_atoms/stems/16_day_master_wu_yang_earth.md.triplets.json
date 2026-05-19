@@ -1,0 +1,15 @@
+[
+  {"subject": "L2_atoms/stems/16_day_master_wu_yang_earth", "relation": "example_of", "object": "concept:day_master"},
+  {"subject": "L2_atoms/stems/16_day_master_wu_yang_earth", "relation": "example_of", "object": "concept:yang_earth"},
+  {"subject": "L2_atoms/stems/16_day_master_wu_yang_earth", "relation": "refers_to", "object": "concept:tian_gan"},
+  {"subject": "L2_atoms/stems/16_day_master_wu_yang_earth", "relation": "refers_to", "object": "concept:mountain_symbolism"},
+  {"subject": "L2_atoms/stems/16_day_master_wu_yang_earth", "relation": "refers_to", "object": "concept:stability"},
+  {"subject": "L2_atoms/stems/16_day_master_wu_yang_earth", "relation": "refers_to", "object": "concept:self_sufficiency"},
+  {"subject": "L2_atoms/stems/16_day_master_wu_yang_earth", "relation": "refers_to", "object": "concept:leadership"},
+  {"subject": "L2_atoms/stems/16_day_master_wu_yang_earth", "relation": "refers_to", "object": "concept:empire_building"},
+  {"subject": "L2_atoms/stems/16_day_master_wu_yang_earth", "relation": "generates", "object": "concept:yang_metal"},
+  {"subject": "L2_atoms/stems/16_day_master_wu_yang_earth", "relation": "generates", "object": "concept:yin_metal"},
+  {"subject": "L2_atoms/stems/16_day_master_wu_yang_earth", "relation": "controls", "object": "concept:water"},
+  {"subject": "L2_atoms/stems/16_day_master_wu_yang_earth", "relation": "clashes_with", "object": "concept:yang_wood"},
+  {"subject": "L2_atoms/stems/16_day_master_wu_yang_earth", "relation": "combines_with", "object": "concept:yin_water"}
+]

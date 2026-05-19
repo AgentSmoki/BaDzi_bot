@@ -51,21 +51,32 @@ def test_svg_renders_hidden_stems_for_every_branch() -> None:
     assert "Дерево Инь" in svg or "Дерево Ян" in svg
 
 
-def test_svg_wuxing_wheel_has_icons_arrows_and_emoji_overlay() -> None:
+def test_svg_wuxing_wheel_has_discs_arrows_and_emoji_overlay() -> None:
     """Pentagon must emit:
-    - 5 `<use xlink:href="#ic-...">` references (one per element, always-visible
-      SVG icon underneath the emoji);
+    - 5 coloured element discs (one per element, sits behind the emoji
+      and reads as a clean background);
     - 5 generation arrowheads around the perimeter + 1 in the legend;
     - 5 control arrowheads across the inner star + 1 in the legend;
     - 5 generation gradients + 5 control gradients (one inline gradient per
       arrow, painting the stroke as a colour transition between elements);
     - exactly one emoji marked as `wuxing-emoji-dm` (the day master).
 
+    The pre-2026-05-16 layout also rendered a white SVG icon underneath
+    the emoji as a font-failure fallback. We dropped that overlay when
+    OpenMoji Color landed (L-1) because the white icon was bleeding
+    through the emoji's translucent edges and the wheel read as a
+    double-stamp.
+
     Arrowheads are <polygon> elements with explicit rotate() — markers
     were removed because CairoSVG ignores ``orient="auto"`` and ends up
     pointing every head to the right (see git history in ai/svg_renderer.py)."""
     svg = render_chart_svg(_anastasia_chart())
-    assert svg.count('xlink:href="#ic-') == 5
+    # 5 background discs (one per element). The wuxing wheel uses
+    # `el-bg-{el}` class, also referenced by the balance bars below, so
+    # we count occurrences and assert ≥5 rather than ==5.
+    assert svg.count('class="el-bg-') >= 5
+    # White SVG icon overlays are gone — assert none survive.
+    assert svg.count('xlink:href="#ic-') == 0
     assert svg.count('class="arrow-tip-gen"') == 6
     assert svg.count('class="arrow-tip-ctrl"') == 6
     assert svg.count('id="gen-grad-') == 5
@@ -73,9 +84,13 @@ def test_svg_wuxing_wheel_has_icons_arrows_and_emoji_overlay() -> None:
     assert 'class="wuxing-emoji wuxing-emoji-dm"' in svg
 
 
-def test_svg_uses_xlink_namespace() -> None:
-    """`xlink:href` requires the xlink namespace declaration on the root <svg>;
-    CairoSVG silently drops `<use>` references when it isn't declared."""
+def test_svg_keeps_xlink_namespace_for_future_toggle() -> None:
+    """The xlink namespace declaration stays on the root <svg> even
+    though no live element currently references it. The fallback
+    overlay ``<use xlink:href="#ic-*">`` was removed in L-1 (2026-05-16)
+    but the underlying `<symbol id="ic-*">` definitions remain in <defs>.
+    Keeping the namespace declared means re-enabling the overlay
+    is a one-line template change rather than a refactor."""
     svg = render_chart_svg(_anastasia_chart())
     assert 'xmlns:xlink="http://www.w3.org/1999/xlink"' in svg
 

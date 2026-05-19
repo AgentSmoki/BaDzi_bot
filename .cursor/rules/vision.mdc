@@ -26,9 +26,9 @@ alwaysApply: true
 | БД знаний | KuzuDB (embedded graph) | Граф знаний Бацзы — RAG для LLM |
 | Кэш / FSM | Redis | FSM-состояния, rate limit, feature flags, history |
 | Очереди | TaskIQ | Долгие AI-генерации (>30 сек) |
-| AI провайдер | OpenRouter API | Единая точка для всех моделей |
-| AI основная | Kimi 2.6 (moonshotai) | Специализация на китайских текстах, последняя версия |
-| AI fallback | Claude 3.5 Sonnet | Резервная модель |
+| AI провайдер Tier 1 | Yandex AI Studio Foundation Models | Российский биллинг, российская инфраструктура (ADR-009) |
+| AI основная | Qwen3.6-35B-A3B (Alibaba, MoE 35B/3B active) | 262k native context, CJK-нативная, agentic-strong |
+| AI Tier 2 emergency | Claude 3.5 Sonnet via OpenRouter | Независимый cloud для cross-provider резервирования |
 | Рендеринг карты | CairoSVG + Pillow + ProcessPoolExecutor | Jinja2 → SVG → PNG, без headless-браузера (ADR-007) |
 | Астрономия | pyswisseph + JPL DE431 | Точность < 0.001", TST, 24 сезона |
 | Геокодирование | Google → Yandex → Nominatim (через aiohttp) | Fuzzy для опечаток + IANA таймзона |
@@ -65,7 +65,9 @@ PostgreSQL | Redis | OpenRouter API  (Infrastructure)
 
 **Consequences:** Калькулятор тестируется изолированно (80%+ coverage). AI-логика не зависит от транспорта. Можно добавить Web App без изменений домена.
 
-### ADR-002: AI Оркестрация — OpenRouter + Kimi K2
+### ADR-002: AI Оркестрация — OpenRouter + Kimi K2 (superseded by ADR-009)
+
+**Status:** Superseded by ADR-009 (2026-05-16). История решения сохранена для архива.
 
 **Context:** Нужен один провайдер для Kimi (китайская метафизика), Claude (русский язык, глубина), gpt-image-1 (генерация карты).
 
@@ -75,6 +77,8 @@ PostgreSQL | Redis | OpenRouter API  (Infrastructure)
 - Переключение модели без деплоя: Redis feature flag `llm:active_model`
 
 **Consequences:** Один API ключ. Простой фолбэк. Смена модели через /admin model.
+
+**Why superseded:** OpenRouter биллинг в USD через Stripe — проблема для корп-карт РФ. Латентность Claude через US-узлы 5-10s overhead, K2.6 thinking ~55s. Yandex AI Studio даёт Qwen3.6-35B-A3B (262k native context, MoE) с российским биллингом в RUB и латентностью 2-4s. См. ADR-009.
 
 ### ADR-003: Визуализация карты — CairoSVG (superseded by ADR-007)
 
@@ -86,14 +90,32 @@ PostgreSQL | Redis | OpenRouter API  (Infrastructure)
 
 ### ADR-004: База знаний — KuzuDB Graph
 
-**Context:** Ответы LLM должны опираться на конкретные правила Бацзы из книг, не на обучение модели.
+**Status:** Active (закрыто фазами 1.9.4-1.9.11 в сессии 2026-05-17).
 
-**Solution:** KuzuDB (embedded, Python) — граф знаний:
-- Узлы: Element, Stem, Branch, TenGod, Rule, Interpretation, Star
-- Рёбра: GENERATES, CONTROLS, CLASHES_WITH, COMBINES_WITH, MEANS
-- При запросе: извлечь концепты → query KuzuDB → релевантный подграф → в контекст LLM
+**Context:** Ответы LLM должны опираться на конкретные правила Бацзы из книг учителя, не на обучение модели.
 
-**Consequences:** Ответы Анастасии основаны на фактических правилах. Требует оцифровки книг (задача 2.2). Повышает качество без увеличения размера промпта.
+**Solution:** KuzuDB (embedded, Python) — fractal RAG-Graph (L1-L7):
+- **Один Node-table** с полем `level` (L1 foundations → L7 predictive_patterns) — изначально планировали table-per-type (Element/Stem/Branch/TenGod/Rule/Star), но на корпус 33+ docs это избыточно; унификация даёт более гибкие Cypher-запросы.
+- **6 typed REL-tables:** REFERS_TO (generic + `kind` discriminator), GENERATES, CONTROLS, CLASHES_WITH (六冲), COMBINES_WITH (六合), EXAMPLE_OF.
+- **Retrieval (ai/rag/):** vocab-matching по `related_concepts` + Russian-stem title CONTAINS → score merge → 1-hop typed-edge expansion. Sync, no LLM, 200-char question → ~5 узлов в `[KNOWLEDGE]` блоке.
+
+**Pipeline ingest:**
+- `knowledge/ingest/` (parser, extract hybrid sidecar/heuristic, writer MERGE+replace edges, CLI). Идемпотентно через sha256 content_hash от body.
+- `knowledge/ingest/from_pdf.py` для PDF → L1-L7 chunking через discovery + per-chapter subagents.
+
+**Volume mount gotcha (2026-05-17):**
+- docker-compose определяет `kuzu_data:/app/knowledge/kuzu_db` как **named volume** — он всегда монтируется как директория.
+- Kuzu 0.10 хранит DB как директорию → совместимо.
+- Kuzu 0.11+ перешёл на single-file format → **несовместимо** с текущим volume mount (получаем `Database path cannot be a directory`).
+- **Зафиксированы на kuzu==0.10.0.** Для апгрейда нужно переделать docker-compose: либо смонтировать `kuzu_data:/app/knowledge/` (родительская дир), либо `kuzu_data:/app/data/` + изменить `settings.kuzu_db_path = /app/data/kuzu.db`.
+
+**Deploy (Phase 4):** ingest локально (host kuzu_db dir) → `docker compose cp knowledge/kuzu_db/. bot:/app/knowledge/kuzu_db/` копирует в named volume → rebuild bot+worker. KuzuDB read-only в bot-контейнере; ingest на VM выполняется отдельной командой если нужен.
+
+**Consequences:**
+- ✅ Ответы Анастасии опираются на фактический материал учителя (445 edges на 33 docs, 184 типизированных).
+- ✅ Retrieval работает на русских вопросах без LLM-вызова через стемминг.
+- ⚠️ Lock-in на kuzu 0.10 до рефактора volume mount.
+- ⚠️ Content-rich наполнение (L3 ten_gods, L5 stars, L6 structures) — continuous, не блокирует prod.
 
 ### ADR-005: Деплой — Yandex Cloud
 
@@ -140,6 +162,39 @@ PostgreSQL | Redis | OpenRouter API  (Infrastructure)
 - Архитектура готова к swap на Stars если ToS Telegram изменится (≈8 часов на миграцию)
 
 **Consequences:** Простой UX в РФ, единый билинг для бухгалтерии. ToS-риск: Telegram может в будущем потребовать Stars для in-app транзакций, но пока это рекомендация, не запрет. Прецедентов блокировки русских ботов с ЮKassa в Mini App нет.
+
+### ADR-009: AI Оркестрация — 2-tier (YC Qwen3.6 + OpenRouter Claude emergency)
+
+**Context:** OpenRouter (ADR-002) удобен для прототипа, но:
+- Биллинг в USD через Stripe → проблемы для корп-карт РФ
+- Латентность Claude через US-узлы Anthropic 5-10s, K2.6 thinking ~55s
+- Cost per ответ: $0.028 ≈ 2.5 ₽ (дорого при росте DAU)
+
+Yandex AI Studio добавила Alibaba Qwen3-family в каталог Foundation Models (2026-Q1). Qwen3.6-35B-A3B — MoE (35B total / 3B active per token), нативный 262k context, agentic-strong, специализация на CJK. Биллинг в RUB. Латентность 2-4s.
+
+**Solution:** 2-tier fallback chain через `ai/fallback.py::chat_with_fallback`:
+
+1. **Tier 1 — Yandex AI Studio:** Qwen3.6-35B-A3B
+   - Endpoint: `https://llm.api.cloud.yandex.net/v1/chat/completions` (OpenAI-compat)
+   - Auth: `Authorization: Api-Key <key>` + `x-folder-id: <folder>` headers
+   - Model URI: `gpt://<folder>/qwen3.6-35b-a3b/latest`
+   - SA: `badzi-ai-sa` с ролью `ai.languageModels.user`
+
+2. **Tier 2 — OpenRouter:** Claude 3.5 Sonnet (emergency fallback)
+   - Endpoint: `https://openrouter.ai/api/v1/chat/completions`
+   - Independent cloud + provider chain (Anthropic US/EU nodes via OR)
+   - Triggers только на 429/5xx/timeout Tier 1
+
+`ai/budget.py::compute_max_tokens(messages, ctx_window, intent)` динамически считает output budget per-tier: на Qwen3.6 (262k) выше, на Claude (200k) пропорционально меньше. Без жёсткого `max_output_tokens=8192` потолка.
+
+`ai/orchestrator.py` теперь provider-agnostic: один `chat(provider, model, ...)` обслуживает оба эндпойнта. Per-provider httpx singleton clients в `_clients: dict[Provider, AsyncClient]`. Auth-headers формируются в `_get_client(provider)`.
+
+**Consequences:**
+- RUB-биллинг по Tier 1, ~3× дешевле в нормальном режиме
+- Cross-cloud резервирование: если YC region/folder/key упали — Claude через OR отвечает
+- Один API-key для YC (folder-wide через SA), один для OpenRouter
+- `usage.cost` от YC = 0 (не отдают в response) → post-hoc cost calc через price-table планируется в 1.14 Langfuse
+- Tier 2 — не дублирующий провайдер того же cloud, а независимая инфраструктура
 
 ---
 

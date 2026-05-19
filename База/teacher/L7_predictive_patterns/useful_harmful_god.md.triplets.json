@@ -1,0 +1,15 @@
+[
+  {"subject": "L7_predictive_patterns/useful_harmful_god", "relation": "refers_to", "object": "concept:yong_shen"},
+  {"subject": "L7_predictive_patterns/useful_harmful_god", "relation": "refers_to", "object": "concept:ji_shen"},
+  {"subject": "L7_predictive_patterns/useful_harmful_god", "relation": "refers_to", "object": "concept:day_master_strength"},
+  {"subject": "L7_predictive_patterns/useful_harmful_god", "relation": "refers_to", "object": "concept:shi_shang"},
+  {"subject": "L7_predictive_patterns/useful_harmful_god", "relation": "refers_to", "object": "concept:cai"},
+  {"subject": "L7_predictive_patterns/useful_harmful_god", "relation": "refers_to", "object": "concept:guan_sha"},
+  {"subject": "L7_predictive_patterns/useful_harmful_god", "relation": "refers_to", "object": "concept:yin_resource"},
+  {"subject": "L7_predictive_patterns/useful_harmful_god", "relation": "refers_to", "object": "concept:bi_jie"},
+  {"subject": "L7_predictive_patterns/useful_harmful_god", "relation": "refers_to", "object": "concept:cong_ge"},
+  {"subject": "L7_predictive_patterns/useful_harmful_god", "relation": "controls", "object": "concept:day_master_strong"},
+  {"subject": "L7_predictive_patterns/useful_harmful_god", "relation": "generates", "object": "concept:day_master_weak"},
+  {"subject": "L7_predictive_patterns/useful_harmful_god", "relation": "clashes_with", "object": "concept:ji_shen"},
+  {"subject": "L7_predictive_patterns/useful_harmful_god", "relation": "combines_with", "object": "concept:yong_shen"}
+]

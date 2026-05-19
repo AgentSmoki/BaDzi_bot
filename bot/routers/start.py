@@ -18,6 +18,7 @@ from ai.card_renderer import RenderRequest, render_chart_png
 from ai.orchestrator import OrchestratorError
 from bot.keyboards import (
     chart_actions_kb,
+    chart_actions_kb_post_interpret,
     new_user_kb,
     pricing_kb,
     returning_user_kb,
@@ -343,7 +344,10 @@ async def _resolve_chart(state: FSMContext, session: AsyncSession, user: User) -
 async def _send_interpretation(message: Message, *, text: str, cached: bool) -> None:
     """Split long bodies at block boundaries so Telegram's 4096-char
     cap doesn't truncate the last block. Keyboard goes on the LAST chunk
-    so the user sees follow-up actions only after reading."""
+    so the user sees follow-up actions only after reading. The post-
+    interpret kb drops «Получить разбор карты» — re-clicking the same
+    button after already seeing the interpretation is noise (and would
+    burn a free-question slot for nothing)."""
     parts = _split_for_telegram(text)
     prefix = "" if not cached else "<i>Сохранённый разбор:</i>\n\n"
     for i, part in enumerate(parts):
@@ -351,7 +355,7 @@ async def _send_interpretation(message: Message, *, text: str, cached: bool) -> 
         body = (prefix if i == 0 else "") + part
         await message.answer(
             body,
-            reply_markup=chart_actions_kb() if is_last else None,
+            reply_markup=chart_actions_kb_post_interpret() if is_last else None,
         )
 
 

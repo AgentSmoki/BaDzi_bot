@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from datetime import date
 from decimal import Decimal
 
 import structlog
@@ -44,17 +45,22 @@ from aiogram.types import (
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ai.calendar_parse import detect_calendar_request
 from ai.context import HistoryStore
 from ai.fallback import chat_with_fallback
 from ai.orchestrator import ChatMessage, OrchestratorError
 from ai.prompts import load_system_prompt
 from ai.router import route
 from ai.temporal_context import compose_messages, get_current_bazi
+from bot.config import get_settings
+from bot.keyboards import pricing_kb
 from bot.states import ConsultationState
+from calculator.calendar_select import EVENT_TYPE_RU, pick_best_dates
 from calculator.models import ChartOutput
 from db.models import Chart, User
 from db.repositories.chart_repo import ChartRepository
 from db.repositories.consultation_repo import ConsultationRepository
+from db.repositories.user_repo import UserRepository
 
 logger = structlog.get_logger(__name__)
 
@@ -62,6 +68,17 @@ consultation_router = Router(name="consultation")
 
 _chart_repo = ChartRepository()
 _consultation_repo = ConsultationRepository()
+_user_repo = UserRepository()
+
+
+_FREE_QUESTION_USED_MSG = (
+    "У вас был один бесплатный вопрос. Чтобы продолжить диалог с Анастасией, выберите тариф ниже."
+)
+
+
+def _today() -> date:
+    """Indirection so tests can pin "today" without freezegun."""
+    return date.today()
 
 
 # ── Keyboards (local — small enough to colocate) ─────────────────────────
@@ -154,6 +171,39 @@ async def handle_reset(
     await message.answer("История диалога очищена. Карта осталась.")
 
 
+# ── pricing:skip — admin testing aid ─────────────────────────────────────
+
+
+@consultation_router.callback_query(F.data == "pricing:skip")
+async def handle_pricing_skip(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+    state: FSMContext,
+) -> None:
+    """Admin-only: reset the free-question flag so the same user can
+    keep asking. Used during pre-release testing — we need to ask many
+    questions in one session without paying. Hardened: the button is
+    only added to ``pricing_kb`` for admin (see consultation guard),
+    but we still re-check ``user.telegram_id == admin_telegram_id``
+    here in case the callback_data ever leaks (no-op on non-admin).
+    """
+    settings = get_settings()
+    if user.telegram_id != settings.admin_telegram_id:
+        # Non-admin clicked a leaked admin callback — silently dismiss.
+        await callback.answer()
+        return
+
+    await _user_repo.reset_free_question(session, user.id)
+    user.free_question_used = False
+    await callback.answer("Сброшено — задавайте следующий вопрос")
+    if isinstance(callback.message, Message):
+        await callback.message.answer(
+            "🔧 Тестовый режим: лимит сброшен. Нажмите «Задать вопрос» и продолжайте.",
+        )
+    logger.info("pricing.admin_skip", user_id=str(user.id), telegram_id=user.telegram_id)
+
+
 # ── Question handler ─────────────────────────────────────────────────────
 
 
@@ -185,18 +235,79 @@ async def handle_question(
         await state.set_state(None)
         return
 
+    # Free-question guard (task 1.12.0): new users get one free dialogue
+    # turn; the second attempt is gated behind pricing. Without this,
+    # an unsubscribed user could hammer OpenRouter tokens indefinitely.
+    if user.free_question_used:
+        settings = get_settings()
+        is_admin = user.telegram_id == settings.admin_telegram_id
+        await message.answer(
+            _FREE_QUESTION_USED_MSG,
+            reply_markup=pricing_kb(allow_skip=is_admin),
+        )
+        await state.set_state(None)
+        logger.info(
+            "consultation.blocked_by_free_question_guard",
+            user_id=str(user.id),
+            telegram_id=user.telegram_id,
+            admin_skip_offered=is_admin,
+        )
+        return
+
     chart_data = ChartOutput.model_validate(chart.chart_data)
     decision = route(question)
 
+    # Calendar selection (择日) detection — runs *before* the regular
+    # LLM call. If the user asks "лучшие даты для свадьбы в июне",
+    # we pre-score every day in the range against their natal chart
+    # and pass the table to the LLM. Without this, Anastasia would
+    # have to invent dates from her training data (= hallucination).
+    cal_request = detect_calendar_request(question, now=_today())
+    calendar_top = None
+    calendar_bottom = None
+    cal_event_label = None
+    cal_start_iso = None
+    cal_end_iso = None
+    if cal_request is not None and cal_request.event_type is not None:
+        cal_start_iso = cal_request.start.isoformat()
+        cal_end_iso = cal_request.end.isoformat()
+        cal_event_label = EVENT_TYPE_RU[cal_request.event_type]
+        try:
+            calendar_top, calendar_bottom = pick_best_dates(
+                chart_data,
+                cal_request.start,
+                cal_request.end,
+                cal_request.event_type,
+            )
+            logger.info(
+                "consultation.calendar_select_attached",
+                event_type=cal_request.event_type,
+                horizon_days=cal_request.horizon_days,
+                top_count=len(calendar_top),
+                bottom_count=len(calendar_bottom),
+            )
+        except Exception:
+            logger.exception("consultation.calendar_select_failed")
+            calendar_top = None
+            calendar_bottom = None
+
     history = await history_store.get(user.telegram_id)
-    now_chart = get_current_bazi() if decision.needs_temporal_context else None
+    # Temporal context is needed both when the router flags it AND
+    # when calendar block is attached (for resonance computation).
+    needs_temporal = decision.needs_temporal_context or calendar_top is not None
+    now_chart = get_current_bazi() if needs_temporal else None
     messages = compose_messages(
         system_prompt=load_system_prompt(),
         chart=chart_data,
         question=question,
         history=history,
-        include_temporal=decision.needs_temporal_context,
+        include_temporal=needs_temporal,
         now_chart=now_chart,
+        calendar_top=calendar_top,
+        calendar_bottom=calendar_bottom,
+        calendar_event_type=cal_event_label,
+        calendar_start_iso=cal_start_iso,
+        calendar_end_iso=cal_end_iso,
     )
 
     typing_task = asyncio.create_task(_keep_typing(message))
@@ -204,7 +315,7 @@ async def handle_question(
         answer = await chat_with_fallback(
             messages=messages,
             temperature=decision.temperature,
-            max_tokens=decision.max_tokens,
+            intent=decision.intent,
         )
     except OrchestratorError:
         logger.exception("consultation.llm_failed", question=question[:80])
@@ -220,6 +331,11 @@ async def handle_question(
 
     text = answer.result.text.strip()
     await message.answer(text, reply_markup=_after_answer_kb())
+
+    # Free-question is now consumed — next question goes to pricing.
+    # Done after a successful LLM answer so a failed turn doesn't burn
+    # the user's one free try.
+    await _user_repo.mark_free_question_used(session, user.id)
 
     # Persist the turn — both sides — so future history requests have
     # the full transcript and so /admin export gets the row.
@@ -243,6 +359,8 @@ async def handle_question(
     logger.info(
         "consultation.completed",
         intent=decision.intent,
+        tier=answer.tier,
+        provider=answer.provider,
         used_fallback=answer.used_fallback,
         latency_ms=answer.result.latency_ms,
         cost_usd=answer.result.usage.cost_usd,

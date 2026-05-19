@@ -1,0 +1,16 @@
+[
+  {"subject": "L5_stars/baihu_white_tiger", "relation": "refers_to", "object": "concept:violence_stars"},
+  {"subject": "L5_stars/baihu_white_tiger", "relation": "refers_to", "object": "concept:yin_nature"},
+  {"subject": "L5_stars/baihu_white_tiger", "relation": "refers_to", "object": "concept:day_master_strength"},
+  {"subject": "L5_stars/baihu_white_tiger", "relation": "refers_to", "object": "concept:pillar_placement"},
+  {"subject": "L5_stars/baihu_white_tiger", "relation": "combines_with", "object": "concept:liuhe"},
+  {"subject": "L5_stars/baihu_white_tiger", "relation": "clashes_with", "object": "concept:liuchong"},
+  {"subject": "L5_stars/baihu_white_tiger", "relation": "generates", "object": "concept:metal_day_master"},
+  {"subject": "L5_stars/baihu_white_tiger", "relation": "refers_to", "object": "concept:fire_day_master"},
+  {"subject": "L5_stars/baihu_white_tiger", "relation": "controls", "object": "concept:weak_day_master"},
+  {"subject": "L5_stars/baihu_white_tiger", "relation": "example_of", "object": "concept:yin_hai_liuhe"},
+  {"subject": "L5_stars/baihu_white_tiger", "relation": "example_of", "object": "concept:geng_metal_year_activation"},
+  {"subject": "L5_stars/baihu_white_tiger", "relation": "refers_to", "object": "concept:tianyi_guiren"},
+  {"subject": "L5_stars/baihu_white_tiger", "relation": "refers_to", "object": "concept:yuede_guiren"},
+  {"subject": "L5_stars/baihu_white_tiger", "relation": "refers_to", "object": "L5_stars/feiren_flying_blade"}
+]

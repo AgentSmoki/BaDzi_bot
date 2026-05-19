@@ -1,0 +1,15 @@
+[
+  {"subject": "L7_predictive_patterns/health/10_health_five_elements_balance", "relation": "refers_to", "object": "concept:wu_xing"},
+  {"subject": "L7_predictive_patterns/health/10_health_five_elements_balance", "relation": "refers_to", "object": "concept:yin_yang_organs"},
+  {"subject": "L7_predictive_patterns/health/10_health_five_elements_balance", "relation": "refers_to", "object": "concept:meridians"},
+  {"subject": "L7_predictive_patterns/health/10_health_five_elements_balance", "relation": "refers_to", "object": "concept:qi"},
+  {"subject": "L7_predictive_patterns/health/10_health_five_elements_balance", "relation": "refers_to", "object": "concept:five_elements_balance"},
+  {"subject": "L7_predictive_patterns/health/10_health_five_elements_balance", "relation": "combines_with", "object": "concept:fire_heart_small_intestine"},
+  {"subject": "L7_predictive_patterns/health/10_health_five_elements_balance", "relation": "combines_with", "object": "concept:metal_lungs_large_intestine"},
+  {"subject": "L7_predictive_patterns/health/10_health_five_elements_balance", "relation": "combines_with", "object": "concept:wood_liver_gallbladder"},
+  {"subject": "L7_predictive_patterns/health/10_health_five_elements_balance", "relation": "combines_with", "object": "concept:water_kidneys_bladder"},
+  {"subject": "L7_predictive_patterns/health/10_health_five_elements_balance", "relation": "combines_with", "object": "concept:earth_spleen_stomach"},
+  {"subject": "L7_predictive_patterns/health/10_health_five_elements_balance", "relation": "clashes_with", "object": "concept:element_imbalance"},
+  {"subject": "L7_predictive_patterns/health/10_health_five_elements_balance", "relation": "example_of", "object": "concept:weak_fire_heart_disease"},
+  {"subject": "L7_predictive_patterns/health/10_health_five_elements_balance", "relation": "refers_to", "object": "L7_predictive_patterns/health/11_five_elements_and_organs"}
+]

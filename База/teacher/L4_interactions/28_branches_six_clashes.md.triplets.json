@@ -1,0 +1,15 @@
+[
+  {"subject": "L4_interactions/28_branches_six_clashes", "relation": "refers_to", "object": "concept:earthly_branches"},
+  {"subject": "L4_interactions/28_branches_six_clashes", "relation": "refers_to", "object": "concept:hidden_heavenly_stems"},
+  {"subject": "L4_interactions/28_branches_six_clashes", "relation": "refers_to", "object": "concept:liuchong"},
+  {"subject": "L4_interactions/28_branches_six_clashes", "relation": "refers_to", "object": "concept:four_pillars"},
+  {"subject": "L4_interactions/28_branches_six_clashes", "relation": "refers_to", "object": "concept:ten_gods"},
+  {"subject": "L4_interactions/28_branches_six_clashes", "relation": "clashes_with", "object": "concept:branch_zi_wu"},
+  {"subject": "L4_interactions/28_branches_six_clashes", "relation": "clashes_with", "object": "concept:branch_chou_wei"},
+  {"subject": "L4_interactions/28_branches_six_clashes", "relation": "clashes_with", "object": "concept:branch_yin_shen"},
+  {"subject": "L4_interactions/28_branches_six_clashes", "relation": "clashes_with", "object": "concept:branch_mao_you"},
+  {"subject": "L4_interactions/28_branches_six_clashes", "relation": "clashes_with", "object": "concept:branch_chen_xu"},
+  {"subject": "L4_interactions/28_branches_six_clashes", "relation": "clashes_with", "object": "concept:branch_si_hai"},
+  {"subject": "L4_interactions/28_branches_six_clashes", "relation": "combines_with", "object": "concept:adjacent_pillars_rule"},
+  {"subject": "L4_interactions/28_branches_six_clashes", "relation": "refers_to", "object": "concept:element_strength"}
+]
