@@ -75,6 +75,14 @@ _FREE_QUESTION_USED_MSG = (
     "У вас был один бесплатный вопрос. Чтобы продолжить диалог с Анастасией, выберите тариф ниже."
 )
 
+# Wave 6 / Phase 4: placeholder used by the clarifying-questions FSM
+# loop when all answers have been collected. Phase 6 replaces this with
+# a real call to ``_continue_consultation_with_skill`` that uses the
+# accumulated clarifications + skill_name + concept_hints in the LLM
+# prompt. Until Phase 6 lands, the handler just acknowledges and clears
+# state so the FSM scaffolding can be tested in isolation.
+_CLARIFICATIONS_DONE_MSG = "Спасибо, я учла ваши уточнения. Минуту, готовлю ответ."
+
 
 def _today() -> date:
     """Indirection so tests can pin "today" without freezegun."""
@@ -157,6 +165,71 @@ async def _resolve_active_chart(
 
 
 # ── /reset — clear dialogue history ──────────────────────────────────────
+
+
+@consultation_router.message(ConsultationState.collecting_clarifications, F.text)
+async def handle_clarification_answer(
+    message: Message,
+    state: FSMContext,
+) -> None:
+    """Collect one clarifying-question answer at a time.
+
+    FSM data shape (set by handle_question in Phase 6 when the skill
+    router returns clarifying_questions):
+    - ``clarifying_questions: list[str]``  — original 1-3 questions
+    - ``answers: list[str]``               — what the user has said so far
+    - ``skill: str``                       — selected skill name
+    - ``concept_hints: list[str]``         — RAG hints from the router
+    - ``original_question: str``           — the user's first turn
+
+    Loop logic:
+    - On every text turn append to ``answers``.
+    - If there are more unanswered questions → send the next one, stay.
+    - Once ``len(answers) == len(clarifying_questions)`` → exit clarifications,
+      delegate to ``_continue_consultation_with_skill`` (Phase 6) which will
+      build the prompt with [CLARIFICATIONS] section and call the main LLM.
+
+    Phase 4 (this commit): the «all collected» branch posts a placeholder
+    message and clears state. Phase 6 wires it into the real consultation
+    flow. The FSM mechanics are exercised by tests regardless.
+    """
+    if not message.text or message.text.startswith("/"):
+        # Slash commands fall through to their own handlers; bail.
+        return
+    answer = message.text.strip()
+    if not answer:
+        return
+
+    data = await state.get_data()
+    questions = data.get("clarifying_questions") or []
+    answers = list(data.get("answers") or [])
+    if not isinstance(questions, list) or not questions:
+        # FSM data lost — graceful exit so the user isn't stuck.
+        logger.warning(
+            "clarifications.lost_state",
+            user_id=str(message.from_user.id) if message.from_user else None,
+        )
+        await state.set_state(None)
+        return
+
+    answers.append(answer)
+
+    if len(answers) < len(questions):
+        # Ask the next one, persist progress.
+        await state.update_data(answers=answers)
+        await message.answer(questions[len(answers)])
+        return
+
+    # All answers collected — Phase 6 will call the real continuation here.
+    await state.update_data(answers=answers)
+    logger.info(
+        "clarifications.collected",
+        skill=data.get("skill"),
+        question_count=len(questions),
+        original_question=str(data.get("original_question"))[:80],
+    )
+    await message.answer(_CLARIFICATIONS_DONE_MSG)
+    await state.set_state(None)
 
 
 @consultation_router.message(F.text == "/reset")

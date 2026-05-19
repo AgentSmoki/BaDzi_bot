@@ -12,3 +12,8 @@ class BirthDataForm(StatesGroup):
 
 class ConsultationState(StatesGroup):
     waiting_question = State()
+    # Wave 6 / ADR-010: skill-router may request 1-3 clarifying questions
+    # before the main LLM call. The handler enters this state and collects
+    # text answers one by one; once all are gathered, it resumes the main
+    # consultation flow via _continue_consultation_with_skill.
+    collecting_clarifications = State()
