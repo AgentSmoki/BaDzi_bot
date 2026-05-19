@@ -80,6 +80,16 @@ class Chart(Base):
     )
     chart_data: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     has_birth_time: Mapped[bool] = mapped_column(default=True, server_default=sa.true())
+    # Wave 6 / ADR-010: self-FK to another chart of the same user representing
+    # the «partner» counterpart for the relationships skill. NULL = no partner
+    # linked yet; ondelete=SET NULL so deleting the partner doesn't cascade
+    # and kill the owner chart.
+    partner_chart_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        sa.ForeignKey("charts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     user: Mapped[User] = relationship(back_populates="charts", lazy="raise")
@@ -88,6 +98,13 @@ class Chart(Base):
     )
     events: Mapped[list["Event"]] = relationship(
         back_populates="chart", lazy="raise", cascade="all, delete-orphan"
+    )
+    partner_chart: Mapped["Chart | None"] = relationship(
+        "Chart",
+        foreign_keys=[partner_chart_id],
+        remote_side="Chart.id",
+        lazy="raise",
+        post_update=True,
     )
 
 

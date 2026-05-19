@@ -54,6 +54,13 @@ DATE_PROMPT = (
     "Назовите дату вашего рождения.\n\n"
     "Можно цифрами (15.07.1990, 1990-07-15, 15071990) или словами (15 июля 1990)."
 )
+PARTNER_DATE_PROMPT = (
+    "Чтобы сравнить вашу карту с картой партнёра, мне нужны его данные.\n\n" + DATE_PROMPT
+)
+PARTNER_SAVED_MSG = (
+    "Карта партнёра сохранена. Я подключила её к вашему вопросу — "
+    "сейчас отвечу с учётом обеих карт."
+)
 DATE_INVALID = (
     "Не разобрала «{text}». Можно цифрами (15.07.1990), словами (15 июля 1990), "
     "ISO (1990-07-15) или сплошным числом (15071990). Главное — год должен быть."
@@ -241,6 +248,41 @@ async def handle_calc(callback: CallbackQuery, state: FSMContext, bot: Bot) -> N
     await state.set_state(BirthDataForm.waiting_date)
     if isinstance(callback.message, Message):
         await _step(bot=bot, chat_id=callback.message.chat.id, state=state, text=DATE_PROMPT)
+    await callback.answer()
+
+
+@birth_data_router.callback_query(F.data == "partner:add")
+async def handle_add_partner_chart(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
+    """Entry point for the «Add partner chart» flow (Wave 6 / ADR-010).
+
+    Triggered from the consultation handler when the skill-router
+    flags ``needs_partner_chart=True`` and the user's main chart has
+    no ``partner_chart_id`` yet. We reuse ``BirthDataForm`` for the
+    actual data collection — the only difference is FSM data:
+    ``mode="partner"``, ``owner_chart_id``, ``pending_question``.
+
+    After the user confirms and the partner chart is calculated,
+    ``_calculate_and_persist`` reads ``mode`` and calls
+    ``ChartRepository.set_partner`` to link it to the owner chart.
+    """
+    data = await state.get_data()
+    owner_chart_id = data.get("chart_id")
+    pending_question = data.get("pending_question")
+
+    chat_id = callback.message.chat.id if isinstance(callback.message, Message) else None
+    if chat_id is None:
+        await callback.answer()
+        return
+
+    # Reset FSM bubble — fresh anchor for the partner-chart prompt.
+    await state.clear()
+    await state.update_data(
+        mode="partner",
+        owner_chart_id=owner_chart_id,
+        pending_question=pending_question,
+    )
+    await state.set_state(BirthDataForm.waiting_date)
+    await _step(bot=bot, chat_id=chat_id, state=state, text=PARTNER_DATE_PROMPT)
     await callback.answer()
 
 
@@ -609,33 +651,44 @@ async def handle_confirm_calc(
     assert isinstance(date_str, str)
     assert isinstance(chart_output, ChartOutput)
 
+    mode = result.get("mode")  # "partner" or None
     if isinstance(callback.message, Message):
         png = await render_chart_png(
             RenderRequest(
                 chart=chart_output,
-                # CJK characters don't render in the SVG title font; the day
-                # master is shown prominently inside the card, so the title
-                # carries just the date here.
                 title=date_str,
                 subtitle=city_label,
                 has_birth_time=has_birth_time,
             )
         )
+        caption = (
+            f"Карта партнёра рассчитана. Господин дня: <b>{day_master}</b>."
+            if mode == "partner"
+            else f"Карта рассчитана. Господин дня: <b>{day_master}</b>."
+        )
         await callback.message.answer_photo(
             BufferedInputFile(png, "chart.png"),
-            caption=f"Карта рассчитана. Господин дня: <b>{day_master}</b>.",
+            caption=caption,
         )
-        await state.set_state(BirthDataForm.naming)
-        await state.update_data(chart_id=str(chart_id), fsm_msg_id=None)
-        # Naming prompt is a fresh bubble (photo above can't be text-edited);
-        # _step starts a new anchor here.
-        await _step(
-            bot=bot,
-            chat_id=callback.message.chat.id,
-            state=state,
-            text=NAME_PROMPT.format(day_master=day_master, date=date_str),
-            kb=name_skip_kb(),
-        )
+
+        if mode == "partner":
+            # Skip the naming step for partner charts (we already saved
+            # name="Партнёр"). Clear FSM and show a confirmation; Phase 6
+            # will hook this into auto-resume of the pending question.
+            await state.clear()
+            await callback.message.answer(PARTNER_SAVED_MSG)
+        else:
+            await state.set_state(BirthDataForm.naming)
+            await state.update_data(chart_id=str(chart_id), fsm_msg_id=None)
+            # Naming prompt is a fresh bubble (photo above can't be text-edited);
+            # _step starts a new anchor here.
+            await _step(
+                bot=bot,
+                chat_id=callback.message.chat.id,
+                state=state,
+                text=NAME_PROMPT.format(day_master=day_master, date=date_str),
+                kb=name_skip_kb(),
+            )
     await callback.answer()
 
 
@@ -687,6 +740,8 @@ async def _calculate_and_persist(
     user: User,
     session: AsyncSession,
 ) -> dict[str, object]:
+    """Run the calculator, save Chart, and (if ``mode=='partner'``)
+    link it to ``owner_chart_id`` via ChartRepository.set_partner."""
     raw_date = data["birth_date"]
     raw_time = data.get("birth_time")
     has_time = bool(data.get("has_birth_time"))
@@ -695,6 +750,7 @@ async def _calculate_and_persist(
     lon = data["longitude"]
     gender = data["gender"]
     city_name = data["city_name"]
+    mode = data.get("mode")  # None (default) or "partner"
     assert isinstance(raw_date, str) and isinstance(tz_iana, str)
     assert isinstance(lat, float) and isinstance(lon, float)
     assert isinstance(gender, str) and isinstance(city_name, str)
@@ -724,9 +780,32 @@ async def _calculate_and_persist(
         longitude=lon,
         tz_offset=resolved.tz_offset_hours,
         chart_data=chart_data,
-        name=None,
+        name="Партнёр" if mode == "partner" else None,
         has_birth_time=has_time,
     )
+
+    # Link partner chart to its owner. ``owner_chart_id`` was stashed in
+    # FSM data when the user pressed «Add partner chart» in consultation.
+    if mode == "partner":
+        import uuid as _uuid
+
+        owner_raw = data.get("owner_chart_id")
+        if isinstance(owner_raw, str):
+            try:
+                owner_uuid = _uuid.UUID(owner_raw)
+            except ValueError:
+                logger.warning("partner_link.invalid_owner_id", raw=owner_raw)
+            else:
+                await _chart_repo.set_partner(
+                    session,
+                    owner_chart_id=owner_uuid,
+                    partner_chart_id=chart.id,
+                )
+                logger.info(
+                    "partner_link.set",
+                    owner_chart_id=str(owner_uuid),
+                    partner_chart_id=str(chart.id),
+                )
 
     short_city = city_name.split(",")[0].strip() if "," in city_name else city_name
     time_part = resolved.naive_local.strftime("%H:%M") if has_time else "без часа"
@@ -737,6 +816,7 @@ async def _calculate_and_persist(
         "day_master": chart_data["day_master"],
         "has_birth_time": has_time,
         "chart_output": chart_output,
+        "mode": mode,
     }
 
 

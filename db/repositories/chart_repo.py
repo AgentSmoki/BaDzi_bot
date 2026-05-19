@@ -92,6 +92,25 @@ class ChartRepository:
     ) -> None:
         await session.execute(sa.update(Chart).where(Chart.id == chart_id).values(name=name))
 
+    async def set_partner(
+        self,
+        session: AsyncSession,
+        *,
+        owner_chart_id: uuid.UUID,
+        partner_chart_id: uuid.UUID,
+    ) -> None:
+        """Link a partner chart to an owner chart for the relationships
+        skill (Wave 6 / ADR-010). Both charts must belong to the same
+        user — enforced by the bot handler, not the DB.
+
+        Idempotent: setting the same partner_chart_id twice is a no-op
+        beyond updating the row. Caller should commit/flush as needed."""
+        await session.execute(
+            sa.update(Chart)
+            .where(Chart.id == owner_chart_id)
+            .values(partner_chart_id=partner_chart_id)
+        )
+
 
 def _coarse_key(chart: Chart) -> tuple[Any, ...]:
     """Group key that ignores birth time but keeps everything that
