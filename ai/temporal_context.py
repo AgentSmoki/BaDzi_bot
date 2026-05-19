@@ -28,6 +28,7 @@ from ai.calendar_context import render_calendar_block
 from ai.orchestrator import ChatMessage
 from ai.prompts import get_instruction_prefix
 from ai.rag import load_knowledge_for_question
+from ai.skills import SkillSpec
 from calculator import calculate_chart
 from calculator.calendar_select import ScoredDay
 from calculator.models import ChartInput, ChartOutput
@@ -284,40 +285,45 @@ def compose_messages(
     calendar_event_type: str | None = None,
     calendar_start_iso: str | None = None,
     calendar_end_iso: str | None = None,
+    # Wave 6 / ADR-010 — skill-router additions. All optional so legacy
+    # callers (base_interpretation) keep working unchanged.
+    skill_spec: SkillSpec | None = None,
+    partner_chart: ChartOutput | None = None,
+    clarifications: list[tuple[str, str]] | None = None,
+    concept_hints: list[str] | None = None,
 ) -> list[ChatMessage]:
     """Build the final ``messages`` list for the orchestrator.
 
-    Order:
-    1. system (Anastasia persona — 39 KB, cache-friendly stable prefix)
-    2. cached history (oldest → newest, from 1.8.4)
-    3. one fresh user message with the structured format (task 2.2.5):
+    Section order in the user-message body:
 
-       [BAZI_DATA] natal chart + stars + luck pillars [/BAZI_DATA]
-       [CURRENT_MOMENT] today's pillars + active stars + resonances [/CURRENT_MOMENT]
-       [INSTRUCTIONS] strict-cite + 4-section output + anti-hallucination [/INSTRUCTIONS]
-       [QUESTION] user's text [/QUESTION]
+    1. ``[BAZI_DATA]``         — natal chart, stars, luck pillars
+    2. ``[PARTNER_CHART]``     — Wave 6, when relationships skill linked
+       a partner chart via ``charts.partner_chart_id``
+    3. ``[CURRENT_MOMENT]``    — today's pillars + resonances (temporal Qs)
+    4. ``[CALENDAR_SELECTION]``— pre-scored top/bottom dates (date Qs)
+    5. ``[SKILL]``             — Wave 6, body of selected skill's .md file
+    6. ``[CLARIFICATIONS]``    — Wave 6, accumulated Q→A from clarifying loop
+    7. ``[KNOWLEDGE]``         — RAG hits, augmented by ``concept_hints``
+    8. ``[INSTRUCTIONS]``      — strict-cite + 4-section output rules
+    9. ``[QUESTION]``          — the user's text
 
-    Putting the chart inside the *current* user turn (instead of as a
-    separate system message) keeps the LLM aware that the chart is
-    what the user is asking *about*, not background trivia.
-
-    Structured tags ([BAZI_DATA] etc.) replace the prior `**Бацзы карта**`
-    headers: the explicit close-tags let the LLM reason about scope —
-    «эти проценты — только то что внутри [BAZI_DATA]» — which
-    measurably reduces fabrication of percentages and star names per
-    research findings 2026-05-16. History is preserved verbatim so the
-    LLM can refer back to earlier answers.
+    Structured tags let the LLM reason about scope — «эти проценты —
+    только то что внутри [BAZI_DATA]» — which measurably reduces
+    fabrication per research 2026-05-16. History is preserved verbatim
+    so the LLM can refer back to earlier answers.
     """
     chart_block = render_chart_block(chart)
     sections = [f"[BAZI_DATA]\n{chart_block}\n[/BAZI_DATA]"]
+    if partner_chart is not None:
+        partner_block = render_chart_block(partner_chart)
+        sections.append(f"[PARTNER_CHART]\n{partner_block}\n[/PARTNER_CHART]")
     if include_temporal:
         snapshot = now_chart or get_current_bazi()
         temporal_block = render_temporal_block(snapshot, natal_chart=chart)
         sections.append(f"[CURRENT_MOMENT]\n{temporal_block}\n[/CURRENT_MOMENT]")
     if calendar_top is not None and calendar_bottom is not None:
-        # Type narrowing: event_type is Literal in calendar_select, but
-        # we accept str here for caller flexibility. The renderer
-        # tolerates any string (falls back to a generic label).
+        # event_type is Literal in calendar_select; we accept str here
+        # and let the renderer tolerate any string.
         cal_block = render_calendar_block(
             top=calendar_top,
             bottom=calendar_bottom,
@@ -326,7 +332,15 @@ def compose_messages(
             end_iso=calendar_end_iso or "",
         )
         sections.append(f"[CALENDAR_SELECTION]\n{cal_block}\n[/CALENDAR_SELECTION]")
-    knowledge_block = load_knowledge_for_question(question)
+    if skill_spec is not None:
+        sections.append(f"[SKILL: {skill_spec.name}]\n{skill_spec.body}\n[/SKILL]")
+    if clarifications:
+        clar_lines = []
+        for q, a in clarifications:
+            clar_lines.append(f"- Q: {q}")
+            clar_lines.append(f"  A: {a}")
+        sections.append("[CLARIFICATIONS]\n" + "\n".join(clar_lines) + "\n[/CLARIFICATIONS]")
+    knowledge_block = load_knowledge_for_question(question, concept_hints=concept_hints)
     if knowledge_block:
         sections.append(f"[KNOWLEDGE]\n{knowledge_block}\n[/KNOWLEDGE]")
     sections.append(get_instruction_prefix())

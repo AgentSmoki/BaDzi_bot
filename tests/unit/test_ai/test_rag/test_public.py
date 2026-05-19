@@ -79,3 +79,36 @@ def test_top_k_caps_results(kb: Path) -> None:
     block = load_knowledge_for_question("baihu белый тигр", top_k=0)
     # top_k=0 means no direct hits — block is empty
     assert block == "" or "Белый Тигр" not in block
+
+
+# ── Wave 6 / Phase 5: concept_hints from the skill-router ────────────────
+
+
+def test_concept_hints_pull_in_doc_not_mentioned_in_question(kb: Path) -> None:
+    """The skill-router supplies concept_hints like ``baihu`` that the
+    user's question may not contain verbatim. They should still pull
+    the relevant KB doc in."""
+    block = load_knowledge_for_question(
+        "Расскажи про мою сильную ветвь",
+        concept_hints=["baihu"],
+    )
+    assert "Белый Тигр" in block
+
+
+def test_concept_hints_deduplicated_with_extracted_concepts(kb: Path) -> None:
+    """Passing a concept that's already in the question text is a no-op
+    — no duplicate hit, no crash."""
+    block = load_knowledge_for_question(
+        "Расскажи про baihu в моей карте",
+        concept_hints=["baihu"],
+    )
+    assert "Белый Тигр" in block
+    # The block format has one entry per node — count occurrences of the
+    # node title prefix (it appears once in the body header).
+    assert block.count("Белый Тигр (白虎)") == 1
+
+
+def test_concept_hints_none_equals_legacy_behavior(kb: Path) -> None:
+    a = load_knowledge_for_question("baihu")
+    b = load_knowledge_for_question("baihu", concept_hints=None)
+    assert a == b

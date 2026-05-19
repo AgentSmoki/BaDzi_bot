@@ -9,16 +9,35 @@ from ai.rag.format import format_knowledge_block
 from ai.rag.retrieve import retrieve_nodes
 
 
-def load_knowledge_for_question(question: str, *, top_k: int = 5) -> str:
+def load_knowledge_for_question(
+    question: str,
+    *,
+    top_k: int = 5,
+    concept_hints: list[str] | None = None,
+) -> str:
     """End-to-end: question → concepts + title-tokens → graph hits →
     [KNOWLEDGE] body.
 
+    ``concept_hints`` — extra concepts supplied by the fast skill-router
+    (Wave 6, ADR-010). They're unioned with vocabulary-matched concepts
+    so domain-specific tokens the router noticed (``七殺``, ``桃花``,
+    ``столп месяца``) participate in the KuzuDB Cypher join even when
+    they don't appear verbatim in the question text.
+
     Returns ``""`` when there's nothing to attach (no KB, no matches) —
     :func:`compose_messages` then omits the section so we don't ship a
-    hollow heading. The signature mirrors the now-removed
-    keyword-only loader so the ``temporal_context`` call site is unchanged.
+    hollow heading.
     """
-    concepts = extract_concepts(question)
+    concepts = list(extract_concepts(question))
+    if concept_hints:
+        # Union preserving order — extracted concepts come first (they
+        # came from the question text directly), router hints append.
+        seen = set(concepts)
+        for hint in concept_hints:
+            hint_norm = hint.strip()
+            if hint_norm and hint_norm not in seen:
+                concepts.append(hint_norm)
+                seen.add(hint_norm)
     tokens = extract_search_tokens(question)
     if not concepts and not tokens:
         return ""
