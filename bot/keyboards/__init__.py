@@ -152,6 +152,18 @@ def chart_actions_kb_post_interpret(
     return builder.as_markup()
 
 
+def calc_intro_kb() -> InlineKeyboardMarkup:
+    """Shown when the user presses «Рассчитать карту» (menu:calc).
+
+    Default UX (Wave 2): bot invites a single-line entry like
+    «27.04.88 Севастополь 07:03 утра». The single button «Пошагово»
+    is the escape hatch for users who'd rather walk through the
+    classic FSM (date → time → city → gender)."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Пошагово →", callback_data="calc:stepwise")
+    return builder.as_markup()
+
+
 def chart_delete_confirm_kb(chart_id: uuid.UUID) -> InlineKeyboardMarkup:
     """Confirm dialog shown before hard-deleting a chart (Wave 1b).
 
@@ -226,6 +238,7 @@ def pricing_kb(*, allow_skip: bool = False) -> InlineKeyboardMarkup:
 __all__ = [
     "add_partner_chart_kb",
     "back_to_time_kb",
+    "calc_intro_kb",
     "chart_actions_kb",
     "chart_actions_kb_post_interpret",
     "chart_delete_confirm_kb",

@@ -8,6 +8,10 @@ class BirthDataForm(StatesGroup):
     waiting_gender = State()
     confirm = State()
     naming = State()
+    # Wave 2 — пункт 6 от Богдана: пользователь пишет данные одной
+    # строкой ("27.04.88 Севастополь 07:03 утра"), LLM extract парсит
+    # и заполняет FSM. Если поля недостаёт — fallback на пошаговый flow.
+    waiting_full_text = State()
 
 
 class ConsultationState(StatesGroup):

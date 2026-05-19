@@ -1,7 +1,7 @@
 import asyncio
 import re
 from datetime import date, datetime, time
-from typing import Final
+from typing import Any, Final
 
 import dateparser
 import structlog
@@ -11,8 +11,10 @@ from aiogram.types import BufferedInputFile, CallbackQuery, InlineKeyboardMarkup
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai.card_renderer import RenderRequest, render_chart_png
+from ai.text_extract import ExtractedBirthData, extract_birth_data
 from bot.keyboards import (
     back_to_time_kb,
+    calc_intro_kb,
     city_choice_kb,
     confirm_kb,
     edit_menu_kb,
@@ -65,6 +67,17 @@ DATE_PROMPT = (
     "Назовите дату вашего рождения.\n\n"
     "Можно цифрами (15.07.1990, 1990-07-15, 15071990) или словами (15 июля 1990)."
 )
+# Wave 2 — smart entry. Encourages the «one-line» path; the «Пошагово»
+# button drops to the classic FSM (date → time → city → gender).
+SMART_INTRO_PROMPT = (
+    "Напишите данные рождения в одной строке — например:\n\n"
+    "<i>27.04.1988 Севастополь 07:03 утра, мужчина</i>\n\n"
+    "Я разберу что вы написали и спрошу только про то, чего не хватит."
+)
+SMART_EXTRACT_FAILED = (
+    "Не разобрала текст автоматически — давайте по шагам. Назовите дату рождения."
+)
+SMART_EXTRACT_PARTIAL = "Записала что смогла. Уточните, пожалуйста, недостающее."
 PARTNER_DATE_PROMPT = (
     "Чтобы сравнить вашу карту с картой партнёра, мне нужны его данные.\n\n" + DATE_PROMPT
 )
@@ -307,10 +320,139 @@ def _parse_birth_time(text: str) -> time | None:
 
 @birth_data_router.callback_query(F.data == "menu:calc")
 async def handle_calc(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
+    """Smart-entry start (Wave 2): prompt for a one-liner; user may
+    drop to stepwise mode via «Пошагово» button.
+
+    Old «date first» behaviour preserved as the explicit stepwise
+    fallback below (`calc:stepwise`)."""
+    await state.set_state(BirthDataForm.waiting_full_text)
+    if isinstance(callback.message, Message):
+        await _step(
+            bot=bot,
+            chat_id=callback.message.chat.id,
+            state=state,
+            text=SMART_INTRO_PROMPT,
+            kb=calc_intro_kb(),
+        )
+    await callback.answer()
+
+
+@birth_data_router.callback_query(BirthDataForm.waiting_full_text, F.data == "calc:stepwise")
+async def handle_calc_stepwise(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
+    """Escape hatch from smart-entry → classic FSM with date prompt."""
     await state.set_state(BirthDataForm.waiting_date)
     if isinstance(callback.message, Message):
         await _step(bot=bot, chat_id=callback.message.chat.id, state=state, text=DATE_PROMPT)
     await callback.answer()
+
+
+@birth_data_router.message(BirthDataForm.waiting_full_text, F.text)
+async def handle_full_text(message: Message, state: FSMContext, bot: Bot) -> None:
+    """User pasted a free-form one-liner. LLM extract → fill FSM with
+    whatever fields the model could read → route to the first missing
+    step (or straight to confirm if nothing's missing)."""
+    text = message.text or ""
+    await _swallow_user_message(message)
+
+    if not text.strip():
+        return
+
+    extract = await extract_birth_data(text)
+    await _apply_extracted_to_fsm(extract, state)
+    await _route_to_first_missing_step(state, bot, message.chat.id, extract)
+
+
+async def _apply_extracted_to_fsm(extract: ExtractedBirthData, state: FSMContext) -> None:
+    """Take whatever the LLM gave us and stage it into FSM data so the
+    fallback FSM steps see it as «already entered». Validation happens
+    later in the per-step handlers — bad inputs naturally re-prompt."""
+    fsm_updates: dict[str, Any] = {}
+    if extract.date_iso:
+        fsm_updates["birth_date"] = extract.date_iso
+    if extract.has_birth_time and extract.time_iso:
+        fsm_updates["birth_time"] = extract.time_iso
+        fsm_updates["has_birth_time"] = True
+    elif extract.confidence >= 0.5 and extract.time_iso is None:
+        # The LLM was confident the user said «без времени» — pre-skip
+        # the time step. Low-confidence extractions don't pre-skip; the
+        # FSM will still ask, so we don't silently lose the hour pillar.
+        fsm_updates["has_birth_time"] = False
+    if extract.gender:
+        fsm_updates["gender"] = extract.gender
+    if fsm_updates:
+        await state.update_data(**fsm_updates)
+
+
+async def _route_to_first_missing_step(
+    state: FSMContext,
+    bot: Bot,
+    chat_id: int,
+    extract: ExtractedBirthData,
+) -> None:
+    """Pick the next FSM state based on what's still missing.
+
+    Priority order matches the linear FSM: date → time → city →
+    gender → confirm. Time is skipped when the LLM confidently
+    reported «без времени» (``has_birth_time=False`` set above)."""
+    data = await state.get_data()
+
+    has_date = bool(data.get("birth_date"))
+    has_time_or_skipped = "has_birth_time" in data
+    has_city = bool(data.get("city_name"))
+    has_gender = bool(data.get("gender"))
+
+    if not has_date:
+        await state.set_state(BirthDataForm.waiting_date)
+        await _step(
+            bot=bot,
+            chat_id=chat_id,
+            state=state,
+            text=(
+                SMART_EXTRACT_FAILED
+                if extract.confidence < 0.4
+                else SMART_EXTRACT_PARTIAL + "\n\n" + DATE_PROMPT
+            ),
+        )
+        return
+
+    if not has_time_or_skipped:
+        await state.set_state(BirthDataForm.waiting_time)
+        await _step(
+            bot=bot,
+            chat_id=chat_id,
+            state=state,
+            text=SMART_EXTRACT_PARTIAL + "\n\nТеперь время рождения.",
+            kb=time_step_kb(),
+        )
+        return
+
+    if not has_city:
+        await state.set_state(BirthDataForm.waiting_city)
+        prompt = SMART_EXTRACT_PARTIAL + "\n\n" + CITY_PROMPT
+        # If extract.city is set but geocoder wasn't run yet, prepopulate
+        # the question so the user can correct it instead of re-typing.
+        if extract.city:
+            prompt = (
+                SMART_EXTRACT_PARTIAL
+                + f"\n\nЯ услышала «{extract.city}» — напишите ровно, "
+                + "если правильно (или поправьте):"
+            )
+        await _step(bot=bot, chat_id=chat_id, state=state, text=prompt)
+        return
+
+    if not has_gender:
+        await state.set_state(BirthDataForm.waiting_gender)
+        await _step(
+            bot=bot,
+            chat_id=chat_id,
+            state=state,
+            text=SMART_EXTRACT_PARTIAL + "\n\n" + GENDER_PROMPT,
+            kb=gender_kb(),
+        )
+        return
+
+    # All four fields present → jump to confirm summary.
+    await _back_to_confirm(bot, chat_id, state)
 
 
 @birth_data_router.callback_query(F.data == "partner:add")

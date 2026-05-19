@@ -16,6 +16,7 @@ _PROMPTS_DIR: Final = Path(__file__).resolve().parent
 ANASTASIA_SYSTEM: Final = "anastasia_system"
 ANASTASIA_BASE: Final = "base"
 SKILL_ROUTER_SYSTEM: Final = "skill_router_system"
+BIRTH_EXTRACT_SYSTEM: Final = "birth_extract_system"
 
 
 @lru_cache(maxsize=8)
@@ -57,6 +58,12 @@ def load_skill_router_prompt() -> str:
     skill catalog before sending. All JSON braces in the prompt use
     ``{{`` / ``}}`` to survive ``str.format()``."""
     return get_prompt(SKILL_ROUTER_SYSTEM)
+
+
+def load_birth_extract_prompt() -> str:
+    """Prompt for the smart birth-data extractor (Wave 2, ai.text_extract).
+    No placeholders — caller passes the user text as the user message."""
+    return get_prompt(BIRTH_EXTRACT_SYSTEM)
 
 
 # ── Anti-hallucination instruction prefix (task 2.2.5) ────────────────────
