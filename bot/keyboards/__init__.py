@@ -163,6 +163,21 @@ def topics_kb() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def add_partner_chart_kb() -> InlineKeyboardMarkup:
+    """Inline kb shown by the skill-router (Wave 6) when the
+    relationships skill detects «my husband / my girlfriend» and the
+    user's main chart has no ``partner_chart_id`` linked yet.
+
+    Two buttons: «Добавить карту партнёра» (triggers the partner FSM
+    flow in bot.routers.birth_data) and «Без неё» (the LLM answers
+    generically without the comparison)."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Добавить карту партнёра", callback_data="partner:add")
+    builder.button(text="Ответить без неё", callback_data="partner:skip")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
 def pricing_kb(*, allow_skip: bool = False) -> InlineKeyboardMarkup:
     """Pricing keyboard shown after the free question is consumed.
 
@@ -184,6 +199,7 @@ def pricing_kb(*, allow_skip: bool = False) -> InlineKeyboardMarkup:
 
 
 __all__ = [
+    "add_partner_chart_kb",
     "back_to_time_kb",
     "chart_actions_kb",
     "chart_actions_kb_post_interpret",

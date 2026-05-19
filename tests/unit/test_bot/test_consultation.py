@@ -21,6 +21,7 @@ from aiogram.types import Message
 from ai.context import HistoryStore
 from ai.fallback import FallbackResult
 from ai.orchestrator import ChatMessage, ChatResult, ChatUsage, UpstreamError
+from ai.skills.models import SkillSelection
 from bot.routers import consultation as consultation_module
 from bot.routers.consultation import (
     handle_ask_pressed,
@@ -29,6 +30,28 @@ from bot.routers.consultation import (
 )
 from calculator import calculate_chart
 from calculator.models import ChartInput
+
+
+@pytest.fixture(autouse=True)
+def stub_skill_router(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Replace the fast LLM skill-router with a deterministic stub
+    that returns `skill="default"` and no clarifying/partner side-
+    effects. The existing tests focus on the post-routing flow
+    (compose → chat → persist); skill-router-specific behavior is
+    covered by test_consultation_skill_router.py."""
+
+    async def fake_select_skill(**_kw: Any) -> SkillSelection:
+        return SkillSelection(
+            skill="default",
+            confidence=0.9,
+            clarifying_questions=[],
+            needs_partner_chart=False,
+            concept_hints=[],
+            reason="autouse stub",
+        )
+
+    monkeypatch.setattr(consultation_module, "select_skill", fake_select_skill)
+
 
 # ── Fixtures ─────────────────────────────────────────────────────────────
 
@@ -77,6 +100,10 @@ def fake_chart(reference_chart_data: dict[str, Any]) -> MagicMock:
     c = MagicMock()
     c.id = _uuid.uuid4()
     c.chart_data = reference_chart_data
+    # Wave 6 — handle_question reads chart.partner_chart_id to decide
+    # whether to ask for a partner chart; default to None so the stub
+    # select_skill never needs it.
+    c.partner_chart_id = None
     return c
 
 

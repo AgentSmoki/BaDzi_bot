@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import uuid as _uuid
 from datetime import date
 from decimal import Decimal
 
@@ -49,11 +50,14 @@ from ai.calendar_parse import detect_calendar_request
 from ai.context import HistoryStore
 from ai.fallback import chat_with_fallback
 from ai.orchestrator import ChatMessage, OrchestratorError
-from ai.prompts import load_system_prompt
+from ai.prompts import load_base_prompt, load_system_prompt
 from ai.router import route
+from ai.skill_router import select_skill
+from ai.skills import SkillSpec, load_skill
+from ai.skills.loader import SkillFileError
 from ai.temporal_context import compose_messages, get_current_bazi
 from bot.config import get_settings
-from bot.keyboards import pricing_kb
+from bot.keyboards import add_partner_chart_kb, pricing_kb
 from bot.states import ConsultationState
 from calculator.calendar_select import EVENT_TYPE_RU, pick_best_dates
 from calculator.models import ChartOutput
@@ -75,13 +79,17 @@ _FREE_QUESTION_USED_MSG = (
     "У вас был один бесплатный вопрос. Чтобы продолжить диалог с Анастасией, выберите тариф ниже."
 )
 
-# Wave 6 / Phase 4: placeholder used by the clarifying-questions FSM
-# loop when all answers have been collected. Phase 6 replaces this with
-# a real call to ``_continue_consultation_with_skill`` that uses the
-# accumulated clarifications + skill_name + concept_hints in the LLM
-# prompt. Until Phase 6 lands, the handler just acknowledges and clears
-# state so the FSM scaffolding can be tested in isolation.
-_CLARIFICATIONS_DONE_MSG = "Спасибо, я учла ваши уточнения. Минуту, готовлю ответ."
+# Wave 6 / Phase 6: confidence threshold for skill_router below which we
+# fall back to the universal «default» skill. Routers occasionally emit
+# low-confidence guesses on ambiguous questions — better to give a
+# generic-but-correct answer than a specialised-and-wrong one.
+_SKILL_ROUTER_CONFIDENCE_FLOOR: float = 0.4
+
+_PARTNER_REQUEST_MSG = (
+    "Похоже, вы спрашиваете про конкретного человека. Чтобы я сравнила "
+    "ваши карты по столпам дня и месяца — добавьте, пожалуйста, "
+    "карту партнёра. Без неё отвечу в общем виде."
+)
 
 
 def _today() -> date:
@@ -152,7 +160,6 @@ async def _resolve_active_chart(
     """Pick the chart this conversation is about. FSM `chart_id`
     wins (set when user just built or opened one); otherwise we fall
     back to the user's most recent chart."""
-    import uuid as _uuid
 
     fsm_data = await state.get_data()
     raw_id = fsm_data.get("chart_id")
@@ -171,30 +178,24 @@ async def _resolve_active_chart(
 async def handle_clarification_answer(
     message: Message,
     state: FSMContext,
+    session: AsyncSession,
+    user: User,
+    history_store: HistoryStore,
 ) -> None:
     """Collect one clarifying-question answer at a time.
 
-    FSM data shape (set by handle_question in Phase 6 when the skill
-    router returns clarifying_questions):
-    - ``clarifying_questions: list[str]``  — original 1-3 questions
-    - ``answers: list[str]``               — what the user has said so far
-    - ``skill: str``                       — selected skill name
-    - ``concept_hints: list[str]``         — RAG hints from the router
-    - ``original_question: str``           — the user's first turn
+    FSM data shape (set by handle_question when the skill-router returns
+    clarifying_questions): clarifying_questions, answers, skill,
+    concept_hints, original_question, plus chart_id from the previous
+    handle_ask_pressed.
 
     Loop logic:
     - On every text turn append to ``answers``.
     - If there are more unanswered questions → send the next one, stay.
-    - Once ``len(answers) == len(clarifying_questions)`` → exit clarifications,
-      delegate to ``_continue_consultation_with_skill`` (Phase 6) which will
-      build the prompt with [CLARIFICATIONS] section and call the main LLM.
-
-    Phase 4 (this commit): the «all collected» branch posts a placeholder
-    message and clears state. Phase 6 wires it into the real consultation
-    flow. The FSM mechanics are exercised by tests regardless.
+    - Once all are collected → reload chart + skill_spec + partner_chart
+      and delegate to ``_continue_consultation_with_skill``.
     """
     if not message.text or message.text.startswith("/"):
-        # Slash commands fall through to their own handlers; bail.
         return
     answer = message.text.strip()
     if not answer:
@@ -204,7 +205,6 @@ async def handle_clarification_answer(
     questions = data.get("clarifying_questions") or []
     answers = list(data.get("answers") or [])
     if not isinstance(questions, list) or not questions:
-        # FSM data lost — graceful exit so the user isn't stuck.
         logger.warning(
             "clarifications.lost_state",
             user_id=str(message.from_user.id) if message.from_user else None,
@@ -215,21 +215,134 @@ async def handle_clarification_answer(
     answers.append(answer)
 
     if len(answers) < len(questions):
-        # Ask the next one, persist progress.
         await state.update_data(answers=answers)
         await message.answer(questions[len(answers)])
         return
 
-    # All answers collected — Phase 6 will call the real continuation here.
-    await state.update_data(answers=answers)
+    # All answers collected — resume the consultation with skill context.
+    original_question = str(data.get("original_question") or "")
+    skill_name = data.get("skill") or "default"
+    concept_hints_raw = data.get("concept_hints") or []
+    concept_hints = (
+        [str(h) for h in concept_hints_raw] if isinstance(concept_hints_raw, list) else []
+    )
+    clarifications = [(str(q), str(a)) for q, a in zip(questions, answers, strict=True)]
+
+    chart = await _resolve_active_chart(state, session, user)
+    if chart is None or message.bot is None:
+        await message.answer(
+            "Не нашла карту — вернитесь в меню и постройте её заново.",
+            reply_markup=_no_chart_kb(),
+        )
+        await state.set_state(None)
+        return
+
     logger.info(
         "clarifications.collected",
-        skill=data.get("skill"),
+        skill=skill_name,
         question_count=len(questions),
-        original_question=str(data.get("original_question"))[:80],
+        original_question=original_question[:80],
     )
-    await message.answer(_CLARIFICATIONS_DONE_MSG)
     await state.set_state(None)
+
+    chart_data = ChartOutput.model_validate(chart.chart_data)
+    skill_spec = _safe_load_skill(skill_name)
+    partner_chart_data = await _load_partner_chart_data(session, chart)
+
+    await _continue_consultation_with_skill(
+        message,
+        chart=chart,
+        chart_data=chart_data,
+        user=user,
+        session=session,
+        history_store=history_store,
+        original_question=original_question,
+        skill_spec=skill_spec,
+        partner_chart=partner_chart_data,
+        clarifications=clarifications,
+        concept_hints=concept_hints,
+    )
+
+
+@consultation_router.callback_query(F.data == "partner:skip")
+async def handle_partner_skip(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+    user: User,
+    history_store: HistoryStore,
+) -> None:
+    """User chose «Ответить без карты партнёра» — continue the
+    consultation in generic mode (skill stays but partner_chart=None)."""
+    if not isinstance(callback.message, Message):
+        await callback.answer()
+        return
+
+    data = await state.get_data()
+    original_question = str(data.get("pending_question") or "")
+    skill_name = data.get("pending_skill") or "relationships"
+    concept_hints_raw = data.get("pending_concept_hints") or []
+    concept_hints = (
+        [str(h) for h in concept_hints_raw] if isinstance(concept_hints_raw, list) else []
+    )
+
+    chart = await _resolve_active_chart(state, session, user)
+    if chart is None or not original_question:
+        await callback.message.answer(
+            "Не нашла исходный вопрос — задайте его заново через меню.",
+            reply_markup=_no_chart_kb(),
+        )
+        await state.set_state(None)
+        await callback.answer()
+        return
+
+    chart_data = ChartOutput.model_validate(chart.chart_data)
+    skill_spec = _safe_load_skill(skill_name)
+    await state.set_state(None)
+
+    await _continue_consultation_with_skill(
+        callback.message,
+        chart=chart,
+        chart_data=chart_data,
+        user=user,
+        session=session,
+        history_store=history_store,
+        original_question=original_question,
+        skill_spec=skill_spec,
+        partner_chart=None,
+        clarifications=None,
+        concept_hints=concept_hints,
+    )
+    await callback.answer()
+
+
+def _safe_load_skill(name: str) -> SkillSpec | None:
+    """Resolve a SkillName-string into a SkillSpec, falling back to
+    ``default`` on file errors. Returns ``None`` only if even ``default``
+    won't load (catastrophic — caller treats as legacy flow)."""
+    if name not in {"work", "relationships", "health", "time", "default"}:
+        name = "default"
+    try:
+        return load_skill(name)
+    except SkillFileError:
+        logger.warning("skill.load_failed", skill=name)
+        if name != "default":
+            try:
+                return load_skill("default")
+            except SkillFileError:
+                pass
+        return None
+
+
+async def _load_partner_chart_data(session: AsyncSession, chart: Chart) -> ChartOutput | None:
+    """If ``chart.partner_chart_id`` is set, load the partner Chart and
+    parse its JSONB into a ChartOutput. Returns None on miss."""
+    if chart.partner_chart_id is None:
+        return None
+    partner = await _chart_repo.get_by_id(session, chart.partner_chart_id)
+    if partner is None:
+        return None
+    return ChartOutput.model_validate(partner.chart_data)
 
 
 @consultation_router.message(F.text == "/reset")
@@ -288,11 +401,19 @@ async def handle_question(
     user: User,
     history_store: HistoryStore,
 ) -> None:
-    """Route the question, call LLM with typing indicator, persist
-    the turn, and reply to the user."""
+    """Entry point for one consultation turn.
+
+    Two routing paths gated by ``settings.skill_router_enabled``:
+
+    1. **Skill-router (default)** — fast LLM picks a skill, may request
+       clarifying questions or a partner chart, then resumes via
+       ``_continue_consultation_with_skill`` with skill_spec injected.
+    2. **Legacy** — direct call to ``_continue_consultation_with_skill``
+       without skill_spec, using the full 39 KB Anastasia system prompt.
+
+    Guards (free-question, no-chart, slash-command) are identical in
+    both paths."""
     if not message.text or message.text.startswith("/"):
-        # Slash-commands fall through to other handlers; bail out
-        # cleanly here so we don't double-process them.
         return
     question = message.text.strip()
     if not question:
@@ -308,9 +429,7 @@ async def handle_question(
         await state.set_state(None)
         return
 
-    # Free-question guard (task 1.12.0): new users get one free dialogue
-    # turn; the second attempt is gated behind pricing. Without this,
-    # an unsubscribed user could hammer OpenRouter tokens indefinitely.
+    # Free-question guard (task 1.12.0).
     if user.free_question_used:
         settings = get_settings()
         is_admin = user.telegram_id == settings.admin_telegram_id
@@ -328,14 +447,128 @@ async def handle_question(
         return
 
     chart_data = ChartOutput.model_validate(chart.chart_data)
-    decision = route(question)
+    settings = get_settings()
 
-    # Calendar selection (择日) detection — runs *before* the regular
-    # LLM call. If the user asks "лучшие даты для свадьбы в июне",
-    # we pre-score every day in the range against their natal chart
-    # and pass the table to the LLM. Without this, Anastasia would
-    # have to invent dates from her training data (= hallucination).
-    cal_request = detect_calendar_request(question, now=_today())
+    if not settings.skill_router_enabled:
+        # Legacy path — no skill router, full Anastasia prompt as before.
+        await _continue_consultation_with_skill(
+            message,
+            chart=chart,
+            chart_data=chart_data,
+            user=user,
+            session=session,
+            history_store=history_store,
+            original_question=question,
+            skill_spec=None,
+            partner_chart=None,
+            clarifications=None,
+            concept_hints=None,
+        )
+        return
+
+    # ── Skill-router path (Wave 6 / ADR-010) ─────────────────────────
+    history = await history_store.get(user.telegram_id)
+    skill_sel = await select_skill(question=question, chart=chart_data, history=history)
+
+    # Downgrade weak picks to default so we don't ship a wrong-specialised reply.
+    if skill_sel.confidence < _SKILL_ROUTER_CONFIDENCE_FLOOR and skill_sel.skill != "default":
+        logger.info(
+            "skill_router.low_confidence_downgrade",
+            from_skill=skill_sel.skill,
+            confidence=skill_sel.confidence,
+        )
+        effective_skill: str = "default"
+    else:
+        effective_skill = skill_sel.skill
+
+    # Branch 1: router wants clarifying questions before answering.
+    if skill_sel.clarifying_questions:
+        await state.set_state(ConsultationState.collecting_clarifications)
+        await state.update_data(
+            clarifying_questions=skill_sel.clarifying_questions,
+            answers=[],
+            skill=effective_skill,
+            concept_hints=list(skill_sel.concept_hints),
+            original_question=question,
+            chart_id=str(chart.id),
+        )
+        await message.answer(skill_sel.clarifying_questions[0])
+        logger.info(
+            "consultation.clarifications_requested",
+            skill=effective_skill,
+            confidence=skill_sel.confidence,
+            count=len(skill_sel.clarifying_questions),
+        )
+        return
+
+    # Branch 2: relationships skill needs a partner chart we don't have.
+    if skill_sel.needs_partner_chart and chart.partner_chart_id is None:
+        await state.update_data(
+            pending_question=question,
+            pending_skill=effective_skill,
+            pending_concept_hints=list(skill_sel.concept_hints),
+            chart_id=str(chart.id),
+        )
+        await message.answer(_PARTNER_REQUEST_MSG, reply_markup=add_partner_chart_kb())
+        logger.info(
+            "consultation.partner_chart_requested",
+            skill=effective_skill,
+            confidence=skill_sel.confidence,
+        )
+        return
+
+    # Branch 3: straight through to the main LLM with skill body injected.
+    skill_spec = _safe_load_skill(effective_skill)
+    partner_chart_data = await _load_partner_chart_data(session, chart)
+
+    await _continue_consultation_with_skill(
+        message,
+        chart=chart,
+        chart_data=chart_data,
+        user=user,
+        session=session,
+        history_store=history_store,
+        original_question=question,
+        skill_spec=skill_spec,
+        partner_chart=partner_chart_data,
+        clarifications=None,
+        concept_hints=list(skill_sel.concept_hints),
+    )
+
+
+# ── Shared consultation continuation ─────────────────────────────────────
+
+
+async def _continue_consultation_with_skill(
+    message: Message,
+    *,
+    chart: Chart,
+    chart_data: ChartOutput,
+    user: User,
+    session: AsyncSession,
+    history_store: HistoryStore,
+    original_question: str,
+    skill_spec: SkillSpec | None,
+    partner_chart: ChartOutput | None,
+    clarifications: list[tuple[str, str]] | None,
+    concept_hints: list[str] | None,
+) -> None:
+    """Compose the prompt, call the main LLM, persist, reply.
+
+    Shared between the skill-router happy path, the clarifications
+    completion path, the partner-skip path, and the legacy path.
+    ``skill_spec is None`` → legacy system prompt (anastasia_system.md);
+    non-None → base prompt + injected [SKILL] section.
+    """
+    if message.bot is None:
+        # Defensive — every aiogram Message has .bot in production, but
+        # tests sometimes hand us a bare MagicMock.
+        return
+
+    decision = route(original_question)
+
+    # Calendar selection (择日) detection.
+    cal_request = detect_calendar_request(original_question, now=_today())
     calendar_top = None
     calendar_bottom = None
     cal_event_label = None
@@ -365,14 +598,14 @@ async def handle_question(
             calendar_bottom = None
 
     history = await history_store.get(user.telegram_id)
-    # Temporal context is needed both when the router flags it AND
-    # when calendar block is attached (for resonance computation).
     needs_temporal = decision.needs_temporal_context or calendar_top is not None
     now_chart = get_current_bazi() if needs_temporal else None
+
+    system_prompt = load_base_prompt() if skill_spec is not None else load_system_prompt()
     messages = compose_messages(
-        system_prompt=load_system_prompt(),
+        system_prompt=system_prompt,
         chart=chart_data,
-        question=question,
+        question=original_question,
         history=history,
         include_temporal=needs_temporal,
         now_chart=now_chart,
@@ -381,6 +614,10 @@ async def handle_question(
         calendar_event_type=cal_event_label,
         calendar_start_iso=cal_start_iso,
         calendar_end_iso=cal_end_iso,
+        skill_spec=skill_spec,
+        partner_chart=partner_chart,
+        clarifications=clarifications,
+        concept_hints=concept_hints,
     )
 
     typing_task = asyncio.create_task(_keep_typing(message))
@@ -391,7 +628,7 @@ async def handle_question(
             intent=decision.intent,
         )
     except OrchestratorError:
-        logger.exception("consultation.llm_failed", question=question[:80])
+        logger.exception("consultation.llm_failed", question=original_question[:80])
         await message.answer(
             "Анастасия не смогла ответить — попробуйте задать вопрос ещё раз.",
             reply_markup=_after_answer_kb(),
@@ -405,21 +642,18 @@ async def handle_question(
     text = answer.result.text.strip()
     await message.answer(text, reply_markup=_after_answer_kb())
 
-    # Free-question is now consumed — next question goes to pricing.
-    # Done after a successful LLM answer so a failed turn doesn't burn
-    # the user's one free try.
     await _user_repo.mark_free_question_used(session, user.id)
 
-    # Persist the turn — both sides — so future history requests have
-    # the full transcript and so /admin export gets the row.
-    await history_store.append(user.telegram_id, ChatMessage(role="user", content=question))
+    await history_store.append(
+        user.telegram_id, ChatMessage(role="user", content=original_question)
+    )
     await history_store.append(user.telegram_id, ChatMessage(role="assistant", content=text))
     await _consultation_repo.create(
         session,
         user_id=user.id,
         chart_id=chart.id,
-        topic=decision.intent,
-        user_message=question,
+        topic=skill_spec.name if skill_spec is not None else decision.intent,
+        user_message=original_question,
         ai_response=text,
         model_used=answer.result.model,
         prompt_tokens=answer.result.usage.prompt_tokens,
@@ -432,6 +666,9 @@ async def handle_question(
     logger.info(
         "consultation.completed",
         intent=decision.intent,
+        skill=skill_spec.name if skill_spec is not None else None,
+        had_clarifications=bool(clarifications),
+        had_partner_chart=partner_chart is not None,
         tier=answer.tier,
         provider=answer.provider,
         used_fallback=answer.used_fallback,
