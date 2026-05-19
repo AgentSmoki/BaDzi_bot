@@ -150,6 +150,7 @@ async def chat(
     temperature: float = 0.7,
     max_tokens: int,
     trace_id: str | None = None,
+    response_format: dict[str, str] | None = None,
 ) -> ChatResult:
     """Send a chat completion request to the chosen provider.
 
@@ -157,6 +158,12 @@ async def chat(
     malformed JSON / network problems so the fallback layer can
     decide whether to retry on the next tier or surface the error
     to the user.
+
+    ``response_format`` is the OpenAI-style structured-output hint —
+    e.g. ``{"type": "json_object"}`` to coerce JSON. Passed through
+    only if non-None (legacy callers stay unchanged). Skill-router
+    relies on this; if YC ignores the field, the prompt itself
+    enforces JSON shape and we repair on parse failure.
     """
     trace = trace_id or uuid.uuid4().hex
     payload: dict[str, object] = {
@@ -165,6 +172,8 @@ async def chat(
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
+    if response_format is not None:
+        payload["response_format"] = response_format
     started = time.perf_counter()
     log = logger.bind(trace_id=trace, provider=provider, model=model)
     log.info("orchestrator.request", message_count=len(messages), max_tokens=max_tokens)

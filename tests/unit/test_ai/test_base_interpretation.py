@@ -24,7 +24,7 @@ from calculator.models import ChartInput
 # ── parse_blocks ─────────────────────────────────────────────────────────
 
 
-def test_parse_blocks_extracts_all_six_in_order() -> None:
+def test_parse_blocks_extracts_all_nine_in_order() -> None:
     text = "\n".join(
         [
             "## БЛОК 1. Баланс",
@@ -44,6 +44,15 @@ def test_parse_blocks_extracts_all_six_in_order() -> None:
             "",
             "## БЛОК 6. Текущий год",
             "Сейчас.",
+            "",
+            "## БЛОК 7. Работа",
+            "В деле.",
+            "",
+            "## БЛОК 8. Общество",
+            "В социуме.",
+            "",
+            "## БЛОК 9. Тайные желания",
+            "Внутри.",
         ]
     )
     p = parse_blocks(text)
@@ -53,6 +62,9 @@ def test_parse_blocks_extracts_all_six_in_order() -> None:
     assert p.block_4_partner == "Совместимость."
     assert p.block_5_strengths == "Что удаётся."
     assert p.block_6_current_year == "Сейчас."
+    assert p.block_7_in_work == "В деле."
+    assert p.block_8_in_society == "В социуме."
+    assert p.block_9_secret_desires == "Внутри."
 
 
 def test_parse_blocks_tolerates_punctuation_and_case() -> None:
@@ -96,6 +108,23 @@ def test_parse_blocks_missing_blocks_become_empty() -> None:
     assert p.block_1_balance == "только первый"
     assert p.block_2_day_master == ""
     assert p.block_6_current_year == ""
+    assert p.block_7_in_work == ""
+    assert p.block_8_in_society == ""
+    assert p.block_9_secret_desires == ""
+
+
+def test_parse_blocks_preserves_follow_up_question_in_body() -> None:
+    """Follow-up `**Дальше можно спросить:** «...»` is part of the body —
+    parse_blocks should keep it intact, the formatter renders it as-is."""
+    text = (
+        "## БЛОК 7. Работа\n"
+        "Вы трудитесь как Дерево Ян — упорно и системно.\n\n"
+        "**Дальше можно спросить:** «Какие сферы лучше подходят моему столпу месяца?»"
+    )
+    p = parse_blocks(text)
+    assert "Вы трудитесь" in p.block_7_in_work
+    assert "**Дальше можно спросить:**" in p.block_7_in_work
+    assert "«Какие сферы лучше подходят моему столпу месяца?»" in p.block_7_in_work
 
 
 def test_parse_blocks_no_headings_falls_back_to_block_one() -> None:
@@ -132,12 +161,15 @@ def test_format_for_telegram_renders_all_blocks() -> None:
         block_4_partner="b4",
         block_5_strengths="b5",
         block_6_current_year="b6",
+        block_7_in_work="b7",
+        block_8_in_society="b8",
+        block_9_secret_desires="b9",
     )
     out = format_for_telegram(p, chart_label="12.09.1999")
     assert "<b>Базовая интерпретация · 12.09.1999</b>" in out
-    for idx in range(1, 7):
+    for idx in range(1, 10):
         assert f"<b>{idx}. {BLOCK_TITLES[idx]}</b>" in out
-    assert "b1" in out and "b6" in out
+    assert "b1" in out and "b9" in out
 
 
 def test_format_for_telegram_skips_empty_blocks() -> None:
@@ -196,7 +228,7 @@ def _fake_response(
 
 
 @pytest.mark.asyncio
-async def test_generate_base_interpretation_parses_six_blocks(
+async def test_generate_base_interpretation_parses_nine_blocks(
     monkeypatch: pytest.MonkeyPatch,
     reference_chart,  # type: ignore[no-untyped-def]
 ) -> None:
@@ -214,6 +246,12 @@ async def test_generate_base_interpretation_parses_six_blocks(
             "5",
             "## БЛОК 6. Текущий год",
             "6",
+            "## БЛОК 7. Работа",
+            "7",
+            "## БЛОК 8. Общество",
+            "8",
+            "## БЛОК 9. Тайные желания",
+            "9",
         ]
     )
 
@@ -229,6 +267,9 @@ async def test_generate_base_interpretation_parses_six_blocks(
 
     assert out.interpretation.block_1_balance == "1"
     assert out.interpretation.block_6_current_year == "6"
+    assert out.interpretation.block_7_in_work == "7"
+    assert out.interpretation.block_8_in_society == "8"
+    assert out.interpretation.block_9_secret_desires == "9"
     assert out.model == "gpt://test-folder/qwen3.6-35b-a3b/latest"
     assert out.used_fallback is False
     assert out.cost_usd == pytest.approx(0.025)

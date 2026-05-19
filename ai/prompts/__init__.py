@@ -14,6 +14,8 @@ from typing import Final
 _PROMPTS_DIR: Final = Path(__file__).resolve().parent
 
 ANASTASIA_SYSTEM: Final = "anastasia_system"
+ANASTASIA_BASE: Final = "base"
+SKILL_ROUTER_SYSTEM: Final = "skill_router_system"
 
 
 @lru_cache(maxsize=8)
@@ -31,11 +33,30 @@ def get_prompt(name: str) -> str:
 
 
 def load_system_prompt() -> str:
-    """Shorthand for the only prompt anyone loads in 1.8: Anastasia's
-    persona. Kept as a function (not a constant) so the read happens
-    on first use, not at import — startup stays fast even if the
-    prompt grows."""
+    """Legacy: full 39 KB Anastasia persona (anastasia_system.md).
+    Used in pre-skill-router flow. After feature flag
+    ``skill_router_enabled`` flips on (Phase 6), callers switch to
+    ``load_base_prompt`` + injected [SKILL] section."""
     return get_prompt(ANASTASIA_SYSTEM)
+
+
+def load_base_prompt() -> str:
+    """Slimmed-down base prompt (~7 KB) used by the new skill-router
+    flow. Contains persona + style + glossary + ethics + metaphor
+    bank, but defers domain-specific methodology (work / relationships
+    / health / time) to per-skill prompts injected via the [SKILL]
+    section by ``ai.temporal_context.compose_messages``."""
+    return get_prompt(ANASTASIA_BASE)
+
+
+def load_skill_router_prompt() -> str:
+    """Template prompt for the fast skill-router LLM (Phase 2).
+
+    The prompt contains a single ``{catalog}`` placeholder; the
+    caller (``ai.skill_router.select_skill``) substitutes the rendered
+    skill catalog before sending. All JSON braces in the prompt use
+    ``{{`` / ``}}`` to survive ``str.format()``."""
+    return get_prompt(SKILL_ROUTER_SYSTEM)
 
 
 # ── Anti-hallucination instruction prefix (task 2.2.5) ────────────────────
