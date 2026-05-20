@@ -146,6 +146,56 @@
 
 - [ ] **1.17.8 Qwen3-3B миграция** (бывший 1.9.17) — когда модель появится в YC каталоге, swap `settings.yc_fast_model` + проверить JSON-output mode. Дешевле в 5× и быстрее на 1-1.5 сек.
 
+### 🌊 Wave 1 (closed 2026-05-19, commit `57c8973`, LIVE)
+
+- [x] **W1a Парсинг дат** — `_parse_birth_date` принимает ISO (`1990-05-15`), 2-digit год (cutoff 30: `27.04.88` → 1988; `15.06.15` → 2015), packed ddmmyy и dd-mm-yy слитно. 24 теста.
+- [x] **W1b Удаление карт** — `ChartRepository.delete`, кнопка 🗑 «Удалить карту» в `chart_actions_kb`/`chart_actions_kb_post_interpret`, confirm dialog `chart_delete_confirm_kb`. Server-side ownership check. 10 тестов.
+
+### 🌊 Wave 2 (closed 2026-05-19, commit `1e4ee18`, LIVE)
+
+- [x] **W2 Smart-entry** — `ai/text_extract.extract_birth_data` (fast LLM, JSON, graceful fallback), `BirthDataForm.waiting_full_text`, [handle_full_text](bot/routers/birth_data.py) → `_route_to_first_missing_step`. Кнопка «Ввести по шагам» для escape на классический FSM. 19 тестов.
+
+### 🌊 Wave 3 — платные прогнозы (in progress, ADR-011 будет в Phase 7)
+
+**Архитектурное решение (research 2026-05-19, Dev_Architect/research_tool):** APScheduler `AsyncIOScheduler` + `SQLAlchemyJobStore` на Postgres, отдельный Docker-сервис `scheduler`. См. `/tmp/scheduler_research.md` или зафиксируется в ADR-011.
+
+- [x] **W3a DB + repo** — `ChartForecastSubscription` + `ForecastDelivery` модели, migration `776d382ae50d`, `ChartForecastSubscriptionRepository` + `ForecastDeliveryRepository`. Settings: `forecast_free_bypass=True`, `forecast_monthly_price_rub=500`, `forecast_daily_price_rub=900`, `forecast_daily_default_hour_local=4`, `forecast_period_days=30`.
+- [ ] **W3b Forecast generator** — `ai/forecast.py`: `generate_monthly_forecast(chart, period)` / `generate_daily_forecast(chart, date)`. Блочный LLM-текст (4-6 блоков: общая энергия, столпы дня, активации, риски, рекомендации). Использует main LLM (Qwen3.6 интерпретация-intent). Per-day идёт против [CURRENT_MOMENT] на ту дату.
+- [ ] **W3c Scheduler** — APScheduler с PG jobstore:
+  - Отдельный docker-compose сервис `scheduler` поверх того же образа что bot
+  - `rebuild_jobs_for_all_subs` периодически (5 мин) пересоздаёт cron-jobs
+  - Daily: `CronTrigger(hour=daily_send_hour_utc, minute=0, timezone=UTC)` per subscription
+  - Monthly weekly: `IntervalTrigger(days=7)` × 4 send'а
+  - Monthly bulk: одноразовая `DateTrigger` сразу после покупки
+  - `ForecastDelivery.slot_key` дедупит retry (`daily:YYYY-MM-DD`, `monthly:YYYY-MM:weekN`, `monthly:YYYY-MM:bulk`)
+- [ ] **W3d UI** — кнопки на карте: «📅 Прогноз на месяц 500₽» и «🌅 Прогноз дня + активации 900₽».
+  - Месяц → выбор delivery (раз в неделю / прислать всё сразу) → confirm → `subscription_repo.create(payment_provider="free_dev_bypass")` (пока bypass)
+  - День → выбор hour (default 4 утра локального времени по `chart.tz_offset`) → confirm → подписка + первый прогноз через ~1 мин после покупки
+  - `subscription_view_kb` показывает активные подписки на карте + кнопку «Отменить»
+- [ ] **W3e Live verify + deploy** — миграция → docker rebuild scheduler service → smoke в `@EdoHa_Badzi_bot`
+
+### 🌊 Wave 4 — дневник рефлексии + важные даты (планирование)
+
+Богдан 2026-05-19: «дневник = ежедневные напоминания, время выбирается клиентом, голосовые → транскрибация → утверждение/корректировка, экспорт md».
+
+- [ ] **W4a JournalEntry модель** — chart_id FK, entry_date, energies_summary (текст «энергии дня/месяца/года»), user_reflection (текст), source ENUM(text|voice|auto), created_at. Per chart, per day max 1 запись.
+- [ ] **W4b Дневник toggle на карте** — `journal_settings`: enabled bool, reminder_hour_local int (default 21:00). Кнопка «Дневник» в chart_actions_kb_post_interpret. Включение → выбор времени напоминаний.
+- [ ] **W4c Daily reminder через scheduler** — переиспользует APScheduler (W3c). Один cron-job per chart с напоминанием на reminder_hour_local. Сообщение «Запишите рефлексию за сегодня — голосовым или текстом».
+- [ ] **W4d Голосовой → транскрибация** — Voice message → MCP `mcp__teletranscribe__transcribe_file` → transcript. Подтверждение пользователю кнопками «✅ Добавить запись» / «✏️ Внести корректировки» (последнее → текст «что исправить?» → второй LLM-вызов с edit instruction).
+- [ ] **W4e Важные даты** — calculator detector (на основе натальных Шэнь Ша + приходящего такта): за 2 дня + в день активации шлёт уведомление с короткой выжимкой и предложение записать рефлексию. В конце дня — авто-сохраняет prognosis в JournalEntry даже если user не ответил (source=auto).
+- [ ] **W4f Экспорт MD** — кнопка «Скачать дневник» → собирает все JournalEntry в `journal_{chart_label}_{date_range}.md` → отправляет файлом.
+
+### 🌊 Wave 5 — встречи с мастером (планирование)
+
+Богдан 2026-05-19: «загрузка с любого URL (GDrive/Yandex Disk/cloud mail/Zoom), отдельная таблица — встреч может быть много».
+
+- [ ] **W5a MasterMeeting модель + миграция** — id, user_id FK, chart_id FK, source_url, source_type ENUM(youtube|gdrive|ydisk|zoom|tg_file|other), title, transcript text, summary text (LLM extractive), uploaded_at, transcribed_at, error nullable, duration_seconds nullable.
+- [ ] **W5b Кнопка «Встреча с мастером»** на карте → объяснение flow + FSM `waiting_meeting_url` → user paste URL.
+- [ ] **W5c URL downloader** — детектор source_type по hostname, потом MCP `mcp__teletranscribe__transcribe_url` (он сам умеет YouTube, Yandex Disk, GDrive по описанию из MCP инструкций).
+- [ ] **W5d Summary generator** — LLM-вызов из transcript → структурированная выжимка (темы, конкретные рекомендации мастера, упомянутые техники). Хранится в `summary`.
+- [ ] **W5e Использование в Anastasia context** — при `select_skill` если у chart есть meetings, secrets/wisdom от мастера подгружается отдельной секцией `[MASTER_MEETING_NOTES]` в `compose_messages`. Skill-router учитывает их при concept_hints.
+- [ ] **W5f Удаление и список встреч** — handler `meeting:list:{chart_id}`, `meeting:delete:{meeting_id}` с confirm.
+
 ---
 
 ## 🟢 До закрытия MVP

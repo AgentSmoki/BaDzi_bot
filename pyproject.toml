@@ -66,6 +66,15 @@ dependencies = [
     "taskiq[asyncio]==0.11.14",
     "taskiq-redis==1.0.2",
 
+    # --- Scheduler (Wave 3c — paid forecast cron jobs) ---
+    # APScheduler with SQLAlchemyJobStore on Postgres so jobs survive
+    # scheduler-container restarts. Lives in its own service in
+    # docker-compose so the bot stays a polling-only process.
+    "apscheduler==3.11.0",
+    # SQLAlchemyJobStore uses sync psycopg2 (apscheduler 3.x doesn't
+    # bind to async drivers). Separate from asyncpg used by the bot.
+    "psycopg2-binary==2.9.10",
+
     # --- Logging ---
     "structlog==25.3.0",
 

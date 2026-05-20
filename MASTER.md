@@ -23,6 +23,23 @@ _(пока пусто)_
 
 ---
 
+## Wave 3 — free-dev-bypass монетизации (2026-05-19)
+
+> **`settings.forecast_free_bypass=True`** — все клиенты могут активировать
+> платные подписки на прогнозы (500 ₽ / месяц, 900 ₽ / день+активации) **БЕЗ ОПЛАТЫ**
+> пока ЮKassa не подключена в задаче **1.12.3 ЮKassa интеграция** (см. tasks.md).
+> При покупке записывается `payment_provider="free_dev_bypass"` для аудита.
+>
+> **Что сделать когда ЮKassa подключится** (одна сессия, ~3-4ч):
+> 1. `settings.forecast_free_bypass=False` — переключить флаг в проде.
+> 2. В W3d UI handler «Купить» → создать ЮKassa-платёж + redirect URL вместо прямого `create`.
+> 3. ЮKassa webhook → активирует подписку с `payment_provider="yookassa"`.
+> 4. История платежей: добавить `payment_id` в `ChartForecastSubscription`.
+> 5. Старые `free_dev_bypass` подписки оставить активными до их `expires_at` — не отзывать ретроактивно.
+> 6. Логи: dashboard в /admin показывает «N free-bypass / N yookassa» подписки.
+
+---
+
 ## Сессия 2026-05-19 — Wave 6: AI Skill-Router (ADR-010) — Phase 0-6
 
 **Что сделано:** двухэтапная AI-маршрутизация в `consultation` handler. 7 фаз закрыты, тесты 691 passing, mypy strict clean, deploy ожидает.

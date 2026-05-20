@@ -39,6 +39,22 @@ services:
       - kuzu_data:/app/knowledge/kuzu_db
     restart: unless-stopped
 
+  # Wave 3c — APScheduler service for paid forecast delivery (daily 04:00,
+  # monthly weekly/bulk). Standalone container so the bot stays polling-only
+  # and forecast cron jobs survive its restarts via the SQLAlchemyJobStore.
+  scheduler:
+    build: .
+    command: python -m bot.scheduler
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - kuzu_data:/app/knowledge/kuzu_db
+    restart: unless-stopped
+
   db:
     image: postgres:16-alpine
     environment:

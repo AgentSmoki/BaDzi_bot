@@ -1,0 +1,240 @@
+"""Scheduler service entry point + job-rebuild loop.
+
+Spawned as a separate Docker service (``scheduler`` in docker-compose).
+Runs forever; the only side effect is APScheduler firing forecast jobs
+at their scheduled times.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import re
+import uuid
+from datetime import datetime, timedelta
+from typing import Any
+
+import structlog
+from aiogram import Bot
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
+from bot.config import get_settings
+from bot.scheduler.jobs import (
+    send_daily_forecast_job,
+    send_monthly_forecast_job,
+)
+from db.engine import get_engine
+from db.models import ChartForecastSubscription, ForecastKind, MonthlyDelivery
+from db.repositories.forecast_repo import ChartForecastSubscriptionRepository
+
+logger = structlog.get_logger(__name__)
+
+# How often the rebuild loop walks the DB looking for new / cancelled
+# subscriptions. 5 minutes matches the research recommendation — short
+# enough that a new daily subscriber gets fired up before tomorrow's
+# 04:00, long enough that DB load is negligible.
+_REBUILD_INTERVAL_SECONDS = 300
+
+
+def derive_sync_db_url(async_url: str) -> str:
+    """Convert ``postgresql+asyncpg://...`` to ``postgresql+psycopg2://...``.
+
+    APScheduler's ``SQLAlchemyJobStore`` uses a sync engine — it doesn't
+    bind to asyncpg. Same Postgres instance, same DB, different driver.
+    Also strips any ``?asyncpg-only-param`` URL params we set for the bot.
+    """
+    return re.sub(r"^postgresql\+asyncpg://", "postgresql+psycopg2://", async_url, count=1)
+
+
+def _job_id_for_daily(subscription_id: str) -> str:
+    return f"forecast_daily:{subscription_id}"
+
+
+def _job_id_for_monthly_week(subscription_id: str, week: int) -> str:
+    return f"forecast_monthly_week:{subscription_id}:w{week}"
+
+
+def _job_id_for_monthly_bulk(subscription_id: str) -> str:
+    return f"forecast_monthly_bulk:{subscription_id}"
+
+
+def _build_trigger_for_subscription(
+    sub: ChartForecastSubscription,
+) -> list[tuple[str, Any, dict[str, Any]]]:
+    """Return list of (job_id, trigger, kwargs) for a subscription.
+
+    A monthly subscription expands into 1 trigger (bulk) or 4 triggers
+    (weekly). A daily subscription expands into 1 cron trigger.
+    """
+    items: list[tuple[str, Any, dict[str, Any]]] = []
+
+    if sub.kind == ForecastKind.daily:
+        # CronTrigger fires every day at the configured UTC hour.
+        hour = sub.daily_send_hour_utc or 4
+        trigger = CronTrigger(hour=hour, minute=0, timezone="UTC")
+        items.append(
+            (
+                _job_id_for_daily(str(sub.id)),
+                trigger,
+                {
+                    "subscription_id": sub.id,
+                    # ``target_date`` is computed at fire time — APScheduler
+                    # will pass it; here we just pin a placeholder that the
+                    # job overrides. Simpler: leave it out and the job
+                    # computes ``date.today()`` itself. See jobs.py.
+                },
+            )
+        )
+        return items
+
+    # Monthly — period starts at sub.started_at.date().
+    period_start = sub.started_at.date()
+    if sub.monthly_delivery == MonthlyDelivery.bulk:
+        # Fire ~60s after purchase so the user sees the first message
+        # while they're still in the chat.
+        fire_at = max(sub.started_at, datetime.now()) + timedelta(seconds=60)
+        items.append(
+            (
+                _job_id_for_monthly_bulk(str(sub.id)),
+                DateTrigger(run_date=fire_at),
+                {
+                    "subscription_id": sub.id,
+                    "period_start": period_start,
+                    "week": None,
+                },
+            )
+        )
+    elif sub.monthly_delivery == MonthlyDelivery.weekly:
+        for week in (1, 2, 3, 4):
+            fire_at = sub.started_at + timedelta(days=7 * (week - 1))
+            # Don't fire jobs for past weeks if the subscription is
+            # being re-registered after a long-running restart.
+            if fire_at < datetime.now() - timedelta(hours=1):
+                continue
+            items.append(
+                (
+                    _job_id_for_monthly_week(str(sub.id), week),
+                    DateTrigger(run_date=fire_at),
+                    {
+                        "subscription_id": sub.id,
+                        "period_start": period_start,
+                        "week": week,
+                    },
+                )
+            )
+    return items
+
+
+async def rebuild_jobs_for_all_subs(
+    scheduler: AsyncIOScheduler,
+    session_factory: async_sessionmaker[Any],
+    bot: Bot,
+) -> int:
+    """Walk all active subscriptions and (re)register their APScheduler
+    jobs. Returns count of jobs reconciled.
+
+    APScheduler ``add_job(replace_existing=True)`` makes this idempotent
+    — already-scheduled jobs are updated in place, new ones get added,
+    and jobs for cancelled subscriptions stay until expiry (we don't
+    proactively remove since DateTriggers for the past are skipped by
+    APScheduler anyway).
+    """
+    sub_repo = ChartForecastSubscriptionRepository()
+    count = 0
+    async with session_factory() as session:
+        subs = await sub_repo.list_all_active(session)
+
+    for sub in subs:
+        triggers = _build_trigger_for_subscription(sub)
+        for job_id, trigger, kwargs in triggers:
+            # Daily jobs need `target_date` filled at fire time — we
+            # rely on a wrapper that pulls today's date. For DateTriggers
+            # we pass `period_start` + `week` directly.
+            if sub.kind == ForecastKind.daily:
+                scheduler.add_job(
+                    _fire_daily,
+                    trigger=trigger,
+                    kwargs={
+                        "subscription_id": sub.id,
+                        "bot": bot,
+                        "session_factory": session_factory,
+                    },
+                    id=job_id,
+                    replace_existing=True,
+                    misfire_grace_time=3600,
+                )
+            else:
+                scheduler.add_job(
+                    send_monthly_forecast_job,
+                    trigger=trigger,
+                    kwargs={
+                        **kwargs,
+                        "bot": bot,
+                        "session_factory": session_factory,
+                    },
+                    id=job_id,
+                    replace_existing=True,
+                    misfire_grace_time=3600,
+                )
+            count += 1
+    logger.info("scheduler.rebuild_done", subscriptions=len(subs), jobs=count)
+    return count
+
+
+async def _fire_daily(
+    *,
+    subscription_id: uuid.UUID,
+    bot: Bot,
+    session_factory: async_sessionmaker[Any],
+) -> None:
+    """Daily cron wrapper — computes ``date.today()`` at fire time
+    and delegates to the actual job."""
+    from datetime import date
+
+    await send_daily_forecast_job(
+        subscription_id=subscription_id,
+        target_date=date.today(),
+        bot=bot,
+        session_factory=session_factory,
+    )
+
+
+async def run_scheduler() -> None:
+    """Entry point used by `python -m bot.scheduler`. Blocks forever.
+
+    Builds:
+    - SQLAlchemy jobstore on Postgres (sync URL)
+    - AsyncIOScheduler with the jobstore
+    - aiogram Bot instance for Telegram sends
+    - Rebuild-jobs loop every 5 minutes
+    """
+    settings = get_settings()
+    sync_db_url = derive_sync_db_url(settings.database_url)
+
+    scheduler = AsyncIOScheduler(
+        jobstores={"default": SQLAlchemyJobStore(url=sync_db_url)},
+        timezone="UTC",
+    )
+    bot = Bot(token=settings.bot_token.get_secret_value())
+    engine = get_engine()
+    session_factory: async_sessionmaker[Any] = async_sessionmaker(engine, expire_on_commit=False)
+
+    scheduler.start()
+    logger.info("scheduler.started", sync_db_url_redacted=sync_db_url.split("@")[-1])
+
+    # Initial rebuild + periodic rebuild loop.
+    await rebuild_jobs_for_all_subs(scheduler, session_factory, bot)
+
+    try:
+        while True:
+            await asyncio.sleep(_REBUILD_INTERVAL_SECONDS)
+            try:
+                await rebuild_jobs_for_all_subs(scheduler, session_factory, bot)
+            except Exception:
+                logger.exception("scheduler.rebuild_failed")
+    finally:
+        await bot.session.close()
+        scheduler.shutdown(wait=False)

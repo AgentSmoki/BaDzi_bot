@@ -156,11 +156,11 @@ def calc_intro_kb() -> InlineKeyboardMarkup:
     """Shown when the user presses «Рассчитать карту» (menu:calc).
 
     Default UX (Wave 2): bot invites a single-line entry like
-    «27.04.88 Севастополь 07:03 утра». The single button «Пошагово»
+    «27.04.88 Севастополь 07:03 утра». The «Ввести по шагам» button
     is the escape hatch for users who'd rather walk through the
     classic FSM (date → time → city → gender)."""
     builder = InlineKeyboardBuilder()
-    builder.button(text="Пошагово →", callback_data="calc:stepwise")
+    builder.button(text="Ввести по шагам", callback_data="calc:stepwise")
     return builder.as_markup()
 
 

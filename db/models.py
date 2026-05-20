@@ -30,6 +30,31 @@ class SubscriptionStatus(str, enum.Enum):
     cancelled = "cancelled"
 
 
+class ForecastKind(str, enum.Enum):
+    """Wave 3 — what the user paid for.
+
+    - ``monthly``: «Прогноз на месяц», 500 ₽. Delivery: either four weekly
+      chunks (``MonthlyDelivery.weekly``) or one bulk message
+      (``MonthlyDelivery.bulk``).
+    - ``daily``: «Прогноз дня + активации», 900 ₽/month, fires every
+      morning at 04:00 local-to-chart-tz.
+    """
+
+    monthly = "monthly"
+    daily = "daily"
+
+
+class MonthlyDelivery(str, enum.Enum):
+    """Only meaningful when ``ForecastKind.monthly``. NULL for ``daily``.
+
+    ``weekly`` — bot sends 4 chunks at 7-day intervals starting from
+    ``started_at``. ``bulk`` — one big payload right after purchase
+    (still re-rendered per chart so it carries personalised energies)."""
+
+    weekly = "weekly"
+    bulk = "bulk"
+
+
 # ── Models ────────────────────────────────────────────────────────────────────
 
 
@@ -180,3 +205,99 @@ class Event(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     chart: Mapped[Chart] = relationship(back_populates="events", lazy="raise")
+
+
+class ChartForecastSubscription(Base):
+    """Wave 3 — per-chart paid forecast subscription (separate from the
+    main consultation subscription which lives in ``subscriptions`` and
+    is per-user, not per-chart).
+
+    One row = one active forecast plan attached to one chart.
+    Re-buying creates a new row (history-preserving); the active set is
+    selected with ``WHERE status='active' AND expires_at>now()``.
+    """
+
+    __tablename__ = "chart_forecast_subscriptions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        sa.ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    chart_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        sa.ForeignKey("charts.id", ondelete="CASCADE"),
+        index=True,
+    )
+    kind: Mapped[ForecastKind] = mapped_column(
+        sa.Enum(ForecastKind, native_enum=False, length=16),
+        index=True,
+    )
+    # NULL for `daily`; one of `weekly`/`bulk` for `monthly`.
+    monthly_delivery: Mapped[MonthlyDelivery | None] = mapped_column(
+        sa.Enum(MonthlyDelivery, native_enum=False, length=16),
+        nullable=True,
+    )
+    # For `daily` — what hour (UTC) the bot fires the send. Chosen by the
+    # user as «04:00 моего времени» and converted to UTC using the chart's
+    # tz_offset at purchase time. Re-conversion on DST shifts handled by
+    # the scheduler. NULL for monthly.
+    daily_send_hour_utc: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    status: Mapped[SubscriptionStatus] = mapped_column(
+        sa.Enum(SubscriptionStatus, native_enum=False, length=16),
+        default=SubscriptionStatus.active,
+        server_default=SubscriptionStatus.active.value,
+        index=True,
+    )
+    started_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    expires_at: Mapped[datetime]
+    price_rub: Mapped[int] = mapped_column(sa.Integer)
+    # `free_dev_bypass` while ЮKassa isn't connected (Wave 3 launch);
+    # `yookassa` after 1.12.3. NULL = unknown / migrated row.
+    payment_provider: Mapped[str | None] = mapped_column(sa.String(32))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    user: Mapped[User] = relationship(lazy="raise")
+    chart: Mapped[Chart] = relationship(lazy="raise")
+    deliveries: Mapped[list["ForecastDelivery"]] = relationship(
+        back_populates="subscription", lazy="raise", cascade="all, delete-orphan"
+    )
+
+
+class ForecastDelivery(Base):
+    """Wave 3 — record of one forecast send. Used by the scheduler for
+    dedup (don't fire twice for the same scheduled slot if the worker
+    restarts) and by the user-facing «history of forecasts» screen.
+
+    ``slot_key`` is a deterministic string for the scheduled occurrence
+    so the unique constraint blocks duplicates. Examples:
+    - daily: ``daily:2026-05-19``
+    - monthly weekly: ``monthly:2026-05:week3``
+    - monthly bulk: ``monthly:2026-05:bulk``
+    """
+
+    __tablename__ = "forecast_deliveries"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    subscription_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        sa.ForeignKey("chart_forecast_subscriptions.id", ondelete="CASCADE"),
+        index=True,
+    )
+    slot_key: Mapped[str] = mapped_column(sa.String(64), index=True)
+    content: Mapped[str] = mapped_column(sa.Text)
+    """Rendered LLM body in Telegram-ready HTML."""
+    sent_at: Mapped[datetime | None]
+    """NULL while queued; set when actually delivered."""
+    error: Mapped[str | None] = mapped_column(sa.Text)
+    """Filled when send failed (Telegram API error, user blocked bot, etc)."""
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    subscription: Mapped[ChartForecastSubscription] = relationship(
+        back_populates="deliveries", lazy="raise"
+    )
+
+    __table_args__ = (
+        sa.UniqueConstraint("subscription_id", "slot_key", name="uq_forecast_deliveries_slot"),
+    )

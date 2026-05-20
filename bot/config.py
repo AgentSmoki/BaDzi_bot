@@ -63,6 +63,20 @@ class Settings(BaseSettings):
     # path and revert to the legacy single-system-prompt flow.
     skill_router_enabled: bool = True
 
+    # ── Wave 3 — paid forecast subscriptions ──────────────────────────────────
+    # While ЮKassa is not connected (1.12.3 backlog), every user is granted
+    # the subscription on tap; payment_provider="free_dev_bypass". TODO ←
+    # tasks.md «Wave 3 → подключение ЮKassa».
+    forecast_free_bypass: bool = True
+    forecast_monthly_price_rub: int = 500
+    forecast_daily_price_rub: int = 900
+    # Default hour the bot fires daily forecasts in the user's local time —
+    # 04:00 chosen so the message is waiting when they wake up. Converted
+    # to UTC at purchase time via chart.tz_offset.
+    forecast_daily_default_hour_local: int = 4
+    # Subscription period for both plans. Adjustable for promos.
+    forecast_period_days: int = 30
+
     # ── Swiss Ephemeris ───────────────────────────────────────────────────────
     swiss_ephemeris_path: Path = Path("/usr/share/swisseph")
 
