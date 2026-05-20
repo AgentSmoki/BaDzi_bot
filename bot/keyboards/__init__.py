@@ -219,9 +219,15 @@ def calc_intro_kb() -> InlineKeyboardMarkup:
     Default UX (Wave 2): bot invites a single-line entry like
     «27.04.88 Севастополь 07:03 утра». The «Ввести по шагам» button
     is the escape hatch for users who'd rather walk through the
-    classic FSM (date → time → city → gender)."""
+    classic FSM (date → time → city → gender). «В меню» lets the
+    user abort the calc flow entirely — без него юзер залипает в
+    waiting_full_text FSM без выхода (live regression 2026-05-20
+    via @S_Kate2011, screenshot in chat).
+    """
     builder = InlineKeyboardBuilder()
     builder.button(text="Ввести по шагам", callback_data="calc:stepwise")
+    builder.button(text="В меню", callback_data="menu:back")
+    builder.adjust(1)
     return builder.as_markup()
 
 

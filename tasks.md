@@ -151,6 +151,11 @@
     3. `yc_fast_max_tokens` default 2000→**4000** (thinking model съедала весь бюджет на `reasoning_content` → finish_reason=length; на live router тратил ~1949 токенов на reasoning, 4000 = ~3000 reasoning headroom + 1000 на JSON; unused budget не биллится)
   - [ ] Optional: `/graphify . --update` для пересборки семантического графа после fixes
 
+- [x] **1.17.10 UX bug: smart-entry экран без выхода в меню** (закрыт 2026-05-20 после report от @S_Kate2011)
+  - **Симптом:** при нажатии «Добавить новую карту» (`menu:calc`) бот шёл в FSM `BirthDataForm.waiting_full_text` и показывал promp «Напишите данные рождения в одной строке…» с **единственной кнопкой «Ввести по шагам»**. Юзер не мог вернуться в меню без ввода данных или `/start`.
+  - **Fix:** [bot/keyboards/__init__.py::calc_intro_kb](bot/keyboards/__init__.py) — добавлена кнопка «В меню» (`menu:back`). `handle_menu_back` в start.py уже сбрасывает FSM state и шлёт main menu, fix сводится к двум строкам в keyboard builder. Live-verified через MCP: prompt теперь показывает 2 кнопки, «В меню» возвращает в `С возвращением, Богдан...`.
+  - **Reproduction & fix log:** воспроизведено через @Bogman108 (нажатие «Добавить новую карту» → засветился bug со скриншота Кати) → edit `calc_intro_kb` → rsync + rebuild bot → re-test ✓.
+
 - [ ] **1.17.9 Regression: partner:add кнопка не показывается** (Phase 7 finding 2026-05-20)
   - **Симптом:** router корректно возвращает `needs_partner_chart=true`, но `bot/routers/consultation.py::handle_clarification_answer` после `clarifications.collected` сразу идёт в main LLM без показа inline-кнопки «Добавить карту партнёра»/«Без партнёра»
   - **Где смотреть:** `_continue_consultation_with_skill` теряет/игнорирует `needs_partner_chart` флаг между clarifying loop и переходом к main LLM
