@@ -128,6 +128,7 @@ def chart_actions_kb(chart_id: uuid.UUID | None = None) -> InlineKeyboardMarkup:
     if chart_id is not None:
         builder.button(text="📅 Прогнозы", callback_data=f"forecast:show:{chart_id}")
         builder.button(text="📔 Дневник", callback_data=f"journal:show:{chart_id}")
+        builder.button(text="🎓 Встречи с мастером", callback_data=f"meeting:show:{chart_id}")
         builder.button(text="🗑 Удалить карту", callback_data=f"chart:delete:{chart_id}")
     builder.button(text="В меню", callback_data="menu:back")
     builder.adjust(1)
@@ -150,6 +151,7 @@ def chart_actions_kb_post_interpret(
     if chart_id is not None:
         builder.button(text="📅 Прогнозы", callback_data=f"forecast:show:{chart_id}")
         builder.button(text="📔 Дневник", callback_data=f"journal:show:{chart_id}")
+        builder.button(text="🎓 Встречи с мастером", callback_data=f"meeting:show:{chart_id}")
         builder.button(text="🗑 Удалить карту", callback_data=f"chart:delete:{chart_id}")
     builder.button(text="В меню", callback_data="menu:back")
     builder.adjust(1)

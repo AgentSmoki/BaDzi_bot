@@ -93,10 +93,13 @@ async def run_consultation(
             )
 
             try:
+                # Wave 6: RouteDecision no longer carries max_tokens —
+                # chat_with_fallback sizes the budget per-tier via
+                # `intent`. Pass the intent from the routing decision.
                 answer = await chat_with_fallback(
                     messages=messages,
                     temperature=decision.temperature,
-                    max_tokens=decision.max_tokens,
+                    intent=decision.intent,
                 )
             except OrchestratorError:
                 logger.exception("consultation.task.llm_failed")

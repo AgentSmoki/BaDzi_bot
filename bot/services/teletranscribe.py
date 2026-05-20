@@ -31,6 +31,77 @@ class TeleTranscribeError(Exception):
     or to retry."""
 
 
+def detect_source_type(url: str) -> str:
+    """Heuristic source-type from URL hostname for `MasterMeetingSource`.
+
+    Returns the enum-value as a string; caller wraps in the enum. We
+    keep this as a free function (no enum import) so it stays testable
+    without the SQLAlchemy stack."""
+    u = url.lower()
+    if "youtube.com" in u or "youtu.be" in u:
+        return "youtube"
+    if "drive.google.com" in u:
+        return "gdrive"
+    if "disk.yandex.ru" in u or "yadi.sk" in u:
+        return "ydisk"
+    if "cloud.mail.ru" in u:
+        return "cloud_mail"
+    if "zoom.us" in u:
+        return "zoom"
+    return "other"
+
+
+async def transcribe_url(*, url: str, language: str = "ru") -> dict[str, object]:
+    """Transcribe a recording fetched by URL — used for master-meeting
+    uploads (Wave 5). TeleTranscribe service handles the download for
+    YouTube / Yandex Disk / Google Drive / Zoom / direct media URLs.
+
+    Returns ``{"text": <transcript>, "duration_seconds": <int|None>}``.
+    Raises ``TeleTranscribeError`` on any failure."""
+    settings = get_settings()
+    if settings.tt_api_key is None:
+        raise TeleTranscribeError("TT_API_KEY not configured")
+
+    endpoint = settings.tt_api_base_url.rstrip("/") + "/v1/transcribe-url"
+    headers = {
+        "Authorization": f"Bearer {settings.tt_api_key.get_secret_value()}",
+        "Content-Type": "application/json",
+    }
+    timeout = ClientTimeout(total=max(settings.tt_timeout_seconds, 1800))  # up to 30 min
+    payload = {"url": url, "language": language}
+
+    try:
+        async with (
+            ClientSession(timeout=timeout) as http,
+            http.post(endpoint, headers=headers, json=payload) as resp,
+        ):
+            if resp.status != 200:
+                body = await resp.text()
+                raise TeleTranscribeError(f"TT returned {resp.status}: {body[:300]}")
+            data = await resp.json()
+    except TeleTranscribeError:
+        raise
+    except Exception as exc:
+        raise TeleTranscribeError(f"TT network error: {exc}") from exc
+
+    text = data.get("text")
+    if not isinstance(text, str) or not text.strip():
+        raise TeleTranscribeError(f"TT returned empty/invalid text: {data!r}")
+    duration_raw = data.get("duration_seconds") or data.get("duration")
+    duration: int | None
+    try:
+        duration = int(duration_raw) if duration_raw is not None else None
+    except (TypeError, ValueError):
+        duration = None
+    logger.info(
+        "teletranscribe.url_success",
+        text_len=len(text),
+        duration_seconds=duration,
+        url_prefix=url[:60],
+    )
+    return {"text": text.strip(), "duration_seconds": duration}
+
+
 async def transcribe_voice(
     *,
     audio_bytes: bytes,

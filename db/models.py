@@ -55,6 +55,31 @@ class MonthlyDelivery(str, enum.Enum):
     bulk = "bulk"
 
 
+class MasterMeetingStatus(str, enum.Enum):
+    """Wave 5 — lifecycle of a master-meeting transcription job."""
+
+    queued = "queued"
+    transcribing = "transcribing"
+    ready = "ready"
+    failed = "failed"
+
+
+class MasterMeetingSource(str, enum.Enum):
+    """Wave 5 — where the meeting recording lives.
+
+    Heuristic-detected from URL hostname so we can pick the right
+    download / transcribe path. ``other`` is the catch-all for direct
+    audio/video URLs that don't match a known cloud."""
+
+    youtube = "youtube"
+    gdrive = "gdrive"
+    ydisk = "ydisk"
+    cloud_mail = "cloud_mail"
+    zoom = "zoom"
+    tg_file = "tg_file"
+    other = "other"
+
+
 class JournalEntrySource(str, enum.Enum):
     """Wave 4 — where a journal entry came from.
 
@@ -340,6 +365,55 @@ class JournalEntry(Base):
     __table_args__ = (
         sa.UniqueConstraint("chart_id", "entry_date", name="uq_journal_entries_chart_date"),
     )
+
+
+class MasterMeeting(Base):
+    """Wave 5 — recording of a session with a flesh-and-blood master.
+
+    Anastasia (the AI) uses the transcript + LLM-extractive summary as
+    additional context (``[MASTER_MEETING_NOTES]`` section) when the
+    user asks a question — so deeper insights from real sessions feed
+    into bot answers.
+
+    One chart can have many meetings. Status fields let the bot show
+    «расшифровываю…» while the background task runs."""
+
+    __tablename__ = "master_meetings"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        sa.ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    chart_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        sa.ForeignKey("charts.id", ondelete="CASCADE"),
+        index=True,
+    )
+    source_url: Mapped[str] = mapped_column(sa.Text)
+    source_type: Mapped[MasterMeetingSource] = mapped_column(
+        sa.Enum(MasterMeetingSource, native_enum=False, length=16),
+        default=MasterMeetingSource.other,
+        server_default=MasterMeetingSource.other.value,
+    )
+    title: Mapped[str | None] = mapped_column(sa.String(256), nullable=True)
+    transcript: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    """Filled when ``status='ready'``. NULL while queued/transcribing or
+    if status='failed' (use ``error`` to diagnose)."""
+    summary: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    """LLM-extractive summary — themes, recommendations, techniques.
+    Injected into compose_messages as [MASTER_MEETING_NOTES]."""
+    status: Mapped[MasterMeetingStatus] = mapped_column(
+        sa.Enum(MasterMeetingStatus, native_enum=False, length=16),
+        default=MasterMeetingStatus.queued,
+        server_default=MasterMeetingStatus.queued.value,
+        index=True,
+    )
+    duration_seconds: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    error: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    uploaded_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    transcribed_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
 
 class ForecastDelivery(Base):

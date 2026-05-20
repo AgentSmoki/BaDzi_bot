@@ -35,3 +35,11 @@ class JournalState(StatesGroup):
     # User asked to correct the transcript — second LLM-pass takes the
     # «what to fix» instruction here.
     waiting_correction_instruction = State()
+
+
+class MasterMeetingState(StatesGroup):
+    """Wave 5 — master-meeting upload FSM."""
+
+    # Pasted by the user after the explainer screen. We URL-validate,
+    # detect source type, enqueue the background TT-URL transcribe task.
+    waiting_url = State()
