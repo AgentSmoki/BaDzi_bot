@@ -119,13 +119,14 @@ def chart_actions_kb(chart_id: uuid.UUID | None = None) -> InlineKeyboardMarkup:
     упирается в лимит free-tier (после 1.12). Сейчас фокус на бесплатных
     действиях, чтобы пользователь увидел ценность до оплаты.
 
-    When ``chart_id`` is supplied, adds a «Удалить карту» button (Wave 1b).
-    Old callers that pass nothing keep the previous 3-button layout.
+    When ``chart_id`` is supplied, adds «Прогнозы» (Wave 3d) and
+    «🗑 Удалить карту» (Wave 1b) buttons.
     """
     builder = InlineKeyboardBuilder()
     builder.button(text="Получить разбор карты", callback_data="chart:interpret")
     builder.button(text="Задать вопрос по карте", callback_data="menu:ask")
     if chart_id is not None:
+        builder.button(text="📅 Прогнозы", callback_data=f"forecast:show:{chart_id}")
         builder.button(text="🗑 Удалить карту", callback_data=f"chart:delete:{chart_id}")
     builder.button(text="В меню", callback_data="menu:back")
     builder.adjust(1)
@@ -146,8 +147,75 @@ def chart_actions_kb_post_interpret(
     builder = InlineKeyboardBuilder()
     builder.button(text="Задать вопрос по карте", callback_data="menu:ask")
     if chart_id is not None:
+        builder.button(text="📅 Прогнозы", callback_data=f"forecast:show:{chart_id}")
         builder.button(text="🗑 Удалить карту", callback_data=f"chart:delete:{chart_id}")
     builder.button(text="В меню", callback_data="menu:back")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+# ── Wave 3d — Forecast subscription flow ─────────────────────────────────
+
+
+def forecast_menu_kb(chart_id: uuid.UUID) -> InlineKeyboardMarkup:
+    """Menu shown on `forecast:show:<chart_id>` — two plans + active list."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="📅 Прогноз на месяц — 500 ₽",
+        callback_data=f"forecast:buy_monthly:{chart_id}",
+    )
+    builder.button(
+        text="🌅 Прогноз дня + активации — 900 ₽",
+        callback_data=f"forecast:buy_daily:{chart_id}",
+    )
+    builder.button(
+        text="Мои подписки",
+        callback_data=f"forecast:list:{chart_id}",
+    )
+    builder.button(text="↩ Назад к карте", callback_data=f"chart:open:{chart_id}")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def forecast_monthly_delivery_kb(chart_id: uuid.UUID) -> InlineKeyboardMarkup:
+    """User picks weekly chunks vs single bulk send."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="Раз в неделю (4 части)",
+        callback_data=f"forecast:monthly_confirm:{chart_id}:weekly",
+    )
+    builder.button(
+        text="Прислать всё сразу",
+        callback_data=f"forecast:monthly_confirm:{chart_id}:bulk",
+    )
+    builder.button(text="↩ Назад", callback_data=f"forecast:show:{chart_id}")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def forecast_daily_hour_kb(chart_id: uuid.UUID) -> InlineKeyboardMarkup:
+    """User picks send hour (local time). Most pick 4 утра по умолчанию;
+    other quick options + manual entry through FSM (Wave 3d v1 keeps
+    the picker simple — manual hour comes later if requested)."""
+    builder = InlineKeyboardBuilder()
+    for hour in (4, 7, 9, 12, 19):
+        builder.button(
+            text=f"{hour:02d}:00 моего времени",
+            callback_data=f"forecast:daily_confirm:{chart_id}:{hour}",
+        )
+    builder.button(text="↩ Назад", callback_data=f"forecast:show:{chart_id}")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def forecast_cancel_kb(subscription_id: uuid.UUID, chart_id: uuid.UUID) -> InlineKeyboardMarkup:
+    """Cancel confirm dialog for a single subscription row."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="🛑 Отменить подписку",
+        callback_data=f"forecast:cancel_confirm:{subscription_id}:{chart_id}",
+    )
+    builder.button(text="Назад", callback_data=f"forecast:list:{chart_id}")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -245,6 +313,10 @@ __all__ = [
     "city_choice_kb",
     "confirm_kb",
     "edit_menu_kb",
+    "forecast_cancel_kb",
+    "forecast_daily_hour_kb",
+    "forecast_menu_kb",
+    "forecast_monthly_delivery_kb",
     "gender_kb",
     "main_menu_kb",
     "name_skip_kb",

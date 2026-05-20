@@ -19,6 +19,7 @@ from bot.middlewares import (
 )
 from bot.routers.birth_data import birth_data_router
 from bot.routers.consultation import consultation_router
+from bot.routers.forecast import forecast_router
 from bot.routers.start import start_router
 from db.engine import get_engine
 
@@ -47,6 +48,7 @@ def _include_routers(dispatcher: Dispatcher) -> None:
     dispatcher.include_router(start_router)
     dispatcher.include_router(birth_data_router)
     dispatcher.include_router(consultation_router)
+    dispatcher.include_router(forecast_router)
 
 
 async def _shutdown(bot: Bot, dispatcher: Dispatcher, history_store: HistoryStore) -> None:
