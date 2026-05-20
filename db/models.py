@@ -55,6 +55,21 @@ class MonthlyDelivery(str, enum.Enum):
     bulk = "bulk"
 
 
+class JournalEntrySource(str, enum.Enum):
+    """Wave 4 — where a journal entry came from.
+
+    - ``text``: typed reflection
+    - ``voice``: voice message transcribed via TeleTranscribe MCP
+    - ``auto``: bot-generated entry on an important date when the
+      user didn't reply within the day (so the calendar history isn't
+      patchy)
+    """
+
+    text = "text"
+    voice = "voice"
+    auto = "auto"
+
+
 # ── Models ────────────────────────────────────────────────────────────────────
 
 
@@ -262,6 +277,68 @@ class ChartForecastSubscription(Base):
     chart: Mapped[Chart] = relationship(lazy="raise")
     deliveries: Mapped[list["ForecastDelivery"]] = relationship(
         back_populates="subscription", lazy="raise", cascade="all, delete-orphan"
+    )
+
+
+class ChartJournalSettings(Base):
+    """Wave 4 — per-chart toggle + reminder schedule for the daily
+    reflection journal.
+
+    One row per chart (UNIQUE on chart_id). ``enabled=False`` is the
+    default — the user opts in via «📔 Дневник» button. ``reminder_hour_utc``
+    is derived from ``reminder_hour_local`` + ``chart.tz_offset`` at the
+    moment of save; recalculated only when the user changes the hour
+    (not on DST shifts — that's a future cleanup task).
+    """
+
+    __tablename__ = "chart_journal_settings"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    chart_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        sa.ForeignKey("charts.id", ondelete="CASCADE"),
+        unique=True,
+        index=True,
+    )
+    enabled: Mapped[bool] = mapped_column(default=False, server_default=sa.false())
+    reminder_hour_local: Mapped[int] = mapped_column(sa.Integer, default=21, server_default="21")
+    reminder_hour_utc: Mapped[int] = mapped_column(sa.Integer, default=18, server_default="18")
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+
+class JournalEntry(Base):
+    """Wave 4 — one reflection per chart per day.
+
+    UNIQUE(chart_id, entry_date) — re-writing the same day overwrites
+    the row (handled at repository layer with UPSERT). ``source`` tracks
+    whether the user actually responded or the bot auto-logged the
+    day's energies on an important date.
+    """
+
+    __tablename__ = "journal_entries"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    chart_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        sa.ForeignKey("charts.id", ondelete="CASCADE"),
+        index=True,
+    )
+    entry_date: Mapped[date]
+    energies_summary: Mapped[str] = mapped_column(sa.Text)
+    """Auto-computed pillars + active stars for the day. Always filled
+    even when the user didn't reflect — gives the export readability."""
+    user_reflection: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    """User's actual words. NULL when source=auto."""
+    source: Mapped[JournalEntrySource] = mapped_column(
+        sa.Enum(JournalEntrySource, native_enum=False, length=16),
+        default=JournalEntrySource.text,
+        server_default=JournalEntrySource.text.value,
+    )
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    __table_args__ = (
+        sa.UniqueConstraint("chart_id", "entry_date", name="uq_journal_entries_chart_date"),
     )
 
 

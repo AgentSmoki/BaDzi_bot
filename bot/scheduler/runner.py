@@ -24,11 +24,13 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from bot.config import get_settings
 from bot.scheduler.jobs import (
     send_daily_forecast_job,
+    send_journal_reminder_job,
     send_monthly_forecast_job,
 )
 from db.engine import get_engine
 from db.models import ChartForecastSubscription, ForecastKind, MonthlyDelivery
 from db.repositories.forecast_repo import ChartForecastSubscriptionRepository
+from db.repositories.journal_repo import ChartJournalSettingsRepository
 
 logger = structlog.get_logger(__name__)
 
@@ -44,9 +46,18 @@ def derive_sync_db_url(async_url: str) -> str:
 
     APScheduler's ``SQLAlchemyJobStore`` uses a sync engine — it doesn't
     bind to asyncpg. Same Postgres instance, same DB, different driver.
-    Also strips any ``?asyncpg-only-param`` URL params we set for the bot.
+
+    Driver-specific query params also need translation:
+    - asyncpg uses ``ssl=<mode>``
+    - psycopg2 uses ``sslmode=<mode>``
+    Otherwise psycopg2 raises ``invalid dsn: invalid connection option
+    "ssl"`` (we hit this exact crash on YC Managed PG deploy 2026-05-20).
     """
-    return re.sub(r"^postgresql\+asyncpg://", "postgresql+psycopg2://", async_url, count=1)
+    sync = re.sub(r"^postgresql\+asyncpg://", "postgresql+psycopg2://", async_url, count=1)
+    # Translate asyncpg's ssl=... → psycopg2's sslmode=... (covers both
+    # ``?ssl=require`` standalone and ``&ssl=require`` mid-querystring).
+    sync = re.sub(r"([?&])ssl=", r"\1sslmode=", sync)
+    return sync
 
 
 def _job_id_for_daily(subscription_id: str) -> str:
@@ -143,9 +154,29 @@ async def rebuild_jobs_for_all_subs(
     APScheduler anyway).
     """
     sub_repo = ChartForecastSubscriptionRepository()
+    journal_settings_repo = ChartJournalSettingsRepository()
     count = 0
     async with session_factory() as session:
         subs = await sub_repo.list_all_active(session)
+        journal_settings = await journal_settings_repo.list_enabled(session)
+
+    # Wave 4 — journal reminders: one cron per enabled-journal chart.
+    for js in journal_settings:
+        job_id = f"journal_reminder:{js.chart_id}"
+        trigger = CronTrigger(hour=js.reminder_hour_utc, minute=0, timezone="UTC")
+        scheduler.add_job(
+            send_journal_reminder_job,
+            trigger=trigger,
+            kwargs={
+                "chart_id": js.chart_id,
+                "bot": bot,
+                "session_factory": session_factory,
+            },
+            id=job_id,
+            replace_existing=True,
+            misfire_grace_time=3600,
+        )
+        count += 1
 
     for sub in subs:
         triggers = _build_trigger_for_subscription(sub)
@@ -180,7 +211,12 @@ async def rebuild_jobs_for_all_subs(
                     misfire_grace_time=3600,
                 )
             count += 1
-    logger.info("scheduler.rebuild_done", subscriptions=len(subs), jobs=count)
+    logger.info(
+        "scheduler.rebuild_done",
+        subscriptions=len(subs),
+        journal_reminders=len(journal_settings),
+        jobs=count,
+    )
     return count
 
 

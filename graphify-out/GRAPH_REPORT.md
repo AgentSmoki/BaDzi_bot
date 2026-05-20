@@ -1,65 +1,65 @@
-# Graph Report - .  (2026-05-17)
+# Graph Report - .  (2026-05-19)
 
 ## Corpus Check
-- 67 files · ~0 words
+- 29 files · ~0 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2735 nodes · 4426 edges · 164 communities detected
-- Extraction: 75% EXTRACTED · 25% INFERRED · 0% AMBIGUOUS · INFERRED: 1106 edges (avg confidence: 0.53)
+- 2846 nodes · 4650 edges · 164 communities detected
+- Extraction: 76% EXTRACTED · 24% INFERRED · 0% AMBIGUOUS · INFERRED: 1111 edges (avg confidence: 0.53)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
 - [[_COMMUNITY_AI Orchestrator + base interpretation|AI Orchestrator + base interpretation]]
 - [[_COMMUNITY_Calculator core (Day Master + structures)|Calculator core (Day Master + structures)]]
-- [[_COMMUNITY_CLAUDE.md + ADR architecture|CLAUDE.md + ADR architecture]]
-- [[_COMMUNITY_Knowledge ingest CLI + extract|Knowledge ingest CLI + extract]]
-- [[_COMMUNITY_Auxiliary pillars (胎元命宫)|Auxiliary pillars (胎元/命宫)]]
+- [[_COMMUNITY_airag + knowledgeingest pipeline|ai/rag + knowledge/ingest pipeline]]
 - [[_COMMUNITY_Symbolic Stars (神煞) detector|Symbolic Stars (神煞) detector]]
-- [[_COMMUNITY_Day Master archetypes (Земля Ян examples)|Day Master archetypes (Земля Ян examples)]]
+- [[_COMMUNITY_Day Master archetypes (примеры карт)|Day Master archetypes (примеры карт)]]
+- [[_COMMUNITY_L1 foundational курс (PDF chunks)|L1 foundational курс (PDF chunks)]]
+- [[_COMMUNITY_CLAUDE.md + ADR architecture|CLAUDE.md + ADR architecture]]
 - [[_COMMUNITY_Bazi base concepts + glossary|Bazi base concepts + glossary]]
 - [[_COMMUNITY_Anastasia prompt research + Белый Тигр KB|Anastasia prompt research + Белый Тигр KB]]
 - [[_COMMUNITY_12 Earthly Branches (animal names)|12 Earthly Branches (animal names)]]
-- [[_COMMUNITY_10 Heavenly Stems + 12 Branches taxonomy|10 Heavenly Stems + 12 Branches taxonomy]]
-- [[_COMMUNITY_Fractal RAG research (alternatives + embeddings)|Fractal RAG research (alternatives + embeddings)]]
+- [[_COMMUNITY_Calculator interactions + luck_pillars|Calculator interactions + luck_pillars]]
+- [[_COMMUNITY_10 Stems + 12 Branches taxonomy|10 Stems + 12 Branches taxonomy]]
+- [[_COMMUNITY_Fractal RAG research (KuzuDB alternatives + embeddings)|Fractal RAG research (KuzuDB alternatives + embeddings)]]
 - [[_COMMUNITY_Calendar selection (择日) + temporal context|Calendar selection (择日) + temporal context]]
 - [[_COMMUNITY_Branch clashes (六冲) interactions|Branch clashes (六冲) interactions]]
-- [[_COMMUNITY_Render pipeline (SVG + ProcessPool)|Render pipeline (SVG + ProcessPool)]]
-- [[_COMMUNITY_Bot services + ChartRepository|Bot services + ChartRepository]]
-- [[_COMMUNITY_Day Master strength tests|Day Master strength tests]]
-- [[_COMMUNITY_Hidden Stems (藏干) tests|Hidden Stems (藏干) tests]]
-- [[_COMMUNITY_Anastasia system prompt (10 sections)|Anastasia system prompt (10 sections)]]
-- [[_COMMUNITY_Ten Gods (十神) tests|Ten Gods (十神) tests]]
-- [[_COMMUNITY_ai.rag formatretrieve module|ai.rag format/retrieve module]]
-- [[_COMMUNITY_PDF → L1-L7 chunking pipeline (from_pdf)|PDF → L1-L7 chunking pipeline (from_pdf)]]
-- [[_COMMUNITY_Bazi structures (格局) research|Bazi structures (格局) research]]
-- [[_COMMUNITY_AI router (intent classifier)|AI router (intent classifier)]]
-- [[_COMMUNITY_Bazi authors + sources (Joey Yap etc)|Bazi authors + sources (Joey Yap etc)]]
-- [[_COMMUNITY_ai.rag.extract tests (concepts + stemming)|ai.rag.extract tests (concepts + stemming)]]
-- [[_COMMUNITY_Bot router birth_data flow|Bot router: birth_data flow]]
-- [[_COMMUNITY_L1 foundational курс (PDF chunks)|L1 foundational курс (PDF chunks)]]
-- [[_COMMUNITY_Bot keyboards (UI menus)|Bot keyboards (UI menus)]]
-- [[_COMMUNITY_Solar Terms (节气) tests|Solar Terms (节气) tests]]
-- [[_COMMUNITY_ChartInput models tests|ChartInput models tests]]
-- [[_COMMUNITY_ai.rag + knowledge module index|ai.rag + knowledge module index]]
-- [[_COMMUNITY_Architecture report + community summaries|Architecture report + community summaries]]
-- [[_COMMUNITY_DB repositories (base + subscriptions)|DB repositories (base + subscriptions)]]
-- [[_COMMUNITY_Middlewares (db_session, history, tracing)|Middlewares (db_session, history, tracing)]]
-- [[_COMMUNITY_AI budget tests|AI budget tests]]
-- [[_COMMUNITY_Swiss Ephemeris tests|Swiss Ephemeris tests]]
-- [[_COMMUNITY_Orchestrator fallback tests|Orchestrator fallback tests]]
-- [[_COMMUNITY_Bot keyboard handler tests|Bot keyboard handler tests]]
-- [[_COMMUNITY_knowledge.ingest.parser tests|knowledge.ingest.parser tests]]
-- [[_COMMUNITY_5 элементов + органы тела (TKM health)|5 элементов + органы тела (TKM health)]]
-- [[_COMMUNITY_knowledge.bootstrap KuzuDB tests|knowledge.bootstrap KuzuDB tests]]
-- [[_COMMUNITY_Geocoding (Google + Yandex)|Geocoding (Google + Yandex)]]
-- [[_COMMUNITY_True Solar Time tests|True Solar Time tests]]
-- [[_COMMUNITY_ai.calendar_parse intent tests|ai.calendar_parse intent tests]]
-- [[_COMMUNITY_ai.calendar_parse module|ai.calendar_parse module]]
-- [[_COMMUNITY_knowledge ingest CLI smoke tests|knowledge ingest CLI smoke tests]]
-- [[_COMMUNITY_knowledge.bootstrap module|knowledge.bootstrap module]]
-- [[_COMMUNITY_Solar terms (节气) calculator|Solar terms (节气) calculator]]
-- [[_COMMUNITY_ai.rag.store module|ai.rag.store module]]
+- [[_COMMUNITY_Community 15|Community 15]]
+- [[_COMMUNITY_Community 16|Community 16]]
+- [[_COMMUNITY_Community 17|Community 17]]
+- [[_COMMUNITY_Community 18|Community 18]]
+- [[_COMMUNITY_Community 19|Community 19]]
+- [[_COMMUNITY_Community 20|Community 20]]
+- [[_COMMUNITY_Community 21|Community 21]]
+- [[_COMMUNITY_Community 22|Community 22]]
+- [[_COMMUNITY_Community 23|Community 23]]
+- [[_COMMUNITY_Community 24|Community 24]]
+- [[_COMMUNITY_Community 25|Community 25]]
+- [[_COMMUNITY_Community 26|Community 26]]
+- [[_COMMUNITY_Community 27|Community 27]]
+- [[_COMMUNITY_Community 28|Community 28]]
+- [[_COMMUNITY_Community 29|Community 29]]
+- [[_COMMUNITY_Community 30|Community 30]]
+- [[_COMMUNITY_Community 31|Community 31]]
+- [[_COMMUNITY_Community 32|Community 32]]
+- [[_COMMUNITY_Community 33|Community 33]]
+- [[_COMMUNITY_Community 34|Community 34]]
+- [[_COMMUNITY_Community 35|Community 35]]
+- [[_COMMUNITY_Community 36|Community 36]]
+- [[_COMMUNITY_Community 37|Community 37]]
+- [[_COMMUNITY_Community 38|Community 38]]
+- [[_COMMUNITY_Community 39|Community 39]]
+- [[_COMMUNITY_Community 40|Community 40]]
+- [[_COMMUNITY_Community 41|Community 41]]
+- [[_COMMUNITY_Community 42|Community 42]]
+- [[_COMMUNITY_Community 43|Community 43]]
+- [[_COMMUNITY_Community 44|Community 44]]
+- [[_COMMUNITY_Community 45|Community 45]]
+- [[_COMMUNITY_Community 46|Community 46]]
+- [[_COMMUNITY_Community 47|Community 47]]
+- [[_COMMUNITY_Community 48|Community 48]]
+- [[_COMMUNITY_Community 49|Community 49]]
 - [[_COMMUNITY_Community 50|Community 50]]
 - [[_COMMUNITY_Community 51|Community 51]]
 - [[_COMMUNITY_Community 52|Community 52]]
@@ -200,61 +200,55 @@
   calculator/models.py → scripts/bench_render.py
 
 ## Hyperedges (group relationships)
-- **RAG Retrieval Pipeline (question → KuzuDB → [KNOWLEDGE] block)** — rag_public_load_knowledge_for_question, rag_extract_extract_concepts, rag_retrieve_nodes, rag_format_knowledge_block, rag_store_open_connection, temporal_compose_messages [EXTRACTED 1.00]
-- **KB Ingestion Pipeline (markdown → triplets → KuzuDB)** — ingest_cli_main, ingest_parser_parse_md_file, ingest_extract_triplets, ingest_writer_upsert_doc, knowledge_bootstrap_main, ingest_models_ingested_doc, ingest_models_triplet [EXTRACTED 1.00]
-- **Fractal L1-L7 Graph schema realised in code** — research_fractal_rag_2026_05_17, knowledge_schema_node_ddl, knowledge_schema_rel_tables, ingest_models_ingested_doc, rag_models_retrieved_node [INFERRED 0.85]
-- **test_rag suite** — tests/unit/test_ai/test_rag/test_public.py, tests/unit/test_ai/test_rag/test_extract.py, tests/unit/test_ai/test_rag/test_retrieve.py, tests/unit/test_ai/test_rag/test_format.py [EXTRACTED 1.00]
-- **test_knowledge suite** — tests/unit/test_knowledge/test_parser.py, tests/unit/test_knowledge/test_from_pdf.py, tests/unit/test_knowledge/test_writer.py, tests/unit/test_knowledge/test_schema.py, tests/unit/test_knowledge/test_bootstrap.py, tests/unit/test_knowledge/test_extract.py, tests/unit/test_knowledge/test_ingest_cli.py [EXTRACTED 1.00]
-- **L1_foundational corpus** — L1/01_bazi_introduction, L1/02_bazi_and_wuxing, L1/03_four_pillars, L1/04_day_master, L1/06_seasons_and_calendar, L1/07_five_elements_cycles, L1/08_elements_strength_by_season, L1/09_five_elements_personality, L1/31_school_and_program, L1/32_bibliography [EXTRACTED 1.00]
-- **天干 — 10 Небесных Стволов** — stem_jia_yang_wood, stem_yi_yin_wood, stem_bing_yang_fire, stem_ding_yin_fire, stem_wu_yang_earth, stem_ji_yin_earth, stem_geng_yang_metal, stem_xin_yin_metal, stem_ren_yang_water, stem_gui_yin_water [INFERRED 0.99]
-- **地支 — 12 Земных Ветвей** — branch_zi_rat, branch_chou_ox, branch_yin_tiger, branch_mao_rabbit, branch_chen_dragon, branch_si_snake, branch_wu_horse, branch_wei_goat, branch_shen_monkey, branch_you_rooster, branch_xu_dog, branch_hai_pig [INFERRED 0.99]
-- **Стволы стихии Дерево** — stem_jia_yang_wood, stem_yi_yin_wood [INFERRED 0.97]
-- **Стволы стихии Огонь** — stem_bing_yang_fire, stem_ding_yin_fire [INFERRED 0.97]
-- **Стволы стихии Земля** — stem_wu_yang_earth, stem_ji_yin_earth [INFERRED 0.97]
-- **Стволы стихии Металл** — stem_geng_yang_metal, stem_xin_yin_metal [INFERRED 0.97]
-- **Стволы стихии Вода** — stem_ren_yang_water, stem_gui_yin_water [INFERRED 0.97]
-- **Ветви стихии Дерево / весна / восток** — branch_yin_tiger, branch_mao_rabbit [INFERRED 0.94]
-- **Ветви стихии Огонь / лето / юг** — branch_si_snake, branch_wu_horse [INFERRED 0.94]
-- **Ветви стихии Металл / осень / запад** — branch_shen_monkey, branch_you_rooster [INFERRED 0.94]
-- **Ветви стихии Вода / зима / север** — branch_zi_rat, branch_hai_pig [INFERRED 0.94]
-- **Земные ветви (4 хранилища)** — branch_chen_dragon, branch_chou_ox, branch_wei_goat, branch_xu_dog [INFERRED 0.93]
-- **六沖 — 6 пар столкновений** — branch_zi_rat, branch_wu_horse, branch_chou_ox, branch_wei_goat, branch_yin_tiger, branch_shen_monkey, branch_mao_rabbit, branch_you_rooster, branch_chen_dragon, branch_xu_dog, branch_si_snake, branch_hai_pig [INFERRED 0.97]
-- **六害 — 6 пар вреда** — branch_zi_rat, branch_wei_goat, branch_yin_tiger, branch_si_snake, branch_shen_monkey, branch_hai_pig, branch_chou_ox, branch_wu_horse, branch_mao_rabbit, branch_chen_dragon, branch_xu_dog, branch_you_rooster [INFERRED 0.97]
-- **Огненное наказание 寅—巳—申** — branch_yin_tiger, branch_si_snake, branch_shen_monkey [INFERRED 0.97]
-- **Земное наказание 未—戌—丑** — branch_wei_goat, branch_xu_dog, branch_chou_ox [INFERRED 0.97]
-- **Нецивилизованное наказание 子—卯** — branch_zi_rat, branch_mao_rabbit [INFERRED 0.97]
-- **Самонаказание (парные ветви)** — branch_chen_dragon, branch_wu_horse, branch_you_rooster, branch_hai_pig [INFERRED 0.96]
-- **5 элементов → пары органов TKM** — health_wood_organs, health_fire_organs, health_earth_organs, health_metal_organs, health_water_organs [INFERRED 0.97]
+- **Парные Божества по полярности к ДМ** — concept:bi_jian, concept:jie_cai, concept:day_master_dm [EXTRACTED 0.95]
+- **Богатство пара (正財/偏財)** — concept:zheng_cai, concept:pian_cai, concept:ten_gods [EXTRACTED 0.95]
+- **Власть пара (正官/七殺)** — concept:zheng_guan, concept:qi_sha, concept:ten_gods [EXTRACTED 0.95]
+- **Ресурс/Печать пара (正印/偏印)** — concept:zheng_yin, concept:pian_yin, concept:ten_gods [EXTRACTED 0.95]
+- **Самовыражение пара (食神/傷官)** — concept:shi_shen, concept:shang_guan, concept:ten_gods [EXTRACTED 0.95]
+- **Подтипы Цун Жо (Цай/Гуань/Эр)** — concept:cong_cai_ge, concept:cong_guan_ge, concept:cong_er_ge [EXTRACTED 0.95]
+- **Тройка Благородных (天乙/天德/月德)** — concept:tianyi_guiren, concept:wende_guiren, concept:yuede_guiren [EXTRACTED 0.90]
+- **L7 Анастасия методология: career ↔ health ↔ talents** — concept:career_methodology, concept:health_methodology, concept:talents_methodology [EXTRACTED 0.85]
+- **Входы оценки силы ДМ** — concept:solar_terms_jieqi, concept:hidden_stems, concept:day_master_strength [EXTRACTED 0.95]
+- **Yong/Ji Shen для сильного vs слабого ДМ** — concept:useful_god_yong_shen, concept:harmful_god_ji_shen, concept:day_master_strength [EXTRACTED 0.95]
+- **RAG runtime stack (knowledge → retrieve → orchestrator)** — concept:knowledge_base_kuzudb, concept:rag_pipeline, concept:ai_orchestrator [EXTRACTED 0.95]
+- **Calculator core modules** — concept:calculator_facade, concept:swiss_ephemeris, concept:four_pillars [EXTRACTED 0.95]
+- **Forecast inputs (luck pillars + interactions + ten gods)** — concept:forecast_methodology, concept:luck_pillars_dayun, concept:interactions_he_chong [EXTRACTED 0.95]
+- **RAG retrieval pipeline (Phase 3.x)** —  [INFERRED 0.95]
+- **Knowledge ingest pipeline (Phase 2.x)** —  [INFERRED 0.95]
+- **Knowledge subsystem test suite** —  [INFERRED 0.95]
+- **KuzuDB migration blast radius** —  [INFERRED 0.90]
+- **Phase 3.5 LLM concept extraction upgrade** —  [INFERRED 0.85]
+- **Teacher KB — L7 Relationships cluster** —  [INFERRED 0.90]
 
 ## Communities
 
 ### Community 0 - "AI Orchestrator + base interpretation"
 Cohesion: 0.02
-Nodes (249): BaseInterpretation, format_for_telegram(), generate_base_interpretation(), InterpretationResult, parse_blocks(), Free-tier 6-block base interpretation of a Bazi chart.  This is the *single* AI, Run the 6-block interpretation against the configured primary     model with Cla, Run the 6-block interpretation against the configured primary     model with Cla (+241 more)
+Nodes (258): Base, Base, BaseInterpretation, format_for_telegram(), generate_base_interpretation(), InterpretationResult, parse_blocks(), Free-tier 6-block base interpretation of a Bazi chart.  This is the *single* AI (+250 more)
 
 ### Community 1 - "Calculator core (Day Master + structures)"
 Cohesion: 0.02
 Nodes (91): dm_element(), dm_strength_score(), element_balance(), is_strong_dm(), ji_shen(), Day Master (日主) strength, element balance, and useful/harmful gods., Percentage of each element in the chart (values sum to 1.0).      Heavenly stems, Numeric DM strength score. Positive = strong (旺), negative = weak (弱).      Comb (+83 more)
 
-### Community 2 - "CLAUDE.md + ADR architecture"
+### Community 2 - "ai/rag + knowledge/ingest pipeline"
 Cohesion: 0.02
-Nodes (147): CLAUDE.md — мастер-промпт агента-кодера, AI через OpenRouter: Kimi 2.6 primary, Claude 3.5 Sonnet fallback, Calculator stateless: ChartInput → ChartOutput, без зависимостей от bot/db, База знаний: KuzuDB embedded + RAG подграф в контекст LLM, Монетизация: базовая бесплатна, 1 бесплатный вопрос, тарифы 290/990/2490 RUB, Временные вопросы: детектор → карты текущего года/месяца/дня + 3 года, Визуальная карта: Playwright (HTML/CSS Jinja2 → PNG), Pillow fallback, YC Object Storage, Деплой: Yandex Cloud (VPS + Managed PG + Redis + Object Storage) (+139 more)
+Nodes (131): _default_db_path(), _default_kb_root(), _ingest_one(), main(), Ingest CLI: parser → extract → writer orchestration (Phase 2.4).  Usage:     pyt, Repo root / База/teacher/. Keeps the CLI working when run without     a configur, Same lazy-import dance as :mod:`knowledge.bootstrap` so this CLI     doesn't dra, Returns (verdict, edges_written). ``verdict`` is one of     ``"ingested" | "skip (+123 more)
 
-### Community 3 - "Knowledge ingest CLI + extract"
-Cohesion: 0.03
-Nodes (92): _default_db_path(), _default_kb_root(), _ingest_one(), main(), Ingest CLI: parser → extract → writer orchestration (Phase 2.4).  Usage:     pyt, Repo root / База/teacher/. Keeps the CLI working when run without     a configur, Same lazy-import dance as :mod:`knowledge.bootstrap` so this CLI     doesn't dra, Returns (verdict, edges_written). ``verdict`` is one of     ``"ingested" | "skip (+84 more)
-
-### Community 4 - "Auxiliary pillars (胎元/命宫)"
-Cohesion: 0.03
-Nodes (54): calculate_auxiliary_pillars(), calculate_ming_gong(), calculate_tai_yuan(), Auxiliary pillars 胎元 (Tai Yuan, Conception Pillar) and 命宫 (Ming Gong, Life Palac, Stem of 寅 month for the given year stem (五虎遁年起月)., Conception pillar (胎元) = month + (1 stem, 3 branches)., Life Palace (命宫) by 中州派 reflection rule., Compute 胎元 and 命宫 from the four main pillars. (+46 more)
-
-### Community 5 - "Symbolic Stars (神煞) detector"
+### Community 3 - "Symbolic Stars (神煞) detector"
 Cohesion: 0.04
 Nodes (30): SymbolicStar, SymbolicStarsOutput, calculate_symbolic_stars(), _detect_anchor_lookup(), _make_star(), Symbolic Stars (神煞) detection for a Ba Zi chart.  Detects 63 classical stars via, Find unique 60-cycle index x with x%10=stem_idx and x%12=branch_idx., Generic detector: for each star, look up anchor_value in its table,     then col (+22 more)
 
-### Community 6 - "Day Master archetypes (Земля Ян examples)"
+### Community 4 - "Day Master archetypes (примеры карт)"
 Cohesion: 0.02
 Nodes (104): Уоррен Баффет — пример Воды Ян в инвестициях, Джордж У. Буш — пример Металла Инь как лидера-делегатора, Земля Ян — карьера медленный фундамент, потом рост, Земля Ян — способность строить империи, Земля Ян — семейные отношения как источник уверенности, Земля Ян — эмоции мешают финансовому планированию, Земля Ян — дружелюбный лидер с собственными правилами, Метафора горы — стабильность и поддержка (+96 more)
+
+### Community 5 - "L1 foundational курс (PDF chunks)"
+Cohesion: 0.04
+Nodes (104): L1: Что такое Ба Цзы и У-Син, L1: Знакомство с Ба Цзы (стволы/ветви), L1: Четыре столпа (год/месяц/день/час), L1: Элемент Личности (Господин дня), L1: Сезоны и солнечно-лунный календарь, L1: Циклы 5 элементов (sheng/ke/ослабление), L1: Сила 5 элементов по сезонам, L1: Личность через 5 стихий (+96 more)
+
+### Community 6 - "CLAUDE.md + ADR architecture"
+Cohesion: 0.02
+Nodes (99): CLAUDE.md — мастер-промпт агента-кодера, AI через OpenRouter: Kimi 2.6 primary, Claude 3.5 Sonnet fallback, Calculator stateless: ChartInput → ChartOutput, без зависимостей от bot/db, База знаний: KuzuDB embedded + RAG подграф в контекст LLM, Монетизация: базовая бесплатна, 1 бесплатный вопрос, тарифы 290/990/2490 RUB, Временные вопросы: детектор → карты текущего года/месяца/дня + 3 года, Визуальная карта: Playwright (HTML/CSS Jinja2 → PNG), Pillow fallback, YC Object Storage, Деплой: Yandex Cloud (VPS + Managed PG + Redis + Object Storage) (+91 more)
 
 ### Community 7 - "Bazi base concepts + glossary"
 Cohesion: 0.04
@@ -268,165 +262,165 @@ Nodes (87): Anastasia prompt optimization research (2026-05-16), 渊海子平 (Y
 Cohesion: 0.04
 Nodes (86): Высокоточный калькулятор Бацзы, Карта Ба Цзы (八字), Чэнь 辰 — Дракон, 辰 Дракон (Чэнь), Чоу 丑 — Бык, 丑 Бык (Чоу), Хай 亥 — Свинья, 亥 Свинья (Хай) (+78 more)
 
-### Community 10 - "10 Heavenly Stems + 12 Branches taxonomy"
+### Community 10 - "Calculator interactions + luck_pillars"
+Cohesion: 0.04
+Nodes (35): BaseModel, calculate_interactions(), _detect_pairs(), _detect_self_punishments(), _detect_triads(), Branch and stem interactions (合沖刑害破) for a Ba Zi chart.  Five classical interact, Find all distinct pairs in `tagged` whose char-set is a key of `table`., Find all distinct triads whose char-set is a key of `table`. (+27 more)
+
+### Community 11 - "10 Stems + 12 Branches taxonomy"
 Cohesion: 0.04
 Nodes (71): 10 Небесных Стволов, 12 Земных Ветвей, Имена животных как обозначение Ци земных ветвей, Бык (Чоу 丑) — Земная ветвь, Бык — 4 области преуспевания (управление, еда, искусство, сельское хозяйство), Бык — Север-Северо-Восток (7,5°-37,5°), Бык — Стихия Земля Инь, Бык — сезон Зима (+63 more)
 
-### Community 11 - "Fractal RAG research (alternatives + embeddings)"
+### Community 12 - "Fractal RAG research (KuzuDB alternatives + embeddings)"
 Cohesion: 0.04
 Nodes (64): Apache AGE + pgvector (Postgres graph + vector), FalkorDB / FalkorDBLite (GraphRAG-first DB), KuzuDB archived by Apple (2025-10), LightRAG dual-level retrieval (EMNLP 2025), MedGraphRAG U-Retrieval (ACL 2025), MedRAG 4-tier diagnostic KG (WWW 2025), OpenTCM GraphRAG over ancient Chinese texts, Qwen3-Embedding-0.6B (recommended embedding model) (+56 more)
 
-### Community 12 - "Calendar selection (择日) + temporal context"
+### Community 13 - "Calendar selection (择日) + temporal context"
 Cohesion: 0.06
-Nodes (46): Render the calendar-selection block for the LLM payload.  After the calculator s, Format ranked dates as a structured markdown block.      Top section lists the b, render_calendar_block(), _day_to_pillars(), DayPillar, EventRules, generate_day_pillars(), pick_best_dates() (+38 more)
+Nodes (47): Render the calendar-selection block for the LLM payload.  After the calculator s, Format ranked dates as a structured markdown block.      Top section lists the b, render_calendar_block(), _day_to_pillars(), DayPillar, EventRules, generate_day_pillars(), pick_best_dates() (+39 more)
 
-### Community 13 - "Branch clashes (六冲) interactions"
+### Community 14 - "Branch clashes (六冲) interactions"
 Cohesion: 0.04
 Nodes (56): Столкновение действует только между соседними столпами, Классический Ба Цзы: лечение столкновений через изменение действий и мышления, без амулетов, Столкновение — отталкивающее отношение между Земными ветвями, Столкновение Дракон 辰 ↔ Собака 戌, Основа столкновения — конфликт Скрытых небесных стволов, Последствия столкновения: потеря отношений, имущества, работы, богатства, переезд, Столкновение Бык 丑 ↔ Коза 未, Сталкивающиеся ЗВ напротив друг друга по планетарным позициям (+48 more)
 
-### Community 14 - "Render pipeline (SVG + ProcessPool)"
+### Community 15 - "Community 15"
 Cohesion: 0.06
 Nodes (46): doc/benchmarks/render.md — бенчмарк sequential vs pool (5.1 rps vs 2.5), close_browser(), Public renderer entry point.  Thin wrapper over ``ai.svg_renderer.render_chart_p, Lifecycle hook from before ADR-007. Kept as a no-op so the bot's     shutdown se, Render benchmark: pool 5.1 rps vs sequential 2.5 rps на N=200 (4-core хост), get_pool_size(), get_render_pool(), Lazy ProcessPoolExecutor for SVG → PNG rendering.  CairoSVG + Pillow are GIL-bou (+38 more)
 
-### Community 15 - "Bot services + ChartRepository"
+### Community 16 - "Community 16"
+Cohesion: 0.05
+Nodes (48): Previous graph state: god node ChartInput (65 edges), Previous graph state: god node Pillar (115 edges), Previous graph state: 1678 nodes, 2687 edges, 126 communities (2026-05-08), Rationale ADR-006: гибрид PNG-карта бесплатно + Mini App PRO для интерактива, Rationale ADR-008: PRO монетизация через ЮKassa с migration plan на Stars, 1.11.1 done: tasks/broker.py ListQueueBroker (Redis TTL 1h), 1.11.2 done: tasks/consultation.py run_consultation(), 1.11.3 done: docker-compose worker сервис (+40 more)
+
+### Community 17 - "Community 17"
+Cohesion: 0.08
+Nodes (45): ai.rag.extract, ai.rag.format, ai.rag.models (RetrievedNode), ai.rag.public (load_knowledge_for_question), ai.rag.retrieve, ai.rag.store, ai.temporal_context, 六冲 (six clashes) (+37 more)
+
+### Community 18 - "Community 18"
 Cohesion: 0.06
 Nodes (33): ChartRepository, _coarse_key(), _pick_best_in_group(), Within a same-date+place+gender group, dedup by birth time and pick the     most, Return the user's charts with duplicates collapsed.          Two charts collapse, Group key that ignores birth time but keeps everything that     legitimately mak, charts_to_buttons(), format_chart_label() (+25 more)
 
-### Community 16 - "Day Master strength tests"
+### Community 19 - "Community 19"
 Cohesion: 0.05
 Nodes (7): Day Master strength and useful/harmful god tests., TestDmElement, TestDmStrengthScore, TestElementBalance, TestIsStrongDm, TestSeasonalState, TestYongShenJiShen
 
-### Community 17 - "Hidden Stems (藏干) tests"
+### Community 20 - "Community 20"
 Cohesion: 0.08
 Nodes (8): _b(), Hidden stems (藏干) tests -- all 12 branches x 3 schools., TestChartHiddenStems, TestCrossSchool, TestKenLai, TestModern, TestReturnTypes, TestTraditional
 
-### Community 18 - "Anastasia system prompt (10 sections)"
-Cohesion: 0.06
-Nodes (40): Анастасия §10 КАЛИБРОВОЧНЫЕ ПРИМЕРЫ, Анастасия §1 ПРОФИЛЬ ЛИЧНОСТИ, Анастасия §2 СТИЛЬ КОММУНИКАЦИИ, Анастасия §3 АЛГОРИТМ ВЗАИМОДЕЙСТВИЯ, Анастасия §5 ТЕМАТИЧЕСКИЕ КОНСУЛЬТАЦИИ, Анастасия §6 РАБОТА С ВОЗРАЖЕНИЯМИ, Анастасия §7 ОГРАНИЧЕНИЯ И ЭТИКА, Анастасия §8 РАБОТА С ЭЛЕМЕНТАМИ (+32 more)
-
-### Community 19 - "Ten Gods (十神) tests"
+### Community 21 - "Community 21"
 Cohesion: 0.08
 Nodes (6): Ten Gods (十神) mapping tests., _s(), TestAllPairsValid, TestChartTenGods, TestTenGodsFromDing, TestTenGodsFromJia
 
-### Community 20 - "ai.rag format/retrieve module"
+### Community 22 - "Community 22"
 Cohesion: 0.1
-Nodes (30): format_knowledge_block(), _format_one(), Render retrieved nodes as the ``[KNOWLEDGE]`` block body (Phase 3.3).  Budget is, Render a single node. Returns ``None`` if even the header     wouldn't fit — tha, Concatenate node renderings until the budget runs out. Empty     list returns th, Data models for the retrieval pipeline (Phase 3).  Frozen slots-dataclasses — th, One scored hit from the graph retrieval., RetrievedNode (+22 more)
+Nodes (19): calculate_auxiliary_pillars(), calculate_ming_gong(), calculate_tai_yuan(), Auxiliary pillars 胎元 (Tai Yuan, Conception Pillar) and 命宫 (Ming Gong, Life Palac, Stem of 寅 month for the given year stem (五虎遁年起月)., Conception pillar (胎元) = month + (1 stem, 3 branches)., Life Palace (命宫) by 中州派 reflection rule., Compute 胎元 and 命宫 from the four main pillars. (+11 more)
 
-### Community 21 - "PDF → L1-L7 chunking pipeline (from_pdf)"
+### Community 23 - "Community 23"
+Cohesion: 0.07
+Nodes (37): Анастасия §10 КАЛИБРОВОЧНЫЕ ПРИМЕРЫ, Анастасия §1 ПРОФИЛЬ ЛИЧНОСТИ, Анастасия §2 СТИЛЬ КОММУНИКАЦИИ, Анастасия §3 АЛГОРИТМ ВЗАИМОДЕЙСТВИЯ, Анастасия §5 ТЕМАТИЧЕСКИЕ КОНСУЛЬТАЦИИ, Анастасия §6 РАБОТА С ВОЗРАЖЕНИЯМИ, Анастасия §7 ОГРАНИЧЕНИЯ И ЭТИКА, Анастасия §8 РАБОТА С ЭЛЕМЕНТАМИ (+29 more)
+
+### Community 24 - "Community 24"
 Cohesion: 0.07
 Nodes (24): from_dict(), load_toc(), PDF → L1-L7 markdown chunking pipeline (Phase 0.3 v2).  The :mod:`knowledge.inge, Prompt for the discovery subagent. The subagent reads the whole     PDF.md and e, Prompt for the per-chapter subagent: convert a slice of PDF text     into a prop, Where the TOC JSON lives — sidecar next to the PDF.md., Where the chunk .md should land. Resolves to a path inside the     teacher KB ro, Parse the TOC JSON the discovery subagent produced. (+16 more)
 
-### Community 22 - "Bazi structures (格局) research"
+### Community 25 - "Community 25"
 Cohesion: 0.07
 Nodes (33): Найдено: точные % для mono-element отсутствуют в классике, Эзотерические: 拱禄, 飞天禄马, 倒冲, Research v1 — perplexity sonar-pro web search, PyPI bazi 0.1.5 — упомянут как halucination warning, 5 从格: 从财/从官/从儿/从势/从强, Eight Regular Structures (正格): 正官/七杀/正财/偏财/正印/偏印/食神/伤官, Hidden Qi priority: 本气 (60-70%) > 中气 (20-30%) > 余气 (5-10%), 5 化格 трансформаций (甲己→土, 乙庚→金, 丙辛→水, 丁壬→木, 戊癸→火) (+25 more)
 
-### Community 23 - "AI router (intent classifier)"
+### Community 26 - "Community 26"
 Cohesion: 0.1
 Nodes (30): _has_any(), _normalise(), Lightweight semantic router for incoming user questions (ADR-009).  Decides two, Cyrillic-aware lowercasing for keyword matching. Replaces ё with е     so the ke, Match each keyword at a word boundary (start of word), so     inflected forms st, Match each keyword at a word boundary (start of word), so     inflected forms st, Policy choices for one user turn.      ``intent`` feeds into ``ai.budget.compute, All policy choices for one user turn.      The orchestrator (1.8.1) reads `model (+22 more)
 
-### Community 24 - "Bazi authors + sources (Joey Yap etc)"
+### Community 27 - "Community 27"
 Cohesion: 0.07
 Nodes (31): Давыдов М.А. (русскоязычные работы по китайской астрологии), Mr. Hung Hin Cheong (Xuan Kong, Yin House), Janet Yung (Bazi Profile), Dr. Jin Peh (Exploring Water/Metal/Wood/Fire Charts), Joey Yap (главный источник: Ба Цзы, Ци Мень, Сюань Кун), Лиллиан Ту (Фэн-шуй практики), Джованни Мачоча (Основы китайской медицины), Мантэк Чиа (даосские практики, цигун, Ци Нэй Цзан) (+23 more)
 
-### Community 25 - "ai.rag.extract tests (concepts + stemming)"
+### Community 28 - "Community 28"
 Cohesion: 0.07
-Nodes (13): Tests for ai.rag.extract — concept matching + token stemming., Multi-word concepts like "white tiger" must match via substring., ≤ 3 chars (after stem) are discarded — they'd match anything., Russian declensions collapse to a common stem., Chinese characters (like 庚 or 白虎) are short — punctuation     split keeps them;, ``ого`` should win over ``о`` for "огненного"., Rows with unknown relation or missing object are silently dropped., test_extract_concepts_substring_for_multiword() (+5 more)
+Nodes (13): Tests for knowledge.ingest.extract — heuristic + sidecar modes., Multi-word concepts like "white tiger" must match via substring., ≤ 3 chars (after stem) are discarded — they'd match anything., Russian declensions collapse to a common stem., Chinese characters (like 庚 or 白虎) are short — punctuation     split keeps them;, ``ого`` should win over ``о`` for "огненного"., Rows with unknown relation or missing object are silently dropped., test_extract_concepts_substring_for_multiword() (+5 more)
 
-### Community 26 - "Bot router: birth_data flow"
+### Community 29 - "Community 29"
 Cohesion: 0.16
 Nodes (27): _back_to_confirm(), _calculate_and_persist(), _consume_buttons(), _format_summary(), handle_calc(), handle_city(), handle_city_choice(), handle_city_retry() (+19 more)
 
-### Community 27 - "L1 foundational курс (PDF chunks)"
-Cohesion: 0.13
-Nodes (27): L1: Что такое Ба Цзы и У-Син, L1: Знакомство с Ба Цзы (стволы/ветви), L1: Четыре столпа (год/месяц/день/час), L1: Элемент Личности (Господин дня), L1: Сезоны и солнечно-лунный календарь, L1: Циклы 5 элементов (sheng/ke/ослабление), L1: Сила 5 элементов по сезонам, L1: Личность через 5 стихий (+19 more)
+### Community 30 - "Community 30"
+Cohesion: 0.12
+Nodes (6): _make(), Build a ChartInput from defaults, applying overrides via model_validate., TestChartInput, TestChartOutput, TestPillar, TestStemBranchConstants
 
-### Community 28 - "Bot keyboards (UI menus)"
+### Community 31 - "Community 31"
 Cohesion: 0.09
 Nodes (16): back_to_time_kb(), chart_actions_kb(), chart_actions_kb_post_interpret(), gender_kb(), name_skip_kb(), pricing_kb(), Focused inline keyboard attached to a chart photo (pre-interpretation).      «Та, Same as ``chart_actions_kb`` minus «Получить разбор карты».      Sent after the (+8 more)
 
-### Community 29 - "Solar Terms (节气) tests"
+### Community 32 - "Community 32"
 Cohesion: 0.09
 Nodes (4): Solar terms (24 Jie Qi) calculation tests., TestSolarTermDatetime, TestSolarTermJd, TestSolarTermNames
 
-### Community 30 - "ChartInput models tests"
-Cohesion: 0.13
-Nodes (5): _make(), TestChartInput, TestChartOutput, TestPillar, TestStemBranchConstants
-
-### Community 31 - "ai.rag + knowledge module index"
-Cohesion: 0.15
-Nodes (23): ai.rag.extract (concepts/tokens/stem), ai.rag.format (format_knowledge_block), ai.rag.models (RetrievedNode), ai.rag.public (load_knowledge_for_question), ai.rag.retrieve (KuzuDB query layer), ai.rag.store (kuzu singleton + vocab cache), knowledge.bootstrap (DDL runner+CLI), knowledge.ingest.cli (ingest entrypoint) (+15 more)
-
-### Community 32 - "Architecture report + community summaries"
+### Community 33 - "Community 33"
 Cohesion: 0.11
 Nodes (19): Community 6: Архитектура AI-консультанта (56 nodes), Community 4: Calculator core — модели и модули (74 nodes), Community 23: Yandex Cloud / Deploy stack (11 nodes), doc/deploy.md — деплой на Yandex Cloud (10 шагов), GitHub Actions Secrets (YC_REGISTRY_ID, SSH_PRIVATE_KEY, BOT_TOKEN, ...), God Node: ChartInput — единственная точка входа калькулятора (36 edges), God Node: Pillar — domain primitive калькулятора (115 edges), God Node: SymbolicStar (21 edges) (+11 more)
 
-### Community 33 - "DB repositories (base + subscriptions)"
-Cohesion: 0.18
-Nodes (11): Base, Base, Latest consultation for a chart filtered by topic.          Used by the "Получит, DeclarativeBase, Consultation, Event, Subscription, SubscriptionPlan (+3 more)
+### Community 34 - "Community 34"
+Cohesion: 0.17
+Nodes (16): Tests for knowledge.ingest.parser., YAML may give us an ISO string instead of a date object., Most fields are optional and default to safe values; only ``level``     being no, Most fields are optional and default to safe values; only ``level``     being no, Frontmatter edits must not invalidate the hash (only body counts)., YAML may give us an ISO string instead of a date object., test_bad_level_returns_none(), test_bad_yaml_returns_none() (+8 more)
 
-### Community 34 - "Middlewares (db_session, history, tracing)"
+### Community 35 - "Community 35"
+Cohesion: 0.11
+Nodes (14): Integration tests for knowledge.bootstrap.  These spin up a real KuzuDB in a tmp, Insert two nodes + a REFERS_TO edge between them., If bot.config can't be imported (no .env at all), bootstrap should     still wor, If bot.config can't be imported (no .env at all), bootstrap should     still wor, Running bootstrap twice on the same path must not raise., --recreate should drop the dir; new DB should still match schema., End-to-end: schema actually supports the columns we promised., End-to-end: schema actually supports the columns we promised. (+6 more)
+
+### Community 36 - "Community 36"
 Cohesion: 0.12
 Nodes (7): BaseMiddleware, DbSessionMiddleware, HistoryMiddleware, Inject the singleton HistoryStore into every handler's data dict.  Single shared, # TODO: hash user_id for public logs once PII policy lands., TracingMiddleware, UserMiddleware
 
-### Community 35 - "AI budget tests"
+### Community 37 - "Community 37"
 Cohesion: 0.19
 Nodes (4): _msg(), Unit tests for ai.budget — dynamic max_tokens sizing.  Pure-function module, no, TestComputeMaxTokens, TestEstimateInputTokens
 
-### Community 36 - "Swiss Ephemeris tests"
+### Community 38 - "Community 38"
 Cohesion: 0.12
 Nodes (4): Swiss Ephemeris wrapper tests.  Astronomical reference points (UTC):   Summer so, TestJulianDay, TestSetEphemerisPath, TestSunLongitude
 
-### Community 37 - "Orchestrator fallback tests"
+### Community 39 - "Community 39"
 Cohesion: 0.23
 Nodes (14): _patch_chat(), test_both_models_failing_reraises_fallback_error(), test_both_tiers_fail_reraises_last(), test_defaults_come_from_settings(), test_dynamic_max_tokens_smaller_for_claude_tier(), test_model_id_assembled_per_provider(), test_orchestrator_error_does_not_trigger_fallback(), test_other_4xx_does_not_trigger_fallback() (+6 more)
 
-### Community 38 - "Bot keyboard handler tests"
+### Community 40 - "Community 40"
 Cohesion: 0.16
 Nodes (10): _callback_data_set(), fake_message(), test_chart_actions_kb_has_interpret_ask_back_no_pricing(), test_chart_interpret_generates_and_persists_on_cache_miss(), test_chart_interpret_returns_cached_without_llm(), test_chart_open_pins_chart_id_in_fsm(), test_menu_back_clears_state_and_renders_main_menu(), test_menu_pricing_renders_stub_with_pricing_kb() (+2 more)
 
-### Community 39 - "knowledge.ingest.parser tests"
-Cohesion: 0.2
-Nodes (14): Tests for knowledge.ingest.parser., YAML may give us an ISO string instead of a date object., Most fields are optional and default to safe values; only ``level``     being no, Frontmatter edits must not invalidate the hash (only body counts)., test_bad_level_returns_none(), test_bad_yaml_returns_none(), test_body_edit_changes_hash(), test_content_hash_is_sha256_of_body_only() (+6 more)
-
-### Community 40 - "5 элементов + органы тела (TKM health)"
+### Community 41 - "Community 41"
 Cohesion: 0.22
 Nodes (16): Баланс пяти элементов и здоровье, Земля → селезёнка + желудок, Огонь → сердце + тонкая кишка, Металл → лёгкие + толстая кишка, Вода → почки + мочевой пузырь, Дерево → печень + жёлчный пузырь, 丙 Огонь Ян (Бин), 丁 Огонь Инь (Дин) (+8 more)
 
-### Community 41 - "knowledge.bootstrap KuzuDB tests"
-Cohesion: 0.13
-Nodes (11): Integration tests for knowledge.bootstrap.  These spin up a real KuzuDB in a tmp, Insert two nodes + a REFERS_TO edge between them., If bot.config can't be imported (no .env at all), bootstrap should     still wor, Running bootstrap twice on the same path must not raise., --recreate should drop the dir; new DB should still match schema., End-to-end: schema actually supports the columns we promised., test_bootstrap_is_idempotent(), test_bootstrap_recreate_wipes_existing() (+3 more)
-
-### Community 42 - "Geocoding (Google + Yandex)"
+### Community 42 - "Community 42"
 Cohesion: 0.27
 Nodes (11): CityCandidate, _dedupe(), _google_geocode_request(), _google_timezone(), City search with Google → Yandex → Nominatim fallback chain.  Google Geocoding +, Both geocoders sometimes return near-identical hits — collapse by     coordinate, _resolve_tz(), search_cities() (+3 more)
 
-### Community 43 - "True Solar Time tests"
+### Community 43 - "Community 43"
 Cohesion: 0.14
 Nodes (3): True Solar Time calculation tests.  Reference EoT values (Jean Meeus / NOAA):, TestEquationOfTime, TestTrueSolarTime
 
-### Community 44 - "ai.calendar_parse intent tests"
+### Community 44 - "Community 44"
 Cohesion: 0.14
 Nodes (5): Tests for ai.calendar_parse — intent detection + date range parsing.  Pure-funct, User asks 'когда лучшие дни в июне' without saying for what.     Intent is detec, «следующие 24 месяца» should be capped to 365 days., test_calendar_intent_without_event_type_returns_event_type_none(), test_horizon_clamped_to_max_when_excessive()
 
-### Community 45 - "ai.calendar_parse module"
+### Community 45 - "Community 45"
 Cohesion: 0.24
 Nodes (10): CalendarRequest, detect_calendar_request(), _extract_date_range(), _extract_event_type(), _has_calendar_intent(), _normalise(), Detect calendar-selection (择日) intent and parse date range + event type.  Trigge, A parsed calendar-selection request.      ``event_type`` may be ``None`` when th (+2 more)
 
-### Community 46 - "knowledge ingest CLI smoke tests"
+### Community 46 - "Community 46"
 Cohesion: 0.17
 Nodes (3): kb(), End-to-end smoke tests for the ingest CLI (knowledge.ingest.cli.main)., Tiny KB with two docs in different L-folders.
 
-### Community 47 - "knowledge.bootstrap module"
+### Community 47 - "Community 47"
 Cohesion: 0.23
 Nodes (10): bootstrap(), BootstrapResult, _default_db_path(), _list_tables(), main(), Idempotent KuzuDB bootstrap — creates the schema on a fresh DB and no-ops if eve, Resolve the default DB path from settings without importing the     full bot sta, Tiny value object — keeps the CLI output and the test assertions     speaking th (+2 more)
 
-### Community 48 - "Solar terms (节气) calculator"
+### Community 48 - "Community 48"
+Cohesion: 0.2
+Nodes (11): _get_concept_vocabulary(), _get_database(), open_connection(), KuzuDB connection management for the retrieval hot path.  The bot is async (aiog, Public accessor — kept distinct from the cached impl so tests can     monkeypatc, Public accessor — kept distinct from the cached impl so tests can     monkeypatc, Return the singleton :class:`kuzu.Database` or ``None`` if the     KB doesn't ex, Open a fresh connection through the singleton database. Returns     ``None`` if (+3 more)
+
+### Community 49 - "Community 49"
 Cohesion: 0.25
 Nodes (10): _approx_jd(), _find_solar_term_jd(), _jd_to_utc(), 24 Solar Terms (Jie Qi, 节气) calculation via Newton-Raphson search., UTC datetime of solar term `term_index` in Gregorian year `year`., Rough JD for term `term_index` in Gregorian year `year`., Newton-Raphson refinement until sun longitude equals target_lon., JD when sun longitude equals term_index * 15° in Gregorian year `year`.      Arg (+2 more)
-
-### Community 49 - "ai.rag.store module"
-Cohesion: 0.22
-Nodes (10): _get_concept_vocabulary(), _get_database(), open_connection(), KuzuDB connection management for the retrieval hot path.  The bot is async (aiog, Public accessor — kept distinct from the cached impl so tests can     monkeypatc, Return the singleton :class:`kuzu.Database` or ``None`` if the     KB doesn't ex, Open a fresh connection through the singleton database. Returns     ``None`` if, Tests: drop the cached database so ``KUZU_DB_PATH`` overrides     are honoured b (+2 more)
 
 ### Community 50 - "Community 50"
 Cohesion: 0.24
@@ -885,7 +879,7 @@ Cohesion: 1.0
 Nodes (1): Взаимодействия ветвей: clash/harm/punishment
 
 ## Knowledge Gaps
-- **666 isolated node(s):** `create_initial_tables  Revision ID: 151398db4f39 Revises: Create Date: 2026-05-0`, `High-level facade: orchestrates every sub-module into a ChartOutput.      Calcul`, `Regression tests for calculator determinism (task 2.1.6).  Investigation showed`, `1000 consecutive calls with the same input must return exactly     one distinct`, `The three pillar combinations previously seen as 'floating' in     MASTER.md ful` (+661 more)
+- **691 isolated node(s):** `create_initial_tables  Revision ID: 151398db4f39 Revises: Create Date: 2026-05-0`, `High-level facade: orchestrates every sub-module into a ChartOutput.      Calcul`, `Regression tests for calculator determinism (task 2.1.6).  Investigation showed`, `1000 consecutive calls with the same input must return exactly     one distinct`, `The three pillar combinations previously seen as 'floating' in     MASTER.md ful` (+686 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **Thin community `Community 83`** (2 nodes): `TaskIQ broker — Redis pub/sub + result backend.  Single ``broker`` instance impo`, `broker.py`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -1053,12 +1047,12 @@ Nodes (1): Взаимодействия ветвей: clash/harm/punishment
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Pillar` connect `Calculator core (Day Master + structures)` to `AI Orchestrator + base interpretation`, `Auxiliary pillars (胎元/命宫)`, `Symbolic Stars (神煞) detector`, `Day Master strength tests`, `Hidden Stems (藏干) tests`, `Ten Gods (十神) tests`, `ChartInput models tests`?**
-  _High betweenness centrality (0.083) - this node is a cross-community bridge._
-- **Why does `ChartInput` connect `AI Orchestrator + base interpretation` to `Community 54`, `Calculator core (Day Master + structures)`, `Auxiliary pillars (胎元/命宫)`, `ChartInput models tests`?**
-  _High betweenness centrality (0.045) - this node is a cross-community bridge._
-- **Why does `ChatMessage` connect `AI Orchestrator + base interpretation` to `Community 64`, `AI budget tests`, `Auxiliary pillars (胎元/命宫)`, `Calendar selection (择日) + temporal context`?**
+- **Why does `Pillar` connect `Calculator core (Day Master + structures)` to `Symbolic Stars (神煞) detector`, `Calculator interactions + luck_pillars`, `Community 19`, `Community 20`, `Community 21`, `Community 22`, `Community 30`?**
+  _High betweenness centrality (0.076) - this node is a cross-community bridge._
+- **Why does `ChartInput` connect `AI Orchestrator + base interpretation` to `Calculator core (Day Master + structures)`, `Calculator interactions + luck_pillars`, `Calendar selection (择日) + temporal context`, `Community 54`, `Community 30`?**
   _High betweenness centrality (0.042) - this node is a cross-community bridge._
+- **Why does `ChatMessage` connect `AI Orchestrator + base interpretation` to `Community 64`, `Calculator interactions + luck_pillars`, `Community 37`, `Calendar selection (择日) + temporal context`?**
+  _High betweenness centrality (0.039) - this node is a cross-community bridge._
 - **Are the 111 inferred relationships involving `Pillar` (e.g. with `Symbolic Stars (神煞) detection for a Ba Zi chart.  Detects 63 classical stars via` and `Find unique 60-cycle index x with x%10=stem_idx and x%12=branch_idx.`) actually correct?**
   _`Pillar` has 111 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 112 inferred relationships involving `ChatMessage` (e.g. with `Consultation router — text Q&A with Anastasia (1.13).  Wires together everything` and `Run one consultation turn end-to-end inside the worker.      Returns the assista`) actually correct?**

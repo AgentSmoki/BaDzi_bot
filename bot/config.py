@@ -77,6 +77,19 @@ class Settings(BaseSettings):
     # Subscription period for both plans. Adjustable for promos.
     forecast_period_days: int = 30
 
+    # ── Wave 4 — journal + TeleTranscribe ─────────────────────────────────────
+    # Where the journal reminder fires by default (local hour). User can
+    # override per-chart via the journal settings UI.
+    journal_default_reminder_hour_local: int = 21
+    # TeleTranscribe API — bot makes direct HTTP calls to transcribe voice
+    # messages downloaded from Telegram. The MCP server is a Claude-side
+    # convenience; the bot uses the same HTTP backend directly.
+    tt_api_base_url: str = "http://93.77.187.33:8000"
+    tt_api_key: SecretStr | None = None
+    # Some self-hosted TT deployments are slow on cold-start (model load).
+    # 90 s is enough for short voice messages (under 3 min).
+    tt_timeout_seconds: int = 90
+
     # ── Swiss Ephemeris ───────────────────────────────────────────────────────
     swiss_ephemeris_path: Path = Path("/usr/share/swisseph")
 

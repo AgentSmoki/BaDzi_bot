@@ -34,9 +34,17 @@ def test_derive_sync_db_url_idempotent_on_already_sync() -> None:
     assert derive_sync_db_url(src) == src
 
 
-def test_derive_sync_db_url_keeps_query_params() -> None:
+def test_derive_sync_db_url_translates_ssl_to_sslmode() -> None:
+    """asyncpg's ``ssl=`` → psycopg2's ``sslmode=`` — psycopg2 raises
+    `invalid dsn: invalid connection option "ssl"` otherwise. Hit on
+    YC Managed PG deploy 2026-05-20 — regression-guarded here."""
     src = "postgresql+asyncpg://u:p@h/db?ssl=require"
-    assert derive_sync_db_url(src) == "postgresql+psycopg2://u:p@h/db?ssl=require"
+    assert derive_sync_db_url(src) == "postgresql+psycopg2://u:p@h/db?sslmode=require"
+
+
+def test_derive_sync_db_url_translates_ssl_mid_querystring() -> None:
+    src = "postgresql+asyncpg://u:p@h/db?foo=1&ssl=require&bar=2"
+    assert derive_sync_db_url(src) == "postgresql+psycopg2://u:p@h/db?foo=1&sslmode=require&bar=2"
 
 
 # ── Slot keys ────────────────────────────────────────────────────────────

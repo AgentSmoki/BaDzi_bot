@@ -19,6 +19,7 @@ from typing import Final
 import structlog
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from ai.forecast import (
@@ -45,6 +46,11 @@ _DELIVERY_HEADER: Final[dict[ForecastKind, str]] = {
 def build_daily_slot_key(target_date: date) -> str:
     """Daily slot key: ``daily:YYYY-MM-DD``."""
     return f"daily:{target_date.isoformat()}"
+
+
+def build_journal_reminder_key(*, chart_id: str, target_date: date) -> str:
+    """Wave 4 — journal reminders are per-chart, per-day."""
+    return f"journal:{chart_id}:{target_date.isoformat()}"
 
 
 def build_monthly_slot_key(*, period_start: date, week: int | None) -> str:
@@ -214,6 +220,73 @@ async def send_daily_forecast_job(
             session=session,
         )
         await session.commit()
+
+
+async def send_journal_reminder_job(
+    *,
+    chart_id: uuid.UUID,
+    bot: Bot,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Wave 4 — daily reminder for the reflection journal.
+
+    Fires at the per-chart configured local hour. Skips silently if the
+    user disabled the journal between purchase and fire-time."""
+    from db.models import User
+    from db.repositories.journal_repo import ChartJournalSettingsRepository
+
+    chart_repo = ChartRepository()
+    journal_settings_repo = ChartJournalSettingsRepository()
+
+    async with session_factory() as session:
+        chart = await chart_repo.get_by_id(session, chart_id)
+        if chart is None:
+            return
+        settings = await journal_settings_repo.get_or_create(session, chart_id=chart_id)
+        if not settings.enabled:
+            return
+        user = await session.get(User, chart.user_id)
+        telegram_id = getattr(user, "telegram_id", None) if user is not None else None
+        if telegram_id is None:
+            return
+        chart_label = chart.name or "вашей карты"
+
+    text = (
+        "<b>📔 Время записать рефлексию</b>\n\n"
+        f"Как прошёл день для {chart_label}? Опишите своими словами текстом "
+        "или запишите голосовое — я расшифрую и сохраню в дневник этой карты."
+    )
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📝 Записать сегодня",
+                    callback_data=f"journal:write:{chart_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Пропустить сегодня",
+                    callback_data=f"journal:show:{chart_id}",
+                )
+            ],
+        ]
+    )
+
+    try:
+        await bot.send_message(chat_id=telegram_id, text=text, parse_mode="HTML", reply_markup=kb)
+        logger.info(
+            "journal.reminder_sent",
+            chart_id=str(chart_id),
+            telegram_id=telegram_id,
+        )
+    except (TelegramBadRequest, TelegramForbiddenError) as exc:
+        logger.warning(
+            "journal.reminder_failed",
+            chart_id=str(chart_id),
+            error=str(exc),
+            exc_type=type(exc).__name__,
+        )
 
 
 async def send_monthly_forecast_job(
