@@ -575,6 +575,59 @@ async def handle_question(
     )
 
 
+# ── Public helper: resume after partner chart added (1.17.9b) ────────────
+
+
+async def resume_after_partner_added(
+    message: Message,
+    *,
+    owner_chart: Chart,
+    partner_chart_output: ChartOutput,
+    pending_question: str,
+    pending_skill: str,
+    pending_concept_hints: list[str],
+    pending_clarifications: list[tuple[str, str]] | None,
+    user: User,
+    session: AsyncSession,
+    history_store: HistoryStore,
+) -> None:
+    """Called from `bot.routers.birth_data` right after a partner chart
+    is calculated, persisted and linked to the owner chart.
+
+    Picks up the consultation where the original question left off —
+    same skill, the freshly-built partner chart injected into the
+    `[PARTNER_CHART]` block, and any clarifications carried across
+    from the clarifying FSM loop.
+
+    Without this hook the bot would just say «Карта партнёра рассчитана»
+    and the user would have to manually re-ask the question. See
+    1.17.9b in tasks.md.
+    """
+    chart_data = ChartOutput.model_validate(owner_chart.chart_data)
+    skill_spec = _safe_load_skill(pending_skill)
+    partner_id = owner_chart.partner_chart_id
+    logger.info(
+        "consultation.resumed_after_partner_added",
+        skill=pending_skill,
+        had_clarifications=bool(pending_clarifications),
+        owner_chart_id=str(owner_chart.id),
+        partner_chart_id=str(partner_id) if partner_id else None,
+    )
+    await _continue_consultation_with_skill(
+        message,
+        chart=owner_chart,
+        chart_data=chart_data,
+        user=user,
+        session=session,
+        history_store=history_store,
+        original_question=pending_question,
+        skill_spec=skill_spec,
+        partner_chart=partner_chart_output,
+        clarifications=pending_clarifications,
+        concept_hints=pending_concept_hints,
+    )
+
+
 # ── Shared consultation continuation ─────────────────────────────────────
 
 

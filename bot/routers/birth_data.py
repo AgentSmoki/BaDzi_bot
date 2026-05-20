@@ -11,6 +11,7 @@ from aiogram.types import BufferedInputFile, CallbackQuery, InlineKeyboardMarkup
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai.card_renderer import RenderRequest, render_chart_png
+from ai.context import HistoryStore
 from ai.text_extract import ExtractedBirthData, extract_birth_data
 from bot.keyboards import (
     back_to_time_kb,
@@ -472,6 +473,13 @@ async def handle_add_partner_chart(callback: CallbackQuery, state: FSMContext, b
     data = await state.get_data()
     owner_chart_id = data.get("chart_id")
     pending_question = data.get("pending_question")
+    # 1.17.9b: preserve the rest of the consultation context (skill,
+    # concept hints, clarifications already collected) so auto-resume
+    # in `handle_confirm_calc` can hand them off to the main LLM along
+    # with the freshly-built partner chart.
+    pending_skill = data.get("pending_skill")
+    pending_concept_hints = data.get("pending_concept_hints") or []
+    pending_clarifications = data.get("pending_clarifications") or []
 
     chat_id = callback.message.chat.id if isinstance(callback.message, Message) else None
     if chat_id is None:
@@ -484,6 +492,9 @@ async def handle_add_partner_chart(callback: CallbackQuery, state: FSMContext, b
         mode="partner",
         owner_chart_id=owner_chart_id,
         pending_question=pending_question,
+        pending_skill=pending_skill,
+        pending_concept_hints=pending_concept_hints,
+        pending_clarifications=pending_clarifications,
     )
     await state.set_state(BirthDataForm.waiting_date)
     await _step(bot=bot, chat_id=chat_id, state=state, text=PARTNER_DATE_PROMPT)
@@ -830,6 +841,7 @@ async def handle_confirm_calc(
     user: User,
     session: AsyncSession,
     bot: Bot,
+    history_store: HistoryStore,
 ) -> None:
     await _consume_buttons(callback)  # last edit before we leave the FSM bubble
     data = await state.get_data()
@@ -877,10 +889,68 @@ async def handle_confirm_calc(
 
         if mode == "partner":
             # Skip the naming step for partner charts (we already saved
-            # name="Партнёр"). Clear FSM and show a confirmation; Phase 6
-            # will hook this into auto-resume of the pending question.
-            await state.clear()
-            await callback.message.answer(PARTNER_SAVED_MSG)
+            # name="Партнёр"). If the user came here from a clarifying
+            # loop in consultation router (1.17.9b auto-resume), pick
+            # up the original question now that the partner is linked.
+            pending_question = data.get("pending_question")
+            owner_chart_id_raw = data.get("chart_id") or data.get("owner_chart_id")
+
+            if pending_question and owner_chart_id_raw:
+                pending_skill = str(data.get("pending_skill") or "relationships")
+                hints_raw = data.get("pending_concept_hints") or []
+                pending_concept_hints = (
+                    [str(h) for h in hints_raw] if isinstance(hints_raw, list) else []
+                )
+                clar_raw = data.get("pending_clarifications") or []
+                pending_clarifications = (
+                    [(str(q), str(a)) for q, a in clar_raw]
+                    if isinstance(clar_raw, list) and clar_raw
+                    else None
+                )
+                import uuid as _uuid
+
+                try:
+                    owner_chart_uuid = _uuid.UUID(str(owner_chart_id_raw))
+                except (TypeError, ValueError):
+                    owner_chart_uuid = None
+
+                await state.clear()
+
+                owner_chart = (
+                    await _chart_repo.get_by_id(session, owner_chart_uuid)
+                    if owner_chart_uuid is not None
+                    else None
+                )
+                if owner_chart is not None:
+                    # Lazy import to avoid a circular dependency between
+                    # birth_data router (we are here) and consultation
+                    # router (which already imports from this module via
+                    # `add_partner_chart_kb` chain).
+                    from bot.routers.consultation import resume_after_partner_added
+
+                    # ACK the callback first — auto-resume runs the main
+                    # LLM (~15s) and Telegram invalidates callback queries
+                    # after a few seconds («query is too old» 400).
+                    await callback.answer()
+                    await resume_after_partner_added(
+                        callback.message,
+                        owner_chart=owner_chart,
+                        partner_chart_output=chart_output,
+                        pending_question=str(pending_question),
+                        pending_skill=pending_skill,
+                        pending_concept_hints=pending_concept_hints,
+                        pending_clarifications=pending_clarifications,
+                        user=user,
+                        session=session,
+                        history_store=history_store,
+                    )
+                    return
+                # owner chart missing — fall through to the generic
+                # confirmation so the user is not left hanging.
+                await callback.message.answer(PARTNER_SAVED_MSG)
+            else:
+                await state.clear()
+                await callback.message.answer(PARTNER_SAVED_MSG)
         else:
             await state.set_state(BirthDataForm.naming)
             await state.update_data(chart_id=str(chart_id), fsm_msg_id=None)
