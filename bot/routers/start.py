@@ -25,7 +25,6 @@ from bot.keyboards import (
     returning_user_kb,
 )
 from bot.keyboards.reply import (
-    REPLY_MAIN,
     REPLY_MY_CHARTS,
     REPLY_SUPPORT,
     main_reply_kb,
@@ -167,14 +166,6 @@ async def handle_start(
 # (no-FSM) state, so users mid-FSM keep their flow uninterrupted.
 
 
-@start_router.message(F.text == REPLY_MAIN)
-async def handle_reply_main(
-    message: Message, user: User, session: AsyncSession, state: FSMContext
-) -> None:
-    await state.clear()
-    await send_main_menu(message, user, session, state=state)
-
-
 @start_router.message(F.text == REPLY_MY_CHARTS)
 async def handle_reply_my_charts(
     message: Message, user: User, session: AsyncSession, state: FSMContext
@@ -188,7 +179,7 @@ async def handle_reply_support(message: Message) -> None:
     await message.answer(
         "<b>Поддержка</b>\n\n"
         "Если что-то не работает или есть пожелания — напишите Богдану: "
-        "@luckbogdan555\n\n"
+        "@bogman108\n\n"
         "Опишите свою проблему и приложите скриншот, если есть. "
         "Я постараюсь ответить в течение дня."
     )

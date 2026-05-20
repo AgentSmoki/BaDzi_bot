@@ -189,12 +189,54 @@
 
 Богдан 2026-05-19: «загрузка с любого URL (GDrive/Yandex Disk/cloud mail/Zoom), отдельная таблица — встреч может быть много».
 
-- [ ] **W5a MasterMeeting модель + миграция** — id, user_id FK, chart_id FK, source_url, source_type ENUM(youtube|gdrive|ydisk|zoom|tg_file|other), title, transcript text, summary text (LLM extractive), uploaded_at, transcribed_at, error nullable, duration_seconds nullable.
-- [ ] **W5b Кнопка «Встреча с мастером»** на карте → объяснение flow + FSM `waiting_meeting_url` → user paste URL.
-- [ ] **W5c URL downloader** — детектор source_type по hostname, потом MCP `mcp__teletranscribe__transcribe_url` (он сам умеет YouTube, Yandex Disk, GDrive по описанию из MCP инструкций).
-- [ ] **W5d Summary generator** — LLM-вызов из transcript → структурированная выжимка (темы, конкретные рекомендации мастера, упомянутые техники). Хранится в `summary`.
-- [ ] **W5e Использование в Anastasia context** — при `select_skill` если у chart есть meetings, secrets/wisdom от мастера подгружается отдельной секцией `[MASTER_MEETING_NOTES]` в `compose_messages`. Skill-router учитывает их при concept_hints.
-- [ ] **W5f Удаление и список встреч** — handler `meeting:list:{chart_id}`, `meeting:delete:{meeting_id}` с confirm.
+- [x] **W5a MasterMeeting модель + миграция** — id, user_id FK, chart_id FK, source_url, source_type ENUM(youtube|gdrive|ydisk|zoom|tg_file|other|cloud_mail), title, transcript text, summary text (LLM extractive), uploaded_at, transcribed_at, error nullable, duration_seconds nullable. Migration `c28ca4a32070`.
+- [x] **W5b Кнопка «🎓 Загрузить Встречу с Мастером»** на карте → объяснение flow + FSM `waiting_url` → user paste URL.
+- [x] **W5c URL downloader** — детектор source_type по hostname в `bot/services/teletranscribe.py::detect_source_type`, потом TT API endpoint `/v1/transcribe-url` (он сам умеет YouTube, Yandex Disk, GDrive).
+- [x] **W5d Summary generator** — LLM-вызов из transcript в `tasks/master_meeting.py::_generate_summary` → структурированная выжимка с разделами `## Темы`, `## Рекомендации мастера`, `## Глубинные аспекты карты`. Хранится в `summary`.
+- [ ] **W5e KuzuDB integration** — пересмотр Богдана 2026-05-20: НЕ инжектить транскрипты напрямую в `[MASTER_MEETING_NOTES]` промпт-секцию (встреч может быть много, контекст переполняется). Вместо этого:
+  - Парсить `summary` встречи на triplets (extract concepts через subagent или fast LLM)
+  - Записывать в **KuzuDB** как новый Node-type `MasterMeetingNote` с `level=L8_personal_master` и `source_authority=10` (выше учителей)
+  - В `ai/rag/retrieve.py`: при матчинге концептов вопроса — поднимать релевантные MasterMeetingNotes per chart, отдавать через `[KNOWLEDGE]` блок наравне с teacher KB
+  - `select_skill` → `concept_hints` boost'ят retrieval как обычно
+  - Estimate: 3-4 часа (schema migration + ingest pipeline + retrieve filter by chart_id)
+- [x] **W5f Удаление и список встреч** — handlers `mm:show/v/d/dc` с confirm, server-side ownership check.
+
+---
+
+## 🔮 Backlog для следующей сессии (зафиксировано 2026-05-20)
+
+### W4e-scheduler — Важные даты, доставка
+
+Calculator-детектор уже есть ([calculator/important_dates.py](calculator/important_dates.py)) и тестируется на эталонной карте 12.09.1999 (находит 25.05.2026 как 白虎+飞刃+天乙贵人 severity=high). DB-поля `important_dates_enabled` + `last_important_date_at` уже в migration `fd6512684d2f`. Не хватает scheduler job + UI toggle.
+
+- [ ] **W4e-1 Scheduler job** `scan_important_dates_job` в [bot/scheduler/jobs.py](bot/scheduler/jobs.py):
+  - Cron: ежедневно 09:00 UTC
+  - Walk `journal_settings_repo.list_important_dates_enabled()`
+  - Для каждого chart: `find_important_dates_in_range(chart, today, today+2)` (2 дня вперёд + сегодня)
+  - Rate-limit: skip если `last_important_date_at` < 7 дней назад
+  - Сообщения: за 2 дня + в день (severity-dependent)
+  - В конце дня: `JournalEntry.upsert(source=auto)` если user не ответил
+  - `journal_settings_repo.mark_important_date_sent(chart_id)` после успешной отправки
+- [ ] **W4e-2 `/start` toggle** — inline кнопка «🌟 Важные даты: ON/OFF» в reply-keyboard или main_menu_kb. Handler → `journal_settings_repo.toggle_important_dates(chart_id, enabled=bool)`.
+- [ ] **W4e-3 Live verify** — sub_test_chart Богдана → подождать 24h → проверить что прислалось.
+
+### W5e — KuzuDB integration master meetings
+
+См. выше W5e — большой объём (3-4ч), требует:
+- Расширить `knowledge/schema.py` новым Node-level `L8_personal_master`
+- `knowledge/ingest/from_master_meeting.py` — subagent extract triplets из summary
+- В `ai/rag/retrieve.py::retrieve_for_chart` фильтр по `(level=L8) AND (chart_id=current)`
+- Update `compose_messages` чтобы при наличии релевантных MasterMeetingNotes — поднимать их в `[KNOWLEDGE]` блоке с пометкой «личные заметки мастера»
+
+### W6 — задачи отложенные с прошлых сессий
+
+- [ ] **W6-1** Scheduler logs deeper: количество отправленных forecast deliveries, средний latency LLM, error rate за 24h (для /admin dashboard).
+- [ ] **W6-2** Webhook вместо polling (1.16.4 из старого backlog) — нужен SSL сертификат + nginx proxy на YC VM.
+- [ ] **W6-3** YC Container Registry + GitHub Actions CI/CD (1.16.2) — текущий rsync+build-on-VM работает, но deploy дольше чем pre-built image.
+
+### W7 — монетизация ЮKassa (когда подключим)
+
+Когда ЮKassa подключится, см. checklist в [MASTER.md](MASTER.md) → секция «Wave 3 — free-dev-bypass монетизации».
 
 ---
 

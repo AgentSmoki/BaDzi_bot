@@ -40,6 +40,31 @@ _(пока пусто)_
 
 ---
 
+## Сессия 2026-05-20 — Wave 1-5 + hotfixes (зафиксировано в конце дня)
+
+**Состояние прода:** все три контейнера (bot/scheduler/worker) healthy в `@EdoHa_Badzi_bot`. 820 unit tests passing.
+
+**Что задеплоено за день:**
+
+| Wave | Что | Status |
+|---|---|---|
+| W1a/1b | Парсинг дат `88`/ISO + удаление карт | ✅ LIVE |
+| W2 | Smart-entry («27.04.88 Севастополь 07:03...») | ✅ LIVE |
+| W3a-3e | Платные прогнозы — модели + repo + generator + APScheduler + UI + deploy | ✅ LIVE |
+| W4a-d | Дневник + voice + export + reminders | ✅ LIVE |
+| W4e detector | `calculator/important_dates.py` + миграция `fd6512684d2f` | ✅ LIVE (только detector, scheduler job — backlog) |
+| W5a-d,f | Master-meetings: модель + repo + URL transcribe + summary + UI | ✅ LIVE |
+| Hotfixes | BUTTON_DATA_INVALID (callbacks укорочены fc:* mm:*) + SSLContext pickle (Bot/sessions внутри jobs) + ssl→sslmode для psycopg2 + rename + переформулировки от 1-го лица | ✅ LIVE |
+
+**Pending для следующей сессии (см. tasks.md → «🔮 Backlog для следующей сессии»):**
+
+- **W4e-scheduler** — cron-job `scan_important_dates_job` (за 2 дня + в день, rate-limit ≤1/неделю) + `/start` toggle «🌟 Важные даты: ON/OFF» + авто-запись `JournalEntry(source=auto)` если user не ответил в конце важного дня. **Estimate: 2-3 часа.**
+- **W5e KuzuDB integration** — master-meeting summaries НЕ в `[MASTER_MEETING_NOTES]` промпт-секцию, а в KuzuDB как Node-level `L8_personal_master`. Retrieve через RAG-pipeline вместе с teacher KB. **Estimate: 3-4 часа.**
+- **W6-1** scheduler dashboard метрики; **W6-2** webhook вместо polling; **W6-3** YC Container Registry + GitHub Actions CI/CD.
+- **W7 ЮKassa** — checklist уже зафиксирован в этом файле выше.
+
+---
+
 ## Сессия 2026-05-19 — Wave 6: AI Skill-Router (ADR-010) — Phase 0-6
 
 **Что сделано:** двухэтапная AI-маршрутизация в `consultation` handler. 7 фаз закрыты, тесты 691 passing, mypy strict clean, deploy ожидает.
