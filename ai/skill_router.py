@@ -138,15 +138,20 @@ async def select_skill(
 
     log = logger.bind(trace_id=trace_id or "skill-router", model=settings.yc_fast_model)
 
+    # YC `/v1/chat/completions` requires the full URI form
+    # `gpt://<folder>/<short>/latest` — short model names are rejected
+    # with "Failed to parse model URI" (live regression 2026-05-20).
+    # Main LLM goes through ai.fallback._build_model_id; the router
+    # builds it inline to avoid a circular import on fallback.py.
+    yc_model_uri = f"gpt://{settings.yc_ai_folder_id}/{settings.yc_fast_model}/latest"
     try:
         result = await chat(
             provider="yc",
-            model=settings.yc_fast_model,
+            model=yc_model_uri,
             messages=messages,
             temperature=0.1,
             max_tokens=settings.yc_fast_max_tokens,
             trace_id=trace_id,
-            response_format={"type": "json_object"},
         )
     except OrchestratorError as exc:
         log.warning("skill_router.upstream_error", error=str(exc))

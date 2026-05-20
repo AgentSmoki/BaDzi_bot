@@ -19,7 +19,7 @@
 >
 > Формат: `YYYY-MM-DD HH:MM UTC | файл/команда | причина | git-status`
 
-_(пока пусто)_
+- `2026-05-20 19:23 UTC | .env: YC_FAST_MAX_TOKENS=3000 → 4000 (sed на VM) | thinking model съедала 2000-token бюджет на reasoning_content → router falled back; промежуточный 3000 поднят до 4000 для запаса | merged в default (bot/config.py + .env.example = 4000)`
 
 ---
 
@@ -37,6 +37,41 @@ _(пока пусто)_
 > 4. История платежей: добавить `payment_id` в `ChartForecastSubscription`.
 > 5. Старые `free_dev_bypass` подписки оставить активными до их `expires_at` — не отзывать ретроактивно.
 > 6. Логи: dashboard в /admin показывает «N free-bypass / N yookassa» подписки.
+
+---
+
+## Сессия 2026-05-20 (вечер) — Wave 6 Phase 7 closure через Telegram MCP userbot
+
+**Контекст.** Phase 7 (live verify) висела открытой с 2026-05-19. Закрыта в эту сессию через MCP-сервер `telegram` — мой userbot-логин под акк `@Bogman108` шлёт сообщения @EdoHa_Badzi_bot, читает логи на VM, фиксирует router-decisions.
+
+**Pre-deploy diagnostic.** Все .py + .md файлы на VM и в bot-образе (`af8fc1af9aeb`) **уже совпадают** с локальным деревом по MD5 — Wave 6 был задеплоен в прошлых сессиях. Local pytest 820/820 ✓. Деплой не требовался.
+
+**3 регрессии skill-router'а найдены в проде и пофикшены в процессе:**
+
+| # | Файл | Что было | Что стало |
+|---|------|----------|-----------|
+| 1 | [ai/skill_router.py](ai/skill_router.py) | Передавал `model=settings.yc_fast_model` (короткое имя `qwen3.6-35b-a3b`) | Строит полный `gpt://{folder}/{model}/latest` URI inline (без circular import на fallback.py). YC `/v1/chat/completions` требует URI-форму — short name → HTTP 400 «Failed to parse model URI» |
+| 2 | [ai/skill_router.py](ai/skill_router.py) | `chat(..., response_format={"type":"json_object"})` | Убрано. YC отвергает поле; JSON enforce через system prompt + `_extract_json` regex (orchestrator.chat сам по себе принимает `response_format`, но для YC оно бесполезно) |
+| 3 | [bot/config.py](bot/config.py) + [.env.example](.env.example) | `yc_fast_max_tokens: int = 2_000` | `= 4_000` (с запасом — unused budget не биллится). Qwen3.6 thinking-class модели тратили весь 2000-бюджет на `reasoning_content` (логи: ~1949 reasoning + 0 content → `finish_reason=length`) — router падал на ровном месте. 4000 = ~3000 reasoning headroom + 1000 на JSON |
+
+**Tests:** [tests/unit/test_ai/test_skill_router.py](tests/unit/test_ai/test_skill_router.py) — `test_select_skill_passes_response_format_json` переделан в `test_select_skill_omits_response_format` (теперь утверждает обратное правило). pytest 820/820 ✓ после правок.
+
+**6 кейсов Phase 7 — результаты:**
+
+| # | Вопрос | Ожидалось | Router решил | Result |
+|---|---|---|---|---|
+| 1 | «Когда мне лучше всего сменить работу?» | skill=work | `skill=work, conf=0.92, concept_hints=6` | ✅ ответ через 七杀+偏财 методологию, такт 庚午, 卯酉冲 |
+| 2 | «Расскажи про мою совместимость с моим партнёром» | skill=relationships + partner-chart UI | `skill=relationships, conf=0.95, needs_partner_chart=true, clarifying=3` | ⚠️ skill ✓, clarifying loop ✓ (Дворец Супруга 卯, 偏印), но **`partner:add` inline-кнопка не показана** — см. **1.17.9 regression** в tasks.md |
+| 3 | «Какие у меня уязвимые системы по здоровью?» | skill=health | `skill=health, conf=0.9, concept_hints=6` | ✅ ТКМ-методология: Огонь→сердечно-сосуд, Земля→ЖКТ, 白虎+飞刃 здоровье |
+| 4 | «Что ждёт меня в этом году?» | skill=time + temporal context | `skill=time, conf=0.95, clarifying=2` | ✅ годовой столп 丙午 2026, такт 庚午, резонанс натальной 亥 ↔ текущей 巳 (六冲) |
+| 5 | Clarifying flow | FSM `collecting_clarifications` | События `clarifications_requested` + `clarifications.collected` в логах | ✅ покрыт через Кейсы 2,4,6 |
+| 6 | «В чём смысл судьбы?» (off-topic) | low-confidence downgrade | `skill=default, conf=0.9` — router сам уверенно выбрал default | ✅ downgrade-механизм не активирован потому что не нужен; router корректно маршрутизирует философию в default |
+
+**Latency:** router 5-8s (Qwen3.6 thinking, ~1800-2300 completion_tokens), main LLM 12-17s. Total per turn ≈ 20-25s.
+
+**1 регрессия для следующей сессии:** **1.17.9 partner:add кнопка не показывается** (см. tasks.md → Wave 6 backlog). После сбора clarifications `_continue_consultation_with_skill` теряет `needs_partner_chart` флаг и идёт сразу в main LLM. Workaround: Анастасия в тексте сама просит данные партнёра. Estimate fix: ~1ч.
+
+**MCP `telegram` рабочий инструмент для будущих Phase 7-ов** — позволяет L2-кодеру тестировать прод-флоу через личный аккаунт Богдана без отдельного test-окружения.
 
 ---
 

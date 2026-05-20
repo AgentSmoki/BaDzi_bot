@@ -55,10 +55,14 @@ class Settings(BaseSettings):
     # — same model as primary, just with tighter max_tokens budget. Decision
     # 2026-05-20: stay on Qwen3.6 across all fast-path needs (Bogdan).
     yc_fast_model: str = "qwen3.6-35b-a3b"
-    # Min 2000 for thinking-class models — they burn `reasoning_content`
-    # first and need headroom or content arrives null with
-    # finish_reason="length". See orchestrator._parse_result.
-    yc_fast_max_tokens: int = 2_000
+    # 4000 chosen with safety margin — Qwen3.6 thinking-class burns
+    # `reasoning_content` first; live smoke 2026-05-20 hit ~1949 tokens
+    # of reasoning on the original 2000 cap → finish_reason="length"
+    # with empty content. Router JSON output itself is ~150-300 tokens,
+    # so 4000 = ~3000 reasoning headroom + 1000 JSON. Cost-wise the
+    # extra ceiling is free: unused budget is not billed.
+    # See orchestrator._parse_result.
+    yc_fast_max_tokens: int = 4_000
     # Feature flag — flip via Redis at runtime to disable the new routing
     # path and revert to the legacy single-system-prompt flow.
     skill_router_enabled: bool = True

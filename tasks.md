@@ -136,11 +136,26 @@
 - [x] **1.17.4 Phase 4** — `ConsultationState.collecting_clarifications` + [handle_clarification_answer](bot/routers/consultation.py) FSM loop. 6 тестов. Commit `fe5c0e7`.
 - [x] **1.17.5 Phase 5** — [compose_messages](ai/temporal_context.py) расширен: `[PARTNER_CHART]`, `[SKILL: <name>]`, `[CLARIFICATIONS]` секции; `concept_hints` в [load_knowledge_for_question](ai/rag/public.py). 11 тестов, backward-compat. Commit `d987e76`.
 - [x] **1.17.6 Phase 6** — wire-up в [consultation.py](bot/routers/consultation.py): `_continue_consultation_with_skill` extracted; `handle_question` 3 ветки (clarifying/partner/straight); `handle_partner_skip`; low-confidence downgrade; feature flag `skill_router_enabled`. +5 skill-router тестов, +6 рефактор clarifications, 9 регрессий. Commit `76819cd`.
-- [ ] **1.17.7 Phase 7** — deploy + verify:
-  - [ ] Local docker compose build + smoke (бот стартует без ошибок импортов)
-  - [ ] rsync → YC VM + `alembic upgrade head` + docker rebuild + up
-  - [ ] Live Telegram smoke в `@EdoHa_Badzi_bot`: 4 кейса (work/relationships/health/time) + clarifying flow + partner-chart flow
-  - [ ] Optional: `/graphify . --update` для пересборки семантического графа
+- [x] **1.17.7 Phase 7** — deploy + verify (закрыто 2026-05-20 через Telegram MCP userbot):
+  - [x] Wave 6 файлы уже задеплоены (Phase 0-6 коммиты + rsync), bot-image содержит всё. Local pytest 820/820 ✓
+  - [x] Live Telegram smoke в `@EdoHa_Badzi_bot` под акк `@Bogman108` через MCP `telegram`: **5/6 кейсов ✅, 1 регрессия** ↓
+    - Кейс 1 work ✅ — `skill=work, conf=0.92, concept_hints=6`, latency 17.3s
+    - Кейс 2 relationships ⚠️ — `skill=relationships, conf=0.95`, clarifying loop сработал, **но `partner:add` кнопка не показана** несмотря на `needs_partner_chart=true` → см. **1.17.9 regression** ниже
+    - Кейс 3 health ✅ — `skill=health, conf=0.9`, ТКМ-методология (Огонь→сердце, Земля→ЖКТ)
+    - Кейс 4 time ✅ — `skill=time, conf=0.95`, годовой столп 丙午, такт 庚午, резонансы натала с текущим моментом
+    - Кейс 5 clarifying ✅ — FSM `collecting_clarifications` работает (`clarifications_requested` → `clarifications.collected` события), проверено в рамках Кейсов 2,4,6
+    - Кейс 6 default ✅ — router сам уверенно выбрал default (conf 0.9) для философского «В чём смысл судьбы?»; downgrade-механизм не активирован, потому что router и так корректно маршрутизирует
+  - **3 hotfix-а в процессе Phase 7** (skill-router был сломан в проде):
+    1. `ai/skill_router.py` теперь строит полный `gpt://<folder>/<model>/latest` URI вместо короткого имени модели (YC `/v1/chat/completions` ругался «Failed to parse model URI» на короткое имя — main LLM через `ai.fallback._build_model_id` всегда так и делал, но skill router делал по-старому)
+    2. Убран `response_format={"type":"json_object"}` из skill router (YC отвергает; JSON enforce через system prompt + `_extract_json` regex)
+    3. `yc_fast_max_tokens` default 2000→**4000** (thinking model съедала весь бюджет на `reasoning_content` → finish_reason=length; на live router тратил ~1949 токенов на reasoning, 4000 = ~3000 reasoning headroom + 1000 на JSON; unused budget не биллится)
+  - [ ] Optional: `/graphify . --update` для пересборки семантического графа после fixes
+
+- [ ] **1.17.9 Regression: partner:add кнопка не показывается** (Phase 7 finding 2026-05-20)
+  - **Симптом:** router корректно возвращает `needs_partner_chart=true`, но `bot/routers/consultation.py::handle_clarification_answer` после `clarifications.collected` сразу идёт в main LLM без показа inline-кнопки «Добавить карту партнёра»/«Без партнёра»
+  - **Где смотреть:** `_continue_consultation_with_skill` теряет/игнорирует `needs_partner_chart` флаг между clarifying loop и переходом к main LLM
+  - **Workaround:** ответ всё равно генерируется через relationships skill, но без `[PARTNER_CHART]` секции — Анастасия в тексте сама просит данные партнёра
+  - **Estimate:** ~1ч — перепроверить FSM transition в `handle_clarification_answer`, добавить ветку показа `partner_chart_kb` если `needs_partner_chart and not chart.partner_chart_id`
 
 ### 🔮 Wave 6 backlog (после деплоя)
 

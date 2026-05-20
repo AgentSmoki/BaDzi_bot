@@ -224,10 +224,13 @@ async def test_select_skill_falls_back_on_invalid_schema(
 
 
 @pytest.mark.asyncio
-async def test_select_skill_passes_response_format_json(
+async def test_select_skill_omits_response_format(
     monkeypatch: pytest.MonkeyPatch,
     reference_chart,  # type: ignore[no-untyped-def]
 ) -> None:
+    # YC AI Studio rejects `response_format` with "Failed to parse model URI"
+    # (live regression 2026-05-20). Skill router must NOT send this field —
+    # JSON shape is enforced by the system prompt + repaired by `_extract_json`.
     captured: dict[str, Any] = {}
 
     async def fake_chat(**kwargs: Any) -> ChatResult:
@@ -242,7 +245,7 @@ async def test_select_skill_passes_response_format_json(
 
     monkeypatch.setattr("ai.skill_router.chat", fake_chat)
     await select_skill(question="x", chart=reference_chart)
-    assert captured["response_format"] == {"type": "json_object"}
+    assert "response_format" not in captured
     assert captured["temperature"] == pytest.approx(0.1)
     assert captured["provider"] == "yc"
 
