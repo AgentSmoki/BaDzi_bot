@@ -205,6 +205,13 @@ async def test_needs_partner_chart_shows_button(
         "get_latest_by_user",
         AsyncMock(return_value=fake_chart),
     )
+    # 1.17.11 — `_partner_kb_for_user` lists user's other charts to offer
+    # them as candidates. With no others, kb falls back to add/skip.
+    monkeypatch.setattr(
+        consultation_module._chart_repo,
+        "list_unique_by_user",
+        AsyncMock(return_value=[fake_chart]),
+    )
     _stub_router(
         monkeypatch,
         SkillSelection(

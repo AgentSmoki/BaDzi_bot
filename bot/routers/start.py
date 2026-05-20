@@ -34,6 +34,7 @@ from bot.services.menu import (
     format_chart_label,
     send_main_menu,
 )
+from bot.states import BirthDataForm
 from calculator.models import ChartOutput
 from db.models import Chart, User
 from db.repositories.chart_repo import ChartRepository
@@ -291,6 +292,46 @@ async def handle_chart_delete_request(
         await callback.message.answer(
             _DELETE_PROMPT_FMT.format(label=label),
             reply_markup=chart_delete_confirm_kb(chart.id),
+        )
+    await callback.answer()
+
+
+@start_router.callback_query(F.data.startswith("chart:rename:"))
+async def handle_chart_rename(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+    user: User,
+) -> None:
+    """Start a rename flow for an existing chart. Reuses
+    `BirthDataForm.naming` so the existing `handle_naming_input` in
+    birth_data router does the actual UPDATE — we just stage the
+    chart_id into FSM and prompt for the new name.
+
+    Ownership is verified server-side here so a leaked callback_data
+    can't rename someone else's chart.
+    """
+    if not callback.data:
+        await callback.answer()
+        return
+    try:
+        chart_id = uuid.UUID(callback.data.split(":")[2])
+    except (ValueError, IndexError):
+        await callback.answer("Неверная карта", show_alert=True)
+        return
+
+    chart = await _chart_repo.get_by_id(session, chart_id)
+    if chart is None or chart.user_id != user.id:
+        await callback.answer("Карта не найдена", show_alert=True)
+        return
+
+    current = chart.name or "без названия"
+    await state.set_state(BirthDataForm.naming)
+    await state.update_data(chart_id=str(chart.id), fsm_msg_id=None)
+    if isinstance(callback.message, Message):
+        await callback.message.answer(
+            f"Текущее название: <b>{current}</b>\n\n"
+            f"Напишите новое название карты (или /start чтобы отменить):",
         )
     await callback.answer()
 

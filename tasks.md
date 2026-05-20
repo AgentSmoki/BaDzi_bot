@@ -164,10 +164,15 @@
     3. `handle_partner_skip`: читает `pending_clarifications` и пробрасывает в `_continue_consultation_with_skill(... clarifications=clarifications)` — собранные ответы не теряются при skip.
   - **Live-verified через MCP 2026-05-20:** relationships-вопрос → 3 clarifying → ответы → бот показал «Добавить карту партнёра / Ответить без неё» → tap skip → Анастасия отвечает с relationships skill и явно использует контекст clarifications («Сейчас, живя вместе, вы как раз на этапе, когда эти границы можно закрепить»).
 
-- [ ] **1.17.9b Auto-resume после успешного `partner:add`** (открыт)
-  - **Симптом:** когда юзер реально добавляет карту партнёра (`mode="partner"` в `bot/routers/birth_data.py::_calculate_and_persist`), бот говорит «Карта партнёра рассчитана» и `state.clear()` — но не возобновляет original consultation с теперь-доступным `[PARTNER_CHART]` контекстом. Юзер должен сам вернуться в меню и снова задать вопрос.
-  - **Где исправлять:** `_calculate_and_persist` в `bot/routers/birth_data.py` после `state.clear()` для partner-mode — прочитать FSM data (если ещё есть `pending_question`) и вызвать тот же путь что `handle_partner_skip`, только с `partner_chart=partner_chart_data`. Либо отдельный `auto_resume_consultation` helper.
-  - **Estimate:** ~1-2ч — нужно протестировать FSM state-handoff между birth_data router и consultation router.
+- [x] **1.17.9b Auto-resume после успешного `partner:add`** (закрыт 2026-05-20, commit `063b331`)
+  - Новый public helper `bot/routers/consultation.py::resume_after_partner_added` + wire-up в `bot/routers/birth_data.py::handle_confirm_calc` (partner-mode branch). После set_partner бот сразу продолжает диалог с partner_chart в `[PARTNER_CHART]` секции, юзеру не нужно заново задавать вопрос. `handle_add_partner_chart` теперь сохраняет `pending_skill/concept_hints/clarifications` (раньше терялись через `state.set_data`). `callback.answer()` перенесён ДО долгого LLM-вызова чтобы не словить «query is too old».
+
+- [x] **1.17.11 Partner-chart selector + rename + long-message split** (закрыт 2026-05-20)
+  - **A — Partner selector** ([bot/keyboards/__init__.py::partner_chart_selector_kb](bot/keyboards/__init__.py)): когда у юзера уже есть OTHER карты в библиотеке, при relationships-вопросе бот сначала предлагает их как кандидатов («Татьяна Тестовая / Женя Видеограф Вайшнав») вместо сразу partner FSM. Tap → `set_partner` + auto-resume через новый `partner:use:*` handler. Fallback на старый add/skip когда других карт нет.
+  - **B — Partner auto-save в Мои карты** (verified, уже работало через `_chart_repo.create(user_id=user.id, name="Партнёр")` + `list_unique_by_user`).
+  - **C — Rename chart** ([bot/keyboards/__init__.py::chart_actions_kb](bot/keyboards/__init__.py) + new handler `chart:rename:*` в [bot/routers/start.py](bot/routers/start.py)): кнопка «✏️ Переименовать» в карточке. Reuse existing `BirthDataForm.naming` state + `handle_naming_input` который уже умеет обновлять имя через `update_name`.
+  - **Bonus — Split long messages** ([bot/routers/consultation.py::_split_for_telegram](bot/routers/consultation.py)): ответы с partner-comparison + clarifications часто > 4096 chars → Telegram 400 «message is too long» → exception → rollback всей session_scope (включая set_partner). Теперь split на paragraph boundaries, kb attached only to last chunk.
+  - **Live-verified через MCP:** /start → «Добавить новую карту» (smart-entry fallback to classic FSM) → calc → rename → relationships question → selector с 2 кандидатами → выбор «Татьяна Тестовая» → auto-resume с полным сравнением столпов (卯/巳 родство порождения, 癸酉/丙午 разные акценты, баланс обоих partner'ов). DB: `partner_chart_id=cb22692f` committed.
 
 ### 🔮 Wave 6 backlog (после деплоя)
 

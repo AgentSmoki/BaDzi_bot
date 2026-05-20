@@ -57,7 +57,8 @@ from ai.skills import SkillSpec, load_skill
 from ai.skills.loader import SkillFileError
 from ai.temporal_context import compose_messages, get_current_bazi
 from bot.config import get_settings
-from bot.keyboards import add_partner_chart_kb, pricing_kb
+from bot.keyboards import add_partner_chart_kb, partner_chart_selector_kb, pricing_kb
+from bot.services.menu import format_chart_label
 from bot.states import ConsultationState
 from calculator.calendar_select import EVENT_TYPE_RU, pick_best_dates
 from calculator.models import ChartOutput
@@ -260,7 +261,8 @@ async def handle_clarification_answer(
             chart_id=str(chart.id),
         )
         await state.set_state(None)
-        await message.answer(_PARTNER_REQUEST_MSG, reply_markup=add_partner_chart_kb())
+        partner_kb = await _partner_kb_for_user(session, user=user, exclude_chart_id=chart.id)
+        await message.answer(_PARTNER_REQUEST_MSG, reply_markup=partner_kb)
         logger.info(
             "consultation.partner_chart_requested_after_clarifications",
             skill=skill_name,
@@ -349,6 +351,191 @@ async def handle_partner_skip(
         concept_hints=concept_hints,
     )
     await callback.answer()
+
+
+# Telegram caps text messages at 4096 chars; 4000 leaves headroom
+# for HTML tags and edge-of-paragraph splits.
+_TG_MAX_CHARS = 4000
+
+
+def _split_for_telegram(text: str, max_len: int) -> list[str]:
+    """Split a long LLM answer into chunks that fit Telegram's 4096-
+    char message limit.
+
+    Prefers paragraph boundaries (double newline), falls back to
+    single newlines, then to hard char-slice if a paragraph itself
+    is longer than `max_len`. Empty chunks are dropped.
+    """
+    if len(text) <= max_len:
+        return [text]
+
+    out: list[str] = []
+    current = ""
+    for paragraph in text.split("\n\n"):
+        candidate = paragraph if not current else f"{current}\n\n{paragraph}"
+        if len(candidate) <= max_len:
+            current = candidate
+            continue
+        if current:
+            out.append(current)
+            current = ""
+        if len(paragraph) <= max_len:
+            current = paragraph
+            continue
+        # One paragraph alone is bigger than max_len — split on lines,
+        # then char-slice as the last resort.
+        for line in paragraph.split("\n"):
+            line_candidate = line if not current else f"{current}\n{line}"
+            if len(line_candidate) <= max_len:
+                current = line_candidate
+                continue
+            if current:
+                out.append(current)
+                current = ""
+            if len(line) <= max_len:
+                current = line
+            else:
+                for i in range(0, len(line), max_len):
+                    piece = line[i : i + max_len]
+                    if current:
+                        out.append(current)
+                        current = ""
+                    if i + max_len < len(line):
+                        out.append(piece)
+                    else:
+                        current = piece
+    if current:
+        out.append(current)
+    return [c for c in out if c]
+
+
+async def _partner_kb_for_user(
+    session: AsyncSession,
+    *,
+    user: User,
+    exclude_chart_id: _uuid.UUID,
+) -> InlineKeyboardMarkup:
+    """Pick the right partner-chart keyboard for `user`.
+
+    If they already have OTHER charts in their library (anything other
+    than the current owner chart), show a selector so they can re-use
+    one as the partner with a single tap. Otherwise fall back to the
+    simple add/skip kb — no point listing nothing.
+
+    1.17.11 (2026-05-21) — добавлено по запросу Богдана для UX
+    «может карта партнёра уже есть в моих картах».
+    """
+    all_charts = await _chart_repo.list_unique_by_user(session, user.id)
+    candidates: list[tuple[_uuid.UUID, str]] = [
+        (c.id, format_chart_label(c)) for c in all_charts if c.id != exclude_chart_id
+    ]
+    if not candidates:
+        return add_partner_chart_kb()
+    return partner_chart_selector_kb(candidates)
+
+
+@consultation_router.callback_query(F.data.startswith("partner:use:"))
+async def handle_partner_use_existing(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+    user: User,
+    history_store: HistoryStore,
+) -> None:
+    """User picked an existing chart to use as their partner (1.17.11).
+
+    Verifies ownership, calls `ChartRepository.set_partner`, then
+    resumes the consultation in the same shape as `partner:skip` but
+    with the freshly-linked partner chart loaded into the prompt.
+    """
+    if not callback.data or not isinstance(callback.message, Message):
+        await callback.answer()
+        return
+    try:
+        partner_chart_id = _uuid.UUID(callback.data.split(":", 2)[2])
+    except (ValueError, IndexError):
+        await callback.answer("Неверная карта", show_alert=True)
+        return
+
+    partner_chart = await _chart_repo.get_by_id(session, partner_chart_id)
+    if partner_chart is None or partner_chart.user_id != user.id:
+        await callback.answer("Карта не найдена", show_alert=True)
+        return
+
+    data = await state.get_data()
+    original_question = str(data.get("pending_question") or "")
+    skill_name = str(data.get("pending_skill") or "relationships")
+    concept_hints_raw = data.get("pending_concept_hints") or []
+    concept_hints = (
+        [str(h) for h in concept_hints_raw] if isinstance(concept_hints_raw, list) else []
+    )
+    clar_raw = data.get("pending_clarifications") or []
+    clarifications = (
+        [(str(q), str(a)) for q, a in clar_raw] if isinstance(clar_raw, list) and clar_raw else None
+    )
+    owner_chart_id_raw = data.get("chart_id")
+
+    if not original_question or not owner_chart_id_raw:
+        await callback.message.answer(
+            "Не нашла исходный вопрос — задайте его заново через меню.",
+            reply_markup=_no_chart_kb(),
+        )
+        await state.set_state(None)
+        await callback.answer()
+        return
+
+    try:
+        owner_chart_id = _uuid.UUID(str(owner_chart_id_raw))
+    except (ValueError, TypeError):
+        await callback.answer("Карта не найдена", show_alert=True)
+        return
+
+    owner_chart = await _chart_repo.get_by_id(session, owner_chart_id)
+    if owner_chart is None or owner_chart.user_id != user.id:
+        await callback.answer("Карта не найдена", show_alert=True)
+        return
+    if owner_chart.id == partner_chart.id:
+        await callback.answer("Нельзя выбрать ту же карту партнёром", show_alert=True)
+        return
+
+    # ACK callback ASAP — `set_partner` is cheap but the resumed LLM
+    # turn that follows runs ~15s; Telegram invalidates queries after
+    # a few seconds.
+    await callback.answer()
+
+    await _chart_repo.set_partner(
+        session, owner_chart_id=owner_chart.id, partner_chart_id=partner_chart.id
+    )
+    await session.flush()
+    # Refresh owner_chart to pick up the new partner_chart_id link.
+    owner_chart.partner_chart_id = partner_chart.id
+    partner_chart_data = ChartOutput.model_validate(partner_chart.chart_data)
+
+    logger.info(
+        "consultation.partner_chart_linked_from_existing",
+        owner_chart_id=str(owner_chart.id),
+        partner_chart_id=str(partner_chart.id),
+        skill=skill_name,
+        had_clarifications=bool(clarifications),
+    )
+    await state.set_state(None)
+
+    chart_data = ChartOutput.model_validate(owner_chart.chart_data)
+    skill_spec = _safe_load_skill(skill_name)
+
+    await _continue_consultation_with_skill(
+        callback.message,
+        chart=owner_chart,
+        chart_data=chart_data,
+        user=user,
+        session=session,
+        history_store=history_store,
+        original_question=original_question,
+        skill_spec=skill_spec,
+        partner_chart=partner_chart_data,
+        clarifications=clarifications,
+        concept_hints=concept_hints,
+    )
 
 
 def _safe_load_skill(name: str) -> SkillSpec | None:
@@ -548,7 +735,8 @@ async def handle_question(
             pending_concept_hints=list(skill_sel.concept_hints),
             chart_id=str(chart.id),
         )
-        await message.answer(_PARTNER_REQUEST_MSG, reply_markup=add_partner_chart_kb())
+        partner_kb = await _partner_kb_for_user(session, user=user, exclude_chart_id=chart.id)
+        await message.answer(_PARTNER_REQUEST_MSG, reply_markup=partner_kb)
         logger.info(
             "consultation.partner_chart_requested",
             skill=effective_skill,
@@ -732,7 +920,17 @@ async def _continue_consultation_with_skill(
             await typing_task
 
     text = answer.result.text.strip()
-    await message.answer(text, reply_markup=_after_answer_kb())
+    # Telegram caps text messages at 4096 chars. Partner-comparison
+    # answers with clarifications can break that (~5000+ chars).
+    # Split on paragraph boundaries and attach the keyboard only to
+    # the LAST chunk so the user has one clear «Ещё вопрос / В меню»
+    # control. Without this split the whole turn raises
+    # `TelegramBadRequest: message is too long` and the surrounding
+    # session_scope rolls back any pending writes (e.g. set_partner).
+    chunks = _split_for_telegram(text, _TG_MAX_CHARS)
+    for chunk in chunks[:-1]:
+        await message.answer(chunk)
+    await message.answer(chunks[-1], reply_markup=_after_answer_kb())
 
     await _user_repo.mark_free_question_used(session, user.id)
 

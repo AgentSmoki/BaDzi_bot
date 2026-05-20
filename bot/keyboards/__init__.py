@@ -132,6 +132,7 @@ def chart_actions_kb(chart_id: uuid.UUID | None = None) -> InlineKeyboardMarkup:
             text="🎓 Загрузить Встречу с Мастером",
             callback_data=f"meeting:show:{chart_id}",
         )
+        builder.button(text="✏️ Переименовать", callback_data=f"chart:rename:{chart_id}")
         builder.button(text="🗑 Удалить карту", callback_data=f"chart:delete:{chart_id}")
     builder.button(text="В меню", callback_data="menu:back")
     builder.adjust(1)
@@ -158,6 +159,7 @@ def chart_actions_kb_post_interpret(
             text="🎓 Загрузить Встречу с Мастером",
             callback_data=f"meeting:show:{chart_id}",
         )
+        builder.button(text="✏️ Переименовать", callback_data=f"chart:rename:{chart_id}")
         builder.button(text="🗑 Удалить карту", callback_data=f"chart:delete:{chart_id}")
     builder.button(text="В меню", callback_data="menu:back")
     builder.adjust(1)
@@ -282,6 +284,34 @@ def add_partner_chart_kb() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def partner_chart_selector_kb(
+    candidates: list[tuple[uuid.UUID, str]],
+) -> InlineKeyboardMarkup:
+    """Same intent as `add_partner_chart_kb` but offers the user's
+    OTHER existing charts as ready-to-link partner candidates first.
+
+    Shown when the relationships skill needs a partner chart AND the
+    user already has other charts in their library (excluding the
+    current owner chart). Tapping a chart row immediately links it
+    via `ChartRepository.set_partner` and resumes the consultation
+    — no second FSM walk required.
+
+    Falls back to `partner:add` / `partner:skip` at the bottom so the
+    user can still build a fresh partner chart or skip the comparison.
+
+    Caller (consultation router) passes pre-formatted (id, label)
+    pairs to keep the keyboards module free of service-layer imports.
+    """
+    builder = InlineKeyboardBuilder()
+    for chart_id, label in candidates:
+        # callback_data limit is 64 bytes — «partner:use:` (12) + uuid (36) = 48 ✓
+        builder.button(text=label, callback_data=f"partner:use:{chart_id}")
+    builder.button(text="➕ Добавить новую карту партнёра", callback_data="partner:add")
+    builder.button(text="Ответить без неё", callback_data="partner:skip")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
 def pricing_kb(*, allow_skip: bool = False) -> InlineKeyboardMarkup:
     """Pricing keyboard shown after the free question is consumed.
 
@@ -320,6 +350,7 @@ __all__ = [
     "main_menu_kb",
     "name_skip_kb",
     "new_user_kb",
+    "partner_chart_selector_kb",
     "pricing_kb",
     "returning_user_kb",
     "time_step_kb",
