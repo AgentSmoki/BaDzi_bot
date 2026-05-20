@@ -128,7 +128,10 @@ def chart_actions_kb(chart_id: uuid.UUID | None = None) -> InlineKeyboardMarkup:
     if chart_id is not None:
         builder.button(text="📅 Прогнозы", callback_data=f"forecast:show:{chart_id}")
         builder.button(text="📔 Дневник", callback_data=f"journal:show:{chart_id}")
-        builder.button(text="🎓 Встречи с мастером", callback_data=f"meeting:show:{chart_id}")
+        builder.button(
+            text="🎓 Загрузить Встречу с Мастером",
+            callback_data=f"meeting:show:{chart_id}",
+        )
         builder.button(text="🗑 Удалить карту", callback_data=f"chart:delete:{chart_id}")
     builder.button(text="В меню", callback_data="menu:back")
     builder.adjust(1)
@@ -151,7 +154,10 @@ def chart_actions_kb_post_interpret(
     if chart_id is not None:
         builder.button(text="📅 Прогнозы", callback_data=f"forecast:show:{chart_id}")
         builder.button(text="📔 Дневник", callback_data=f"journal:show:{chart_id}")
-        builder.button(text="🎓 Встречи с мастером", callback_data=f"meeting:show:{chart_id}")
+        builder.button(
+            text="🎓 Загрузить Встречу с Мастером",
+            callback_data=f"meeting:show:{chart_id}",
+        )
         builder.button(text="🗑 Удалить карту", callback_data=f"chart:delete:{chart_id}")
     builder.button(text="В меню", callback_data="menu:back")
     builder.adjust(1)
@@ -162,64 +168,47 @@ def chart_actions_kb_post_interpret(
 
 
 def forecast_menu_kb(chart_id: uuid.UUID) -> InlineKeyboardMarkup:
-    """Menu shown on `forecast:show:<chart_id>` — two plans + active list."""
+    """Menu shown on `forecast:show:<chart_id>` — two plans + active list.
+
+    NB Telegram limits callback_data to 64 bytes UTF-8. UUIDs are 36
+    chars, so we use the short prefix ``fc:`` for sub-callbacks that
+    don't carry the chart_id (handler reads it from FSM, set by
+    ``forecast:show:<chart_id>``)."""
     builder = InlineKeyboardBuilder()
-    builder.button(
-        text="📅 Прогноз на месяц — 500 ₽",
-        callback_data=f"forecast:buy_monthly:{chart_id}",
-    )
-    builder.button(
-        text="🌅 Прогноз дня + активации — 900 ₽",
-        callback_data=f"forecast:buy_daily:{chart_id}",
-    )
-    builder.button(
-        text="Мои подписки",
-        callback_data=f"forecast:list:{chart_id}",
-    )
+    builder.button(text="📅 Прогноз на месяц — 500 ₽", callback_data="fc:bm")
+    builder.button(text="🌅 Прогноз дня + активации — 900 ₽", callback_data="fc:bd")
+    builder.button(text="Мои подписки", callback_data="fc:list")
     builder.button(text="↩ Назад к карте", callback_data=f"chart:open:{chart_id}")
     builder.adjust(1)
     return builder.as_markup()
 
 
-def forecast_monthly_delivery_kb(chart_id: uuid.UUID) -> InlineKeyboardMarkup:
-    """User picks weekly chunks vs single bulk send."""
+def forecast_monthly_delivery_kb() -> InlineKeyboardMarkup:
+    """User picks weekly chunks vs single bulk send. chart_id lives in FSM."""
     builder = InlineKeyboardBuilder()
-    builder.button(
-        text="Раз в неделю (4 части)",
-        callback_data=f"forecast:monthly_confirm:{chart_id}:weekly",
-    )
-    builder.button(
-        text="Прислать всё сразу",
-        callback_data=f"forecast:monthly_confirm:{chart_id}:bulk",
-    )
-    builder.button(text="↩ Назад", callback_data=f"forecast:show:{chart_id}")
+    builder.button(text="Раз в неделю (4 части)", callback_data="fc:mc:weekly")
+    builder.button(text="Прислать всё сразу", callback_data="fc:mc:bulk")
+    builder.button(text="↩ Назад", callback_data="fc:back")
     builder.adjust(1)
     return builder.as_markup()
 
 
-def forecast_daily_hour_kb(chart_id: uuid.UUID) -> InlineKeyboardMarkup:
-    """User picks send hour (local time). Most pick 4 утра по умолчанию;
-    other quick options + manual entry through FSM (Wave 3d v1 keeps
-    the picker simple — manual hour comes later if requested)."""
+def forecast_daily_hour_kb() -> InlineKeyboardMarkup:
+    """User picks send hour (local time)."""
     builder = InlineKeyboardBuilder()
     for hour in (4, 7, 9, 12, 19):
-        builder.button(
-            text=f"{hour:02d}:00 моего времени",
-            callback_data=f"forecast:daily_confirm:{chart_id}:{hour}",
-        )
-    builder.button(text="↩ Назад", callback_data=f"forecast:show:{chart_id}")
+        builder.button(text=f"{hour:02d}:00 моего времени", callback_data=f"fc:dc:{hour}")
+    builder.button(text="↩ Назад", callback_data="fc:back")
     builder.adjust(1)
     return builder.as_markup()
 
 
-def forecast_cancel_kb(subscription_id: uuid.UUID, chart_id: uuid.UUID) -> InlineKeyboardMarkup:
-    """Cancel confirm dialog for a single subscription row."""
+def forecast_cancel_kb(subscription_id: uuid.UUID) -> InlineKeyboardMarkup:
+    """Cancel confirm dialog for a single subscription row.
+    chart_id lives in FSM; only sub_id rides the callback (50 chars)."""
     builder = InlineKeyboardBuilder()
-    builder.button(
-        text="🛑 Отменить подписку",
-        callback_data=f"forecast:cancel_confirm:{subscription_id}:{chart_id}",
-    )
-    builder.button(text="Назад", callback_data=f"forecast:list:{chart_id}")
+    builder.button(text="🛑 Отменить подписку", callback_data=f"fc:cc:{subscription_id}")
+    builder.button(text="Назад", callback_data="fc:list")
     builder.adjust(1)
     return builder.as_markup()
 

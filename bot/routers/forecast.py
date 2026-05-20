@@ -1,22 +1,20 @@
 """Wave 3d — paid forecast subscription handlers.
 
-UI flow:
-    forecast:show:<chart_id>            menu (monthly / daily / list)
-    forecast:buy_monthly:<chart_id>     → delivery picker (weekly|bulk)
-    forecast:monthly_confirm:<chart_id>:<delivery>  → create + msg
-    forecast:buy_daily:<chart_id>       → hour picker
-    forecast:daily_confirm:<chart_id>:<hour_local>  → create + msg
-    forecast:list:<chart_id>            active subs + cancel buttons
-    forecast:cancel:<sub_id>:<chart_id> → confirm dialog
-    forecast:cancel_confirm:<sub_id>:<chart_id>  → repo.cancel + msg
+UI flow (hotfix 2026-05-20 — callbacks укорочены под Telegram-лимит 64 bytes):
+    forecast:show:<chart_id>          menu (monthly / daily / list)
+    fc:bm                              → delivery picker (weekly|bulk)
+    fc:mc:<weekly|bulk>                → create + msg
+    fc:bd                              → hour picker
+    fc:dc:<hour_local>                 → create + msg
+    fc:list                            → active subs + cancel buttons
+    fc:c:<sub_id>                      → confirm dialog
+    fc:cc:<sub_id>                     → repo.cancel + msg
+    fc:back                            → back to plans menu
 
-While ``settings.forecast_free_bypass=True`` every «Купить» button
-creates the subscription immediately with ``payment_provider=
-"free_dev_bypass"``. After ЮKassa lands (1.12.3) the confirm step
-will redirect to payment URL instead — see MASTER.md checklist.
-
-All handlers check chart.user_id == user.id server-side so leaked
-callback_data can't be replayed across users.
+chart_id живёт в FSM data под ключом ``_FSM_FORECAST_CHART`` — handlers
+читают его оттуда, callback_data короткие (UUID 36 chars + старые
+префиксы ``forecast:monthly_confirm:`` суммарно давали 68 chars >
+лимита 64, Telegram отвечал BUTTON_DATA_INVALID).
 """
 
 from __future__ import annotations
@@ -24,10 +22,17 @@ from __future__ import annotations
 import contextlib
 import uuid
 from datetime import datetime
+from typing import Any
 
 import structlog
 from aiogram import F, Router
-from aiogram.types import CallbackQuery, Message
+from aiogram.fsm.context import FSMContext
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.config import get_settings
@@ -49,6 +54,13 @@ from db.models import (
 from db.repositories.chart_repo import ChartRepository
 from db.repositories.forecast_repo import ChartForecastSubscriptionRepository
 
+# Wave 3d hotfix 2026-05-20: Telegram limits callback_data to 64 bytes.
+# UUID = 36 chars → any compound callback with two UUIDs overflows. We
+# stash chart_id in FSM data under this key once the user enters the
+# forecast menu via ``forecast:show:<chart_id>``; sub-callbacks then
+# stay short (``fc:*``).
+_FSM_FORECAST_CHART = "forecast_chart_id"
+
 logger = structlog.get_logger(__name__)
 
 forecast_router = Router(name="forecast")
@@ -57,16 +69,18 @@ _sub_repo = ChartForecastSubscriptionRepository()
 
 
 _NOT_YOUR_CHART = "Эта карта не ваша или удалена."
+_SESSION_LOST = "Сессия истекла — откройте карту заново и нажмите «📅 Прогнозы»."
 
 _PLANS_INTRO = (
-    "<b>📅 Прогнозы Анастасии</b>\n\n"
+    "<b>📅 Прогнозы от Анастасии</b>\n\n"
     "<b>Месячный план — 500 ₽</b>\n"
-    "Глубокий разбор всего месяца: тема, возможности, риски, рекомендации, "
-    "плюс короткий портрет каждой недели. Можно прислать всё сразу или "
-    "разбить на 4 еженедельные части.\n\n"
+    "Я расскажу про весь месяц: главная тема, возможности, риски, "
+    "и портрет каждой недели. Пришлю всё сразу одним сообщением "
+    "или разобью на 4 еженедельные части — как удобнее.\n\n"
     "<b>Дневной план — 900 ₽/месяц</b>\n"
-    "Каждое утро в выбранный вами час: что активируется сегодня, на что "
-    "опереться, чего избегать. На 30 дней вперёд.\n\n"
+    "Каждое утро в выбранный вами час я пришлю вам активацию "
+    "энергий дня — на что опереться и чего избегать. Буду писать "
+    "каждый день в течение месяца.\n\n"
     "{free_note}"
     "Выберите план:"
 )
@@ -109,11 +123,37 @@ def _parse_chart_id(parts: list[str], index: int) -> uuid.UUID | None:
         return None
 
 
-# ── forecast:show — main menu ────────────────────────────────────────────
+async def _stash_chart_id(state: FSMContext, chart_id: uuid.UUID) -> None:
+    payload: dict[str, Any] = {_FSM_FORECAST_CHART: str(chart_id)}
+    await state.update_data(**payload)
+
+
+async def _resolve_chart_from_state(
+    state: FSMContext, session: AsyncSession, user_id: uuid.UUID
+) -> ChartModel | None:
+    """Read forecast chart_id from FSM (set by forecast:show) and load
+    it with the same ownership check as the original callbacks."""
+    data = await state.get_data()
+    raw = data.get(_FSM_FORECAST_CHART)
+    if not isinstance(raw, str):
+        return None
+    try:
+        chart_id = uuid.UUID(raw)
+    except ValueError:
+        return None
+    return await _load_chart_for_user(session, chart_id=chart_id, user_id=user_id)
+
+
+# ── forecast:show — main menu (sets FSM chart_id) ────────────────────────
 
 
 @forecast_router.callback_query(F.data.startswith("forecast:show:"))
-async def handle_forecast_show(callback: CallbackQuery, session: AsyncSession, user: User) -> None:
+async def handle_forecast_show(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+    state: FSMContext,
+) -> None:
     if not callback.data:
         await callback.answer()
         return
@@ -127,59 +167,72 @@ async def handle_forecast_show(callback: CallbackQuery, session: AsyncSession, u
         await callback.answer(_NOT_YOUR_CHART, show_alert=True)
         return
 
+    await _stash_chart_id(state, chart_id)
     if isinstance(callback.message, Message):
         await callback.message.answer(_intro_text(), reply_markup=forecast_menu_kb(chart_id))
+    await callback.answer()
+
+
+@forecast_router.callback_query(F.data == "fc:back")
+async def handle_fc_back(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+    state: FSMContext,
+) -> None:
+    chart = await _resolve_chart_from_state(state, session, user.id)
+    if chart is None:
+        await callback.answer(_SESSION_LOST, show_alert=True)
+        return
+    if isinstance(callback.message, Message):
+        await callback.message.answer(_intro_text(), reply_markup=forecast_menu_kb(chart.id))
     await callback.answer()
 
 
 # ── Monthly purchase flow ────────────────────────────────────────────────
 
 
-@forecast_router.callback_query(F.data.startswith("forecast:buy_monthly:"))
-async def handle_buy_monthly(callback: CallbackQuery, session: AsyncSession, user: User) -> None:
-    if not callback.data:
-        await callback.answer()
-        return
-    chart_id = _parse_chart_id(callback.data.split(":"), 2)
-    if chart_id is None:
-        await callback.answer("Неверная карта", show_alert=True)
-        return
-    chart = await _load_chart_for_user(session, chart_id=chart_id, user_id=user.id)
+@forecast_router.callback_query(F.data == "fc:bm")
+async def handle_buy_monthly(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+    state: FSMContext,
+) -> None:
+    chart = await _resolve_chart_from_state(state, session, user.id)
     if chart is None:
-        await callback.answer(_NOT_YOUR_CHART, show_alert=True)
+        await callback.answer(_SESSION_LOST, show_alert=True)
         return
 
     if isinstance(callback.message, Message):
         await callback.message.answer(
-            "Как прислать месячный прогноз?",
-            reply_markup=forecast_monthly_delivery_kb(chart_id),
+            "Как мне прислать вам месячный прогноз?",
+            reply_markup=forecast_monthly_delivery_kb(),
         )
     await callback.answer()
 
 
-@forecast_router.callback_query(F.data.startswith("forecast:monthly_confirm:"))
+@forecast_router.callback_query(F.data.startswith("fc:mc:"))
 async def handle_monthly_confirm(
-    callback: CallbackQuery, session: AsyncSession, user: User
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+    state: FSMContext,
 ) -> None:
     if not callback.data:
         await callback.answer()
         return
     parts = callback.data.split(":")
-    chart_id = _parse_chart_id(parts, 2)
-    delivery_raw = parts[3] if len(parts) > 3 else ""
-    if chart_id is None or delivery_raw not in ("weekly", "bulk"):
+    delivery_raw = parts[2] if len(parts) > 2 else ""
+    if delivery_raw not in ("weekly", "bulk"):
         await callback.answer("Неверный выбор", show_alert=True)
         return
-    chart = await _load_chart_for_user(session, chart_id=chart_id, user_id=user.id)
+    chart = await _resolve_chart_from_state(state, session, user.id)
     if chart is None:
-        await callback.answer(_NOT_YOUR_CHART, show_alert=True)
+        await callback.answer(_SESSION_LOST, show_alert=True)
         return
 
     settings = get_settings()
-    if not settings.forecast_free_bypass:
-        # ЮKassa stub: redirect URL would land here. For now fall through.
-        logger.info("forecast.monthly_buy.payments_not_enabled")
-
     delivery = MonthlyDelivery(delivery_raw)
     sub = await _sub_repo.create(
         session,
@@ -194,9 +247,9 @@ async def handle_monthly_confirm(
     await session.commit()
 
     note = (
-        "Первая часть придёт через минуту, остальные — раз в неделю."
+        "Первую часть я пришлю через минуту, остальные — раз в неделю."
         if delivery == MonthlyDelivery.weekly
-        else "Прогноз придёт через минуту одним сообщением."
+        else "Прогноз пришлю через минуту одним сообщением."
     )
     msg = (
         "<b>✓ Подписка активирована</b>\n\n"
@@ -221,46 +274,48 @@ async def handle_monthly_confirm(
 # ── Daily purchase flow ──────────────────────────────────────────────────
 
 
-@forecast_router.callback_query(F.data.startswith("forecast:buy_daily:"))
-async def handle_buy_daily(callback: CallbackQuery, session: AsyncSession, user: User) -> None:
-    if not callback.data:
-        await callback.answer()
-        return
-    chart_id = _parse_chart_id(callback.data.split(":"), 2)
-    if chart_id is None:
-        await callback.answer("Неверная карта", show_alert=True)
-        return
-    chart = await _load_chart_for_user(session, chart_id=chart_id, user_id=user.id)
+@forecast_router.callback_query(F.data == "fc:bd")
+async def handle_buy_daily(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+    state: FSMContext,
+) -> None:
+    chart = await _resolve_chart_from_state(state, session, user.id)
     if chart is None:
-        await callback.answer(_NOT_YOUR_CHART, show_alert=True)
+        await callback.answer(_SESSION_LOST, show_alert=True)
         return
 
     if isinstance(callback.message, Message):
         await callback.message.answer(
             "В какое время вам присылать дневной прогноз?",
-            reply_markup=forecast_daily_hour_kb(chart_id),
+            reply_markup=forecast_daily_hour_kb(),
         )
     await callback.answer()
 
 
-@forecast_router.callback_query(F.data.startswith("forecast:daily_confirm:"))
-async def handle_daily_confirm(callback: CallbackQuery, session: AsyncSession, user: User) -> None:
+@forecast_router.callback_query(F.data.startswith("fc:dc:"))
+async def handle_daily_confirm(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+    state: FSMContext,
+) -> None:
     if not callback.data:
         await callback.answer()
         return
     parts = callback.data.split(":")
-    chart_id = _parse_chart_id(parts, 2)
     try:
-        hour_local = int(parts[3])
+        hour_local = int(parts[2])
     except (ValueError, IndexError):
         await callback.answer("Неверный час", show_alert=True)
         return
-    if chart_id is None or not (0 <= hour_local <= 23):
+    if not (0 <= hour_local <= 23):
         await callback.answer("Неверный выбор", show_alert=True)
         return
-    chart = await _load_chart_for_user(session, chart_id=chart_id, user_id=user.id)
+    chart = await _resolve_chart_from_state(state, session, user.id)
     if chart is None:
-        await callback.answer(_NOT_YOUR_CHART, show_alert=True)
+        await callback.answer(_SESSION_LOST, show_alert=True)
         return
 
     settings = get_settings()
@@ -282,9 +337,9 @@ async def handle_daily_confirm(callback: CallbackQuery, session: AsyncSession, u
         "<b>✓ Подписка активирована</b>\n\n"
         f"Дневной прогноз для этой карты — {settings.forecast_daily_price_rub} ₽ "
         f"на 30 дней.\n"
-        f"Время отправки: {hour_local:02d}:00 вашего местного времени "
+        f"Я буду писать в {hour_local:02d}:00 вашего местного времени "
         f"(UTC {hour_utc:02d}:00).\n\n"
-        "Первый прогноз придёт в указанный час."
+        "Первый прогноз пришлю в указанный час."
     )
     logger.info(
         "forecast.subscription.created",
@@ -314,30 +369,25 @@ def _format_sub_row(sub: ChartForecastSubscription) -> str:
     return f"📅 Месячный прогноз — {delivery_name}, до {expires}"
 
 
-@forecast_router.callback_query(F.data.startswith("forecast:list:"))
-async def handle_forecast_list(callback: CallbackQuery, session: AsyncSession, user: User) -> None:
-    if not callback.data:
-        await callback.answer()
-        return
-    chart_id = _parse_chart_id(callback.data.split(":"), 2)
-    if chart_id is None:
-        await callback.answer("Неверная карта", show_alert=True)
-        return
-    chart = await _load_chart_for_user(session, chart_id=chart_id, user_id=user.id)
+@forecast_router.callback_query(F.data == "fc:list")
+async def handle_forecast_list(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+    state: FSMContext,
+) -> None:
+    chart = await _resolve_chart_from_state(state, session, user.id)
     if chart is None:
-        await callback.answer(_NOT_YOUR_CHART, show_alert=True)
+        await callback.answer(_SESSION_LOST, show_alert=True)
         return
 
     subs = await _sub_repo.list_active_for_chart(session, chart.id)
     if not subs:
         text = "У этой карты пока нет активных подписок на прогнозы."
         if isinstance(callback.message, Message):
-            await callback.message.answer(text, reply_markup=forecast_menu_kb(chart_id))
+            await callback.message.answer(text, reply_markup=forecast_menu_kb(chart.id))
         await callback.answer()
         return
-
-    # Build one row per sub + cancel buttons inline.
-    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
     rows: list[list[InlineKeyboardButton]] = []
     lines = ["<b>Активные подписки</b>:\n"]
@@ -347,18 +397,18 @@ async def handle_forecast_list(callback: CallbackQuery, session: AsyncSession, u
             [
                 InlineKeyboardButton(
                     text=f"🛑 Отменить: {sub.kind.value}",
-                    callback_data=f"forecast:cancel:{sub.id}:{chart_id}",
+                    callback_data=f"fc:c:{sub.id}",
                 )
             ]
         )
-    rows.append([InlineKeyboardButton(text="↩ Назад", callback_data=f"forecast:show:{chart_id}")])
+    rows.append([InlineKeyboardButton(text="↩ Назад", callback_data="fc:back")])
     kb = InlineKeyboardMarkup(inline_keyboard=rows)
     if isinstance(callback.message, Message):
         await callback.message.answer("\n".join(lines), reply_markup=kb)
     await callback.answer()
 
 
-@forecast_router.callback_query(F.data.startswith("forecast:cancel:"))
+@forecast_router.callback_query(F.data.startswith("fc:c:"))
 async def handle_cancel_request(callback: CallbackQuery, session: AsyncSession, user: User) -> None:
     """Show confirm dialog before cancelling."""
     if not callback.data:
@@ -367,7 +417,6 @@ async def handle_cancel_request(callback: CallbackQuery, session: AsyncSession, 
     parts = callback.data.split(":")
     try:
         sub_id = uuid.UUID(parts[2])
-        chart_id = uuid.UUID(parts[3])
     except (ValueError, IndexError):
         await callback.answer("Неверная подписка", show_alert=True)
         return
@@ -380,20 +429,24 @@ async def handle_cancel_request(callback: CallbackQuery, session: AsyncSession, 
     if isinstance(callback.message, Message):
         await callback.message.answer(
             f"Отменить подписку:\n• {_format_sub_row(sub)}?",
-            reply_markup=forecast_cancel_kb(sub_id, chart_id),
+            reply_markup=forecast_cancel_kb(sub_id),
         )
     await callback.answer()
 
 
-@forecast_router.callback_query(F.data.startswith("forecast:cancel_confirm:"))
-async def handle_cancel_confirm(callback: CallbackQuery, session: AsyncSession, user: User) -> None:
+@forecast_router.callback_query(F.data.startswith("fc:cc:"))
+async def handle_cancel_confirm(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+    state: FSMContext,
+) -> None:
     if not callback.data:
         await callback.answer()
         return
     parts = callback.data.split(":")
     try:
         sub_id = uuid.UUID(parts[2])
-        chart_id = uuid.UUID(parts[3])
     except (ValueError, IndexError):
         await callback.answer("Неверная подписка", show_alert=True)
         return
@@ -415,11 +468,15 @@ async def handle_cancel_confirm(callback: CallbackQuery, session: AsyncSession, 
         user_id=str(user.id),
         cancelled_at=datetime.now().isoformat(),
     )
+    chart = await _resolve_chart_from_state(state, session, user.id)
     if isinstance(callback.message, Message):
         with contextlib.suppress(Exception):
             await callback.message.edit_text("Подписка отменена.")
-        await callback.message.answer(
-            "Прогнозы по этой подписке больше не придут.",
-            reply_markup=forecast_menu_kb(chart_id),
-        )
+        if chart is not None:
+            await callback.message.answer(
+                "Прогнозы по этой подписке больше не придут.",
+                reply_markup=forecast_menu_kb(chart.id),
+            )
+        else:
+            await callback.message.answer("Прогнозы по этой подписке больше не придут.")
     await callback.answer()

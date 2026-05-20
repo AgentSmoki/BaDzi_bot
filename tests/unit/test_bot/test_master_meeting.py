@@ -15,7 +15,6 @@ from bot.routers.master_meeting import (
     _is_valid_url,
     handle_add_start,
     handle_delete_confirm,
-    handle_show,
     handle_url_input,
     handle_view,
 )
@@ -139,9 +138,18 @@ def _fake_message(text: str) -> MagicMock:
 # ── show ─────────────────────────────────────────────────────────────────
 
 
+async def _stash_meeting_chart(state: MagicMock, chart_id: _uuid.UUID) -> None:
+    from bot.routers.master_meeting import _FSM_MEETING_CHART
+
+    await state.update_data(**{_FSM_MEETING_CHART: str(chart_id)})
+
+
 @pytest.mark.asyncio
 async def test_show_lists_meetings(
-    monkeypatch: pytest.MonkeyPatch, fake_session: MagicMock, fake_user: MagicMock
+    monkeypatch: pytest.MonkeyPatch,
+    fake_session: MagicMock,
+    fake_user: MagicMock,
+    fake_state: MagicMock,
 ) -> None:
     chart = _fake_chart(user_id=fake_user.id)
     monkeypatch.setattr(meeting_module._chart_repo, "get_by_id", AsyncMock(return_value=chart))
@@ -152,26 +160,33 @@ async def test_show_lists_meetings(
         AsyncMock(return_value=[meeting]),
     )
     cb = _fake_callback(f"meeting:show:{chart.id}")
-    await handle_show(callback=cb, session=fake_session, user=fake_user)
+    await meeting_module.handle_show(
+        callback=cb, session=fake_session, user=fake_user, state=fake_state
+    )
 
     cb.message.answer.assert_awaited_once()
     text = cb.message.answer.call_args.args[0]
-    assert "Встречи с мастером" in text
-    # kb contains «Добавить ссылку» + at least one meeting button
+    assert "Встречу с Мастером" in text
+    # kb contains «Добавить ссылку» (short callback) + meeting view button
     kb = cb.message.answer.call_args.kwargs["reply_markup"]
     callback_data = {btn.callback_data for row in kb.inline_keyboard for btn in row}
-    assert f"meeting:add:{chart.id}" in callback_data
-    assert any(cb_data.startswith(f"meeting:view:{meeting.id}") for cb_data in callback_data)
+    assert "mm:add" in callback_data
+    assert f"mm:v:{meeting.id}" in callback_data
 
 
 @pytest.mark.asyncio
 async def test_show_blocks_other_user_chart(
-    monkeypatch: pytest.MonkeyPatch, fake_session: MagicMock, fake_user: MagicMock
+    monkeypatch: pytest.MonkeyPatch,
+    fake_session: MagicMock,
+    fake_user: MagicMock,
+    fake_state: MagicMock,
 ) -> None:
     chart = _fake_chart(user_id=_uuid.uuid4())
     monkeypatch.setattr(meeting_module._chart_repo, "get_by_id", AsyncMock(return_value=chart))
     cb = _fake_callback(f"meeting:show:{chart.id}")
-    await handle_show(callback=cb, session=fake_session, user=fake_user)
+    await meeting_module.handle_show(
+        callback=cb, session=fake_session, user=fake_user, state=fake_state
+    )
     cb.message.answer.assert_not_awaited()
 
 
@@ -186,14 +201,14 @@ async def test_add_start_sets_fsm(
     fake_state: MagicMock,
 ) -> None:
     chart = _fake_chart(user_id=fake_user.id)
+    await _stash_meeting_chart(fake_state, chart.id)
     monkeypatch.setattr(meeting_module._chart_repo, "get_by_id", AsyncMock(return_value=chart))
 
-    cb = _fake_callback(f"meeting:add:{chart.id}")
+    cb = _fake_callback("mm:add")
     await handle_add_start(callback=cb, session=fake_session, user=fake_user, state=fake_state)
 
     data = await fake_state.get_data()
     assert data["__state"] == MasterMeetingState.waiting_url
-    assert data["meeting_chart_id"] == str(chart.id)
 
 
 @pytest.mark.asyncio
@@ -203,7 +218,7 @@ async def test_url_input_rejects_garbage(
     fake_user: MagicMock,
     fake_state: MagicMock,
 ) -> None:
-    await fake_state.update_data(meeting_chart_id=str(_uuid.uuid4()))
+    await _stash_meeting_chart(fake_state, _uuid.uuid4())
     create_mock = AsyncMock()
     monkeypatch.setattr(meeting_module._meeting_repo, "create_queued", create_mock)
 
@@ -221,7 +236,7 @@ async def test_url_input_creates_and_enqueues(
     fake_state: MagicMock,
 ) -> None:
     chart = _fake_chart(user_id=fake_user.id)
-    await fake_state.update_data(meeting_chart_id=str(chart.id))
+    await _stash_meeting_chart(fake_state, chart.id)
     monkeypatch.setattr(meeting_module._chart_repo, "get_by_id", AsyncMock(return_value=chart))
     created_meeting = MagicMock(id=_uuid.uuid4())
     create_mock = AsyncMock(return_value=created_meeting)
@@ -246,11 +261,10 @@ async def test_url_input_creates_and_enqueues(
 async def test_view_shows_summary_when_ready(
     monkeypatch: pytest.MonkeyPatch, fake_session: MagicMock, fake_user: MagicMock
 ) -> None:
-    chart_id = _uuid.uuid4()
     meeting = _fake_meeting(user_id=fake_user.id, status=MasterMeetingStatus.ready)
     monkeypatch.setattr(meeting_module._meeting_repo, "get_by_id", AsyncMock(return_value=meeting))
 
-    cb = _fake_callback(f"meeting:view:{meeting.id}:{chart_id}")
+    cb = _fake_callback(f"mm:v:{meeting.id}")
     await handle_view(callback=cb, session=fake_session, user=fake_user)
 
     text = cb.message.answer.call_args.args[0]
@@ -261,13 +275,12 @@ async def test_view_shows_summary_when_ready(
 async def test_view_shows_status_when_transcribing(
     monkeypatch: pytest.MonkeyPatch, fake_session: MagicMock, fake_user: MagicMock
 ) -> None:
-    chart_id = _uuid.uuid4()
     meeting = _fake_meeting(
         user_id=fake_user.id, status=MasterMeetingStatus.transcribing, summary=None
     )
     monkeypatch.setattr(meeting_module._meeting_repo, "get_by_id", AsyncMock(return_value=meeting))
 
-    cb = _fake_callback(f"meeting:view:{meeting.id}:{chart_id}")
+    cb = _fake_callback(f"mm:v:{meeting.id}")
     await handle_view(callback=cb, session=fake_session, user=fake_user)
 
     text = cb.message.answer.call_args.args[0]
@@ -279,31 +292,39 @@ async def test_view_shows_status_when_transcribing(
 
 @pytest.mark.asyncio
 async def test_delete_confirm_calls_repo(
-    monkeypatch: pytest.MonkeyPatch, fake_session: MagicMock, fake_user: MagicMock
+    monkeypatch: pytest.MonkeyPatch,
+    fake_session: MagicMock,
+    fake_user: MagicMock,
+    fake_state: MagicMock,
 ) -> None:
-    chart_id = _uuid.uuid4()
+    chart = _fake_chart(user_id=fake_user.id)
+    await _stash_meeting_chart(fake_state, chart.id)
     meeting = _fake_meeting(user_id=fake_user.id)
     monkeypatch.setattr(meeting_module._meeting_repo, "get_by_id", AsyncMock(return_value=meeting))
+    monkeypatch.setattr(meeting_module._chart_repo, "get_by_id", AsyncMock(return_value=chart))
     delete_mock = AsyncMock(return_value=True)
     monkeypatch.setattr(meeting_module._meeting_repo, "delete", delete_mock)
     monkeypatch.setattr(meeting_module._meeting_repo, "list_by_chart", AsyncMock(return_value=[]))
 
-    cb = _fake_callback(f"meeting:delete_confirm:{meeting.id}:{chart_id}")
-    await handle_delete_confirm(callback=cb, session=fake_session, user=fake_user)
+    cb = _fake_callback(f"mm:dc:{meeting.id}")
+    await handle_delete_confirm(callback=cb, session=fake_session, user=fake_user, state=fake_state)
 
     delete_mock.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_delete_blocks_cross_user(
-    monkeypatch: pytest.MonkeyPatch, fake_session: MagicMock, fake_user: MagicMock
+    monkeypatch: pytest.MonkeyPatch,
+    fake_session: MagicMock,
+    fake_user: MagicMock,
+    fake_state: MagicMock,
 ) -> None:
     meeting = _fake_meeting(user_id=_uuid.uuid4())  # someone else's
     monkeypatch.setattr(meeting_module._meeting_repo, "get_by_id", AsyncMock(return_value=meeting))
     delete_mock = AsyncMock()
     monkeypatch.setattr(meeting_module._meeting_repo, "delete", delete_mock)
 
-    cb = _fake_callback(f"meeting:delete_confirm:{meeting.id}:{_uuid.uuid4()}")
-    await handle_delete_confirm(callback=cb, session=fake_session, user=fake_user)
+    cb = _fake_callback(f"mm:dc:{meeting.id}")
+    await handle_delete_confirm(callback=cb, session=fake_session, user=fake_user, state=fake_state)
 
     delete_mock.assert_not_awaited()

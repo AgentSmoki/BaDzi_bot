@@ -1,13 +1,16 @@
 """Wave 5 — master-meeting upload + list + delete handlers.
 
-UI:
-    meeting:show:<chart_id>          intro + active list + add button
-    meeting:add:<chart_id>           explainer → FSM waiting_url
-    <user pastes URL>                enqueue TaskIQ → «принимаю в работу»
-    meeting:cancel_add:<chart_id>    abort upload FSM
-    meeting:view:<meeting_id>:<chart_id>     show summary inline
-    meeting:delete:<meeting_id>:<chart_id>   confirm dialog
-    meeting:delete_confirm:<m>:<c>   repo.delete + back to list
+UI (hotfix 2026-05-20 — callbacks укорочены под Telegram-лимит 64 bytes):
+    meeting:show:<chart_id>     entry; stashes chart_id in FSM
+    mm:add                       explainer → FSM waiting_url
+    mm:v:<meeting_id>            show summary inline
+    mm:d:<meeting_id>            confirm dialog
+    mm:dc:<meeting_id>           repo.delete + back to list
+
+chart_id живёт в FSM data под ключом ``_FSM_MEETING_CHART`` — handlers
+читают его оттуда. Старая схема ``meeting:view:{meeting_id}:{chart_id}``
+выходила за 64 байта (36+36+13 = 85) и Telegram бросал
+BUTTON_DATA_INVALID.
 
 Background work happens in `tasks/master_meeting.py` via TaskIQ. The
 handler only enqueues + writes the «queued» row; the user gets a
@@ -18,6 +21,7 @@ from __future__ import annotations
 
 import contextlib
 import uuid
+from typing import Any
 
 import structlog
 from aiogram import F, Router
@@ -49,19 +53,26 @@ master_meeting_router = Router(name="master_meeting")
 _chart_repo = ChartRepository()
 _meeting_repo = MasterMeetingRepository()
 
+# Wave 5 hotfix: same as forecast.py — stash chart_id in FSM for short
+# callback_data. Key separate from forecast's to avoid cross-flow leaks.
+_FSM_MEETING_CHART = "meeting_chart_id"
+
 _NOT_YOUR_CHART = "Эта карта не ваша или удалена."
+_SESSION_LOST = (
+    "Сессия истекла — откройте карту заново и нажмите «🎓 Загрузить Встречу с Мастером»."
+)
 
 _EXPLAINER = (
-    "<b>🎓 Встречи с мастером</b>\n\n"
+    "<b>🎓 Загрузить Встречу с Мастером</b>\n\n"
     "Когда вы проходите живую сессию с мастером — пришлите мне ссылку "
     "на запись (Google Drive, Yandex Disk, Cloud Mail, YouTube, Zoom). "
-    "Я расшифрую и сделаю выжимку — потом буду учитывать глубинные "
-    "аспекты из этих встреч, когда вы задаёте вопросы.\n\n"
+    "Я расшифрую запись, выжму из неё ключевые мысли и буду учитывать "
+    "глубинные аспекты вашей карты, когда вы задаёте вопросы.\n\n"
     "Чтобы добавить встречу — нажмите «Добавить ссылку» и пришлите URL "
     "одним сообщением."
 )
 _URL_PROMPT = (
-    "Пришлите ссылку на запись встречи. Я приму её и расшифрую в "
+    "Пришлите мне ссылку на запись встречи. Я приму её и расшифрую в "
     "фоне — на это уйдёт пара минут для коротких записей и до получаса "
     "для длинных. Напишу когда будет готово."
 )
@@ -92,6 +103,25 @@ async def _load_chart_for_user(
     return chart
 
 
+async def _stash_chart_id(state: FSMContext, chart_id: uuid.UUID) -> None:
+    payload: dict[str, Any] = {_FSM_MEETING_CHART: str(chart_id)}
+    await state.update_data(**payload)
+
+
+async def _resolve_chart_from_state(
+    state: FSMContext, session: AsyncSession, user_id: uuid.UUID
+) -> Chart | None:
+    data = await state.get_data()
+    raw = data.get(_FSM_MEETING_CHART)
+    if not isinstance(raw, str):
+        return None
+    try:
+        chart_id = uuid.UUID(raw)
+    except ValueError:
+        return None
+    return await _load_chart_for_user(session, chart_id=chart_id, user_id=user_id)
+
+
 def _status_label(status: MasterMeetingStatus) -> str:
     return {
         MasterMeetingStatus.queued: "⏳ в очереди",
@@ -109,14 +139,14 @@ def _meeting_short_label(meeting: MasterMeeting) -> str:
 
 def _menu_kb(chart_id: uuid.UUID, meetings: list[MasterMeeting]) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = [
-        [InlineKeyboardButton(text="➕ Добавить ссылку", callback_data=f"meeting:add:{chart_id}")]
+        [InlineKeyboardButton(text="➕ Добавить ссылку", callback_data="mm:add")]
     ]
-    for m in meetings[:8]:  # cap UI; older meetings paginated later if needed
+    for m in meetings[:8]:
         rows.append(
             [
                 InlineKeyboardButton(
                     text=_meeting_short_label(m),
-                    callback_data=f"meeting:view:{m.id}:{chart_id}",
+                    callback_data=f"mm:v:{m.id}",
                 )
             ]
         )
@@ -126,34 +156,11 @@ def _menu_kb(chart_id: uuid.UUID, meetings: list[MasterMeeting]) -> InlineKeyboa
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-# ── meeting:show ─────────────────────────────────────────────────────────
+# ── meeting:show (sets FSM) ──────────────────────────────────────────────
 
 
 @master_meeting_router.callback_query(F.data.startswith("meeting:show:"))
-async def handle_show(callback: CallbackQuery, session: AsyncSession, user: User) -> None:
-    if not callback.data:
-        await callback.answer()
-        return
-    chart_id = _parse_uuid(callback.data.split(":"), 2)
-    if chart_id is None:
-        await callback.answer("Неверная карта", show_alert=True)
-        return
-    chart = await _load_chart_for_user(session, chart_id=chart_id, user_id=user.id)
-    if chart is None:
-        await callback.answer(_NOT_YOUR_CHART, show_alert=True)
-        return
-
-    meetings = await _meeting_repo.list_by_chart(session, chart_id)
-    if isinstance(callback.message, Message):
-        await callback.message.answer(_EXPLAINER, reply_markup=_menu_kb(chart_id, meetings))
-    await callback.answer()
-
-
-# ── meeting:add → FSM ────────────────────────────────────────────────────
-
-
-@master_meeting_router.callback_query(F.data.startswith("meeting:add:"))
-async def handle_add_start(
+async def handle_show(
     callback: CallbackQuery,
     session: AsyncSession,
     user: User,
@@ -171,8 +178,29 @@ async def handle_add_start(
         await callback.answer(_NOT_YOUR_CHART, show_alert=True)
         return
 
+    await _stash_chart_id(state, chart_id)
+    meetings = await _meeting_repo.list_by_chart(session, chart_id)
+    if isinstance(callback.message, Message):
+        await callback.message.answer(_EXPLAINER, reply_markup=_menu_kb(chart_id, meetings))
+    await callback.answer()
+
+
+# ── mm:add → FSM ─────────────────────────────────────────────────────────
+
+
+@master_meeting_router.callback_query(F.data == "mm:add")
+async def handle_add_start(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+    state: FSMContext,
+) -> None:
+    chart = await _resolve_chart_from_state(state, session, user.id)
+    if chart is None:
+        await callback.answer(_SESSION_LOST, show_alert=True)
+        return
+
     await state.set_state(MasterMeetingState.waiting_url)
-    await state.update_data(meeting_chart_id=str(chart_id))
     if isinstance(callback.message, Message):
         await callback.message.answer(_URL_PROMPT)
     await callback.answer()
@@ -190,15 +218,9 @@ async def handle_url_input(
         await message.answer(_INVALID_URL)
         return
 
-    data = await state.get_data()
-    raw = data.get("meeting_chart_id")
-    if not isinstance(raw, str):
-        await state.clear()
-        return
-    chart_id = uuid.UUID(raw)
-    chart = await _load_chart_for_user(session, chart_id=chart_id, user_id=user.id)
+    chart = await _resolve_chart_from_state(state, session, user.id)
     if chart is None:
-        await state.clear()
+        await state.set_state(None)
         await message.answer(_NOT_YOUR_CHART)
         return
 
@@ -206,21 +228,21 @@ async def handle_url_input(
     meeting = await _meeting_repo.create_queued(
         session,
         user_id=user.id,
-        chart_id=chart_id,
+        chart_id=chart.id,
         source_url=text,
         source_type=source_type,
     )
     await session.commit()
-    await state.clear()
+    # Exit upload FSM but keep _FSM_MEETING_CHART so subsequent menu
+    # interactions (view/delete) keep working.
+    await state.set_state(None)
 
-    # Enqueue background transcribe — TaskIQ persists to Redis, worker
-    # picks it up. ``meeting_id_str`` mirrors the task signature.
     await transcribe_master_meeting.kiq(str(meeting.id))
 
     logger.info(
         "master_meeting.queued",
         meeting_id=str(meeting.id),
-        chart_id=str(chart_id),
+        chart_id=str(chart.id),
         user_id=str(user.id),
         source_type=source_type.value,
         url_prefix=text[:60],
@@ -231,15 +253,14 @@ async def handle_url_input(
 # ── view / delete ────────────────────────────────────────────────────────
 
 
-@master_meeting_router.callback_query(F.data.startswith("meeting:view:"))
+@master_meeting_router.callback_query(F.data.startswith("mm:v:"))
 async def handle_view(callback: CallbackQuery, session: AsyncSession, user: User) -> None:
     if not callback.data:
         await callback.answer()
         return
     parts = callback.data.split(":")
     meeting_id = _parse_uuid(parts, 2)
-    chart_id = _parse_uuid(parts, 3)
-    if meeting_id is None or chart_id is None:
+    if meeting_id is None:
         await callback.answer("Неверная встреча", show_alert=True)
         return
 
@@ -263,10 +284,10 @@ async def handle_view(callback: CallbackQuery, session: AsyncSession, user: User
             [
                 InlineKeyboardButton(
                     text="🗑 Удалить встречу",
-                    callback_data=f"meeting:delete:{meeting_id}:{chart_id}",
+                    callback_data=f"mm:d:{meeting_id}",
                 )
             ],
-            [InlineKeyboardButton(text="↩ Назад", callback_data=f"meeting:show:{chart_id}")],
+            [InlineKeyboardButton(text="↩ Назад", callback_data="mm:back")],
         ]
     )
     if isinstance(callback.message, Message):
@@ -274,15 +295,31 @@ async def handle_view(callback: CallbackQuery, session: AsyncSession, user: User
     await callback.answer()
 
 
-@master_meeting_router.callback_query(F.data.startswith("meeting:delete:"))
+@master_meeting_router.callback_query(F.data == "mm:back")
+async def handle_back_to_list(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+    state: FSMContext,
+) -> None:
+    chart = await _resolve_chart_from_state(state, session, user.id)
+    if chart is None:
+        await callback.answer(_SESSION_LOST, show_alert=True)
+        return
+    meetings = await _meeting_repo.list_by_chart(session, chart.id)
+    if isinstance(callback.message, Message):
+        await callback.message.answer(_EXPLAINER, reply_markup=_menu_kb(chart.id, meetings))
+    await callback.answer()
+
+
+@master_meeting_router.callback_query(F.data.startswith("mm:d:"))
 async def handle_delete_request(callback: CallbackQuery, session: AsyncSession, user: User) -> None:
     if not callback.data:
         await callback.answer()
         return
     parts = callback.data.split(":")
     meeting_id = _parse_uuid(parts, 2)
-    chart_id = _parse_uuid(parts, 3)
-    if meeting_id is None or chart_id is None:
+    if meeting_id is None:
         await callback.answer("Неверная встреча", show_alert=True)
         return
     meeting = await _meeting_repo.get_by_id(session, meeting_id)
@@ -295,13 +332,13 @@ async def handle_delete_request(callback: CallbackQuery, session: AsyncSession, 
             [
                 InlineKeyboardButton(
                     text="🗑 Удалить навсегда",
-                    callback_data=f"meeting:delete_confirm:{meeting_id}:{chart_id}",
+                    callback_data=f"mm:dc:{meeting_id}",
                 )
             ],
             [
                 InlineKeyboardButton(
                     text="Отмена",
-                    callback_data=f"meeting:view:{meeting_id}:{chart_id}",
+                    callback_data=f"mm:v:{meeting_id}",
                 )
             ],
         ]
@@ -314,15 +351,19 @@ async def handle_delete_request(callback: CallbackQuery, session: AsyncSession, 
     await callback.answer()
 
 
-@master_meeting_router.callback_query(F.data.startswith("meeting:delete_confirm:"))
-async def handle_delete_confirm(callback: CallbackQuery, session: AsyncSession, user: User) -> None:
+@master_meeting_router.callback_query(F.data.startswith("mm:dc:"))
+async def handle_delete_confirm(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+    state: FSMContext,
+) -> None:
     if not callback.data:
         await callback.answer()
         return
     parts = callback.data.split(":")
     meeting_id = _parse_uuid(parts, 2)
-    chart_id = _parse_uuid(parts, 3)
-    if meeting_id is None or chart_id is None:
+    if meeting_id is None:
         await callback.answer("Неверная встреча", show_alert=True)
         return
 
@@ -342,9 +383,11 @@ async def handle_delete_confirm(callback: CallbackQuery, session: AsyncSession, 
         meeting_id=str(meeting_id),
         user_id=str(user.id),
     )
+    chart = await _resolve_chart_from_state(state, session, user.id)
     if isinstance(callback.message, Message):
         with contextlib.suppress(Exception):
             await callback.message.edit_text("Встреча удалена.")
-        meetings = await _meeting_repo.list_by_chart(session, chart_id)
-        await callback.message.answer(_EXPLAINER, reply_markup=_menu_kb(chart_id, meetings))
+        if chart is not None:
+            meetings = await _meeting_repo.list_by_chart(session, chart.id)
+            await callback.message.answer(_EXPLAINER, reply_markup=_menu_kb(chart.id, meetings))
     await callback.answer()

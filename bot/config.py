@@ -50,14 +50,14 @@ class Settings(BaseSettings):
 
     # ── Skill router (Wave 6, ADR-010) ────────────────────────────────────────
     # Fast LLM that classifies user questions into a skill (work / relationships
-    # / health / time / default) and may request clarifying questions before
-    # the main response. Defaults to Qwen3.6 (same as primary) because Qwen3-3B
-    # is not yet in the YC AI Studio catalog as of 2026-05-19 — probe returned
-    # `Failed to get model`. Swap to "qwen3-3b" once it lands (task 1.9.17).
+    # / health / time / default), drives smart-entry parsing (text→chart),
+    # journal-correction, and meeting summarisation. Uses Qwen3.6-35b-a3b
+    # — same model as primary, just with tighter max_tokens budget. Decision
+    # 2026-05-20: stay on Qwen3.6 across all fast-path needs (Bogdan).
     yc_fast_model: str = "qwen3.6-35b-a3b"
-    # Min 2000 for thinking-class models (Qwen3.6/Kimi/Claude-thinking) — they
-    # burn `reasoning_content` first and need headroom or content arrives null
-    # with finish_reason="length". See orchestrator._parse_result.
+    # Min 2000 for thinking-class models — they burn `reasoning_content`
+    # first and need headroom or content arrives null with
+    # finish_reason="length". See orchestrator._parse_result.
     yc_fast_max_tokens: int = 2_000
     # Feature flag — flip via Redis at runtime to disable the new routing
     # path and revert to the legacy single-system-prompt flow.
