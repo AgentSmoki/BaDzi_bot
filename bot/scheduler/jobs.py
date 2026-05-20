@@ -27,7 +27,9 @@ from ai.forecast import (
     generate_daily_forecast,
     generate_monthly_forecast,
 )
+from bot.config import get_settings
 from calculator.models import ChartOutput
+from db.engine import get_engine
 from db.models import ForecastKind
 from db.repositories.chart_repo import ChartRepository
 from db.repositories.forecast_repo import (
@@ -36,6 +38,26 @@ from db.repositories.forecast_repo import (
 )
 
 logger = structlog.get_logger(__name__)
+
+
+# Wave 3c hotfix 2026-05-20: APScheduler SQLAlchemyJobStore pickles
+# job kwargs into Postgres for persistence across restarts. ``Bot``
+# (carries SSLContext) and ``async_sessionmaker`` (binds to an
+# asyncpg engine) aren't picklable, so we MUST NOT pass them as
+# kwargs. Each job function builds these locally at fire time via
+# ``_make_bot()`` and ``_make_session_factory()``.
+
+
+def _make_bot() -> Bot:
+    """Fresh Bot per job — caller must ``await bot.session.close()``
+    in a ``finally`` block."""
+    return Bot(token=get_settings().bot_token.get_secret_value())
+
+
+def _make_session_factory() -> async_sessionmaker[AsyncSession]:
+    """Reuses the cached engine singleton from ``db.engine.get_engine``."""
+    return async_sessionmaker(get_engine(), expire_on_commit=False)
+
 
 _DELIVERY_HEADER: Final[dict[ForecastKind, str]] = {
     ForecastKind.daily: "🌅 <b>Прогноз дня и активации</b>",
@@ -116,17 +138,38 @@ async def send_daily_forecast_job(
     *,
     subscription_id: uuid.UUID,
     target_date: date,
-    bot: Bot,
-    session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     """Generate and send a single daily forecast.
 
-    Wrapped by APScheduler — each tick gets its own DB session via
-    ``session_factory()``. The function is idempotent: if a delivery
-    for this (sub, slot) already exists with sent_at != NULL, we skip
-    the LLM call and the send.
+    APScheduler kwargs are pickled into the jobstore, so we accept only
+    picklable args (UUID + date) and build Bot/session_factory locally.
+
+    The function is idempotent: if a delivery for this (sub, slot)
+    already exists with sent_at != NULL, we skip the LLM call.
     """
     slot_key = build_daily_slot_key(target_date)
+    session_factory = _make_session_factory()
+    bot = _make_bot()
+    try:
+        await _send_daily_forecast_inner(
+            subscription_id=subscription_id,
+            target_date=target_date,
+            slot_key=slot_key,
+            bot=bot,
+            session_factory=session_factory,
+        )
+    finally:
+        await bot.session.close()
+
+
+async def _send_daily_forecast_inner(
+    *,
+    subscription_id: uuid.UUID,
+    target_date: date,
+    slot_key: str,
+    bot: Bot,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
     delivery_repo = ForecastDeliveryRepository()
     sub_repo = ChartForecastSubscriptionRepository()
     chart_repo = ChartRepository()
@@ -222,19 +265,17 @@ async def send_daily_forecast_job(
         await session.commit()
 
 
-async def send_journal_reminder_job(
-    *,
-    chart_id: uuid.UUID,
-    bot: Bot,
-    session_factory: async_sessionmaker[AsyncSession],
-) -> None:
+async def send_journal_reminder_job(*, chart_id: uuid.UUID) -> None:
     """Wave 4 — daily reminder for the reflection journal.
 
-    Fires at the per-chart configured local hour. Skips silently if the
-    user disabled the journal between purchase and fire-time."""
+    Fires at the per-chart configured local hour. Bot/session_factory
+    built locally — APScheduler kwargs must be picklable.
+    """
     from db.models import User
     from db.repositories.journal_repo import ChartJournalSettingsRepository
 
+    session_factory = _make_session_factory()
+    bot = _make_bot()
     chart_repo = ChartRepository()
     journal_settings_repo = ChartJournalSettingsRepository()
 
@@ -287,6 +328,8 @@ async def send_journal_reminder_job(
             error=str(exc),
             exc_type=type(exc).__name__,
         )
+    finally:
+        await bot.session.close()
 
 
 async def send_monthly_forecast_job(
@@ -294,19 +337,41 @@ async def send_monthly_forecast_job(
     subscription_id: uuid.UUID,
     period_start: date,
     week: int | None,
-    bot: Bot,
-    session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     """Generate and send a monthly forecast.
 
+    APScheduler kwargs are pickled → only picklable args accepted.
+    Bot + session_factory built locally inside the job.
+
     ``week=None`` → bulk delivery (full month text).
     ``week=N`` (1-4) → weekly chunk — for now we send the full forecast
-    each week (LLM repeats are cheap, and the user agreed to «по неделям»
-    UX) but only the relevant week block stays visible. Future
-    optimisation: cache the full body in the first delivery and slice
-    by block on subsequent weeks.
+    each week (LLM repeats are cheap).
     """
     slot_key = build_monthly_slot_key(period_start=period_start, week=week)
+    session_factory = _make_session_factory()
+    bot = _make_bot()
+    try:
+        await _send_monthly_forecast_inner(
+            subscription_id=subscription_id,
+            period_start=period_start,
+            week=week,
+            slot_key=slot_key,
+            bot=bot,
+            session_factory=session_factory,
+        )
+    finally:
+        await bot.session.close()
+
+
+async def _send_monthly_forecast_inner(
+    *,
+    subscription_id: uuid.UUID,
+    period_start: date,
+    week: int | None,
+    slot_key: str,
+    bot: Bot,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
     delivery_repo = ForecastDeliveryRepository()
     sub_repo = ChartForecastSubscriptionRepository()
     chart_repo = ChartRepository()
