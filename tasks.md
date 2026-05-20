@@ -156,11 +156,18 @@
   - **Fix:** [bot/keyboards/__init__.py::calc_intro_kb](bot/keyboards/__init__.py) — добавлена кнопка «В меню» (`menu:back`). `handle_menu_back` в start.py уже сбрасывает FSM state и шлёт main menu, fix сводится к двум строкам в keyboard builder. Live-verified через MCP: prompt теперь показывает 2 кнопки, «В меню» возвращает в `С возвращением, Богдан...`.
   - **Reproduction & fix log:** воспроизведено через @Bogman108 (нажатие «Добавить новую карту» → засветился bug со скриншота Кати) → edit `calc_intro_kb` → rsync + rebuild bot → re-test ✓.
 
-- [ ] **1.17.9 Regression: partner:add кнопка не показывается** (Phase 7 finding 2026-05-20)
-  - **Симптом:** router корректно возвращает `needs_partner_chart=true`, но `bot/routers/consultation.py::handle_clarification_answer` после `clarifications.collected` сразу идёт в main LLM без показа inline-кнопки «Добавить карту партнёра»/«Без партнёра»
-  - **Где смотреть:** `_continue_consultation_with_skill` теряет/игнорирует `needs_partner_chart` флаг между clarifying loop и переходом к main LLM
-  - **Workaround:** ответ всё равно генерируется через relationships skill, но без `[PARTNER_CHART]` секции — Анастасия в тексте сама просит данные партнёра
-  - **Estimate:** ~1ч — перепроверить FSM transition в `handle_clarification_answer`, добавить ветку показа `partner_chart_kb` если `needs_partner_chart and not chart.partner_chart_id`
+- [x] **1.17.9a Regression: partner:add кнопка не показывается после clarifying** (закрыт 2026-05-20)
+  - **Корневая причина:** `handle_question` Branch 1 (clarifying-questions) сохранял в FSM `clarifying_questions`/`answers`/`skill`/`concept_hints`/`original_question`/`chart_id`, но НЕ `needs_partner_chart`. `handle_clarification_answer` после сбора ответов терял этот флаг и шёл сразу в main LLM (минуя Branch 2 = partner_chart_kb).
+  - **Fix (3 точки в [bot/routers/consultation.py](bot/routers/consultation.py)):**
+    1. `handle_question` Branch 1: добавлено `needs_partner_chart=bool(skill_sel.needs_partner_chart)` в `state.update_data`.
+    2. `handle_clarification_answer`: после сбора всех ответов проверяется флаг. Если `True` и `chart.partner_chart_id is None` — pre-staging данных (`pending_question`/`pending_skill`/`pending_concept_hints`/`pending_clarifications`/`chart_id`) + показ `add_partner_chart_kb`. Новый log event `consultation.partner_chart_requested_after_clarifications`.
+    3. `handle_partner_skip`: читает `pending_clarifications` и пробрасывает в `_continue_consultation_with_skill(... clarifications=clarifications)` — собранные ответы не теряются при skip.
+  - **Live-verified через MCP 2026-05-20:** relationships-вопрос → 3 clarifying → ответы → бот показал «Добавить карту партнёра / Ответить без неё» → tap skip → Анастасия отвечает с relationships skill и явно использует контекст clarifications («Сейчас, живя вместе, вы как раз на этапе, когда эти границы можно закрепить»).
+
+- [ ] **1.17.9b Auto-resume после успешного `partner:add`** (открыт)
+  - **Симптом:** когда юзер реально добавляет карту партнёра (`mode="partner"` в `bot/routers/birth_data.py::_calculate_and_persist`), бот говорит «Карта партнёра рассчитана» и `state.clear()` — но не возобновляет original consultation с теперь-доступным `[PARTNER_CHART]` контекстом. Юзер должен сам вернуться в меню и снова задать вопрос.
+  - **Где исправлять:** `_calculate_and_persist` в `bot/routers/birth_data.py` после `state.clear()` для partner-mode — прочитать FSM data (если ещё есть `pending_question`) и вызвать тот же путь что `handle_partner_skip`, только с `partner_chart=partner_chart_data`. Либо отдельный `auto_resume_consultation` helper.
+  - **Estimate:** ~1-2ч — нужно протестировать FSM state-handoff между birth_data router и consultation router.
 
 ### 🔮 Wave 6 backlog (после деплоя)
 

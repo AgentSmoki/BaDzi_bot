@@ -243,6 +243,31 @@ async def handle_clarification_answer(
         question_count=len(questions),
         original_question=original_question[:80],
     )
+
+    # 1.17.9a fix (2026-05-20): if the router originally flagged
+    # needs_partner_chart=True and the chart still has no partner
+    # linked, show the partner-chart prompt now instead of falling
+    # through to the main LLM. We carry the already-collected
+    # clarifications across via `pending_clarifications` so neither
+    # partner:skip nor (future) partner:add lose them.
+    needs_partner = bool(data.get("needs_partner_chart"))
+    if needs_partner and chart.partner_chart_id is None:
+        await state.update_data(
+            pending_question=original_question,
+            pending_skill=skill_name,
+            pending_concept_hints=concept_hints,
+            pending_clarifications=[list(pair) for pair in clarifications],
+            chart_id=str(chart.id),
+        )
+        await state.set_state(None)
+        await message.answer(_PARTNER_REQUEST_MSG, reply_markup=add_partner_chart_kb())
+        logger.info(
+            "consultation.partner_chart_requested_after_clarifications",
+            skill=skill_name,
+            clarifications_count=len(clarifications),
+        )
+        return
+
     await state.set_state(None)
 
     chart_data = ChartOutput.model_validate(chart.chart_data)
@@ -285,6 +310,16 @@ async def handle_partner_skip(
     concept_hints = (
         [str(h) for h in concept_hints_raw] if isinstance(concept_hints_raw, list) else []
     )
+    # 1.17.9a fix (2026-05-20): clarifications collected before the
+    # partner-chart prompt are preserved across the skip — otherwise
+    # users who answered 3 clarifying questions would silently lose
+    # that context when they tap «без партнёра».
+    clarifications_raw = data.get("pending_clarifications") or []
+    clarifications = (
+        [(str(q), str(a)) for q, a in clarifications_raw]
+        if isinstance(clarifications_raw, list) and clarifications_raw
+        else None
+    )
 
     chart = await _resolve_active_chart(state, session, user)
     if chart is None or not original_question:
@@ -310,7 +345,7 @@ async def handle_partner_skip(
         original_question=original_question,
         skill_spec=skill_spec,
         partner_chart=None,
-        clarifications=None,
+        clarifications=clarifications,
         concept_hints=concept_hints,
     )
     await callback.answer()
@@ -491,6 +526,10 @@ async def handle_question(
             concept_hints=list(skill_sel.concept_hints),
             original_question=question,
             chart_id=str(chart.id),
+            # Preserve partner-chart hint so handle_clarification_answer
+            # can offer the partner-chart prompt once all clarifications
+            # are collected (1.17.9a regression fix 2026-05-20).
+            needs_partner_chart=bool(skill_sel.needs_partner_chart),
         )
         await message.answer(skill_sel.clarifying_questions[0])
         logger.info(
