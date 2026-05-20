@@ -52,6 +52,35 @@ class ChartJournalSettingsRepository:
         )
         return list(result.scalars().all())
 
+    async def toggle_important_dates(
+        self, session: AsyncSession, *, chart_id: uuid.UUID, enabled: bool
+    ) -> ChartJournalSettings:
+        """Wave 4e — turn important-date alerts on/off for one chart."""
+        settings = await self.get_or_create(session, chart_id=chart_id)
+        settings.important_dates_enabled = enabled
+        await session.flush()
+        return settings
+
+    async def list_important_dates_enabled(
+        self, session: AsyncSession
+    ) -> list[ChartJournalSettings]:
+        """Scheduler-side: charts that opted into important-date alerts."""
+        result = await session.execute(
+            sa.select(ChartJournalSettings).where(
+                ChartJournalSettings.important_dates_enabled.is_(True)
+            )
+        )
+        return list(result.scalars().all())
+
+    async def mark_important_date_sent(self, session: AsyncSession, chart_id: uuid.UUID) -> None:
+        """Record that an important-date alert was just delivered, so
+        the rate-limit (no more than once per 7 days) holds."""
+        from datetime import datetime
+
+        settings = await self.get_or_create(session, chart_id=chart_id)
+        settings.last_important_date_at = datetime.now()
+        await session.flush()
+
 
 class JournalEntryRepository:
     async def upsert(

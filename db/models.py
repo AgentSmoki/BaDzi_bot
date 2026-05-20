@@ -328,6 +328,15 @@ class ChartJournalSettings(Base):
     enabled: Mapped[bool] = mapped_column(default=False, server_default=sa.false())
     reminder_hour_local: Mapped[int] = mapped_column(sa.Integer, default=21, server_default="21")
     reminder_hour_utc: Mapped[int] = mapped_column(sa.Integer, default=18, server_default="18")
+    # Wave 4e — Bogdan acts as a personal astrologer who pre-warns about
+    # natal Шэнь Ша resonances on upcoming dates (за 2 дня + в день).
+    # Default ON so the user gets value without configuring; can be turned
+    # off via /start «🌟 Важные даты: ON/OFF» button.
+    important_dates_enabled: Mapped[bool] = mapped_column(default=True, server_default=sa.true())
+    # Rate limit: scheduler skips this chart if last alert was <7 days
+    # ago. NULL = never alerted; first scan will pick the earliest
+    # significant date.
+    last_important_date_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 

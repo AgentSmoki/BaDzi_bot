@@ -24,6 +24,12 @@ from bot.keyboards import (
     pricing_kb,
     returning_user_kb,
 )
+from bot.keyboards.reply import (
+    REPLY_MAIN,
+    REPLY_MY_CHARTS,
+    REPLY_SUPPORT,
+    main_reply_kb,
+)
 from bot.services.menu import (
     charts_to_buttons,
     format_chart_label,
@@ -126,6 +132,16 @@ async def handle_start(
     await state.clear()
     charts = await _chart_repo.list_unique_by_user(session, user.id)
 
+    # Wave 4 hotfix 2026-05-20: pin a persistent reply keyboard with the
+    # three top-level actions (Главное меню / Мои карты / Поддержка) — see
+    # ``bot/keyboards/reply.py``. We send it as the first message in /start
+    # so Telegram remembers it; subsequent inline-kb messages don't need
+    # to repeat it (the reply kb stays attached to the chat).
+    await message.answer(
+        "👋 Я снизу прикрепила кнопки быстрого доступа.",
+        reply_markup=main_reply_kb(),
+    )
+
     if not charts:
         logger.info("start.new_user", telegram_id=user.telegram_id, user_id=str(user.id))
         sent = await message.answer(
@@ -144,6 +160,38 @@ async def handle_start(
         charts_count=len(charts),
     )
     await send_main_menu(message, user, session, state=state)
+
+
+# ── Reply-keyboard handlers (Wave 6-followup 2026-05-20) ─────────────────
+# Match by exact text. No state filter → these only fire in the default
+# (no-FSM) state, so users mid-FSM keep their flow uninterrupted.
+
+
+@start_router.message(F.text == REPLY_MAIN)
+async def handle_reply_main(
+    message: Message, user: User, session: AsyncSession, state: FSMContext
+) -> None:
+    await state.clear()
+    await send_main_menu(message, user, session, state=state)
+
+
+@start_router.message(F.text == REPLY_MY_CHARTS)
+async def handle_reply_my_charts(
+    message: Message, user: User, session: AsyncSession, state: FSMContext
+) -> None:
+    await state.clear()
+    await send_main_menu(message, user, session, state=state)
+
+
+@start_router.message(F.text == REPLY_SUPPORT)
+async def handle_reply_support(message: Message) -> None:
+    await message.answer(
+        "<b>Поддержка</b>\n\n"
+        "Если что-то не работает или есть пожелания — напишите Богдану: "
+        "@luckbogdan555\n\n"
+        "Опишите свою проблему и приложите скриншот, если есть. "
+        "Я постараюсь ответить в течение дня."
+    )
 
 
 @start_router.callback_query(F.data.startswith("charts:page:"))
