@@ -291,6 +291,10 @@ def compose_messages(
     partner_chart: ChartOutput | None = None,
     clarifications: list[tuple[str, str]] | None = None,
     concept_hints: list[str] | None = None,
+    # W5e-MVP (2026-05-21) — summaries of the client's personal
+    # master-meeting transcripts, injected as a high-authority block
+    # for Anastasia to weave in.
+    master_meeting_summaries: list[str] | None = None,
 ) -> list[ChatMessage]:
     """Build the final ``messages`` list for the orchestrator.
 
@@ -340,6 +344,17 @@ def compose_messages(
             clar_lines.append(f"- Q: {q}")
             clar_lines.append(f"  A: {a}")
         sections.append("[CLARIFICATIONS]\n" + "\n".join(clar_lines) + "\n[/CLARIFICATIONS]")
+    if master_meeting_summaries:
+        notes_body = "\n\n---\n\n".join(s.strip() for s in master_meeting_summaries if s.strip())
+        if notes_body:
+            sections.append(
+                "[PERSONAL_MASTER_NOTES]\n"
+                "Личные записи клиента с мастером (учитывайте как высший "
+                "приоритет глубинного знания о карте, особенно когда мастер "
+                "проговорил конкретные акценты и рекомендации):\n\n"
+                f"{notes_body}\n"
+                "[/PERSONAL_MASTER_NOTES]"
+            )
     knowledge_block = load_knowledge_for_question(question, concept_hints=concept_hints)
     if knowledge_block:
         sections.append(f"[KNOWLEDGE]\n{knowledge_block}\n[/KNOWLEDGE]")

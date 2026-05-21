@@ -33,6 +33,21 @@ from calculator.models import ChartInput
 
 
 @pytest.fixture(autouse=True)
+def _stub_master_meeting_summaries(monkeypatch: pytest.MonkeyPatch) -> None:
+    """W5e-MVP (2026-05-21) — `_continue_consultation_with_skill` now
+    pulls master-meeting summaries via SQLAlchemy. The MagicMock
+    `fake_session` here can't execute the real query, so short-
+    circuit the loader. Tests that care about the inject path test
+    `_load_master_meeting_summaries` directly elsewhere."""
+    stub = AsyncMock(return_value=[])
+    monkeypatch.setattr(
+        consultation_module,
+        "_load_master_meeting_summaries",
+        stub,
+    )
+
+
+@pytest.fixture(autouse=True)
 def stub_skill_router(monkeypatch: pytest.MonkeyPatch) -> None:
     """Replace the fast LLM skill-router with a deterministic stub
     that returns `skill="default"` and no clarifying/partner side-

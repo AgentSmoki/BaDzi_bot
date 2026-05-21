@@ -586,6 +586,24 @@ async def _load_partner_chart_data(session: AsyncSession, chart: Chart) -> Chart
     return ChartOutput.model_validate(partner.chart_data)
 
 
+async def _load_master_meeting_summaries(
+    session: AsyncSession, chart_id: _uuid.UUID, *, limit: int = 3
+) -> list[str]:
+    """W5e-MVP — fetch the most recent master-meeting summaries for a
+    chart so they can be injected into ``[PERSONAL_MASTER_NOTES]``.
+
+    Capped at 3 by default — the LLM context budget can carry that
+    without crowding the chart/skill/knowledge blocks. Older notes
+    fade out naturally as the user uploads new meetings. Returns an
+    empty list when the user hasn't uploaded any meetings.
+    """
+    from db.repositories.master_meeting_repo import MasterMeetingRepository
+
+    repo = MasterMeetingRepository()
+    meetings = await repo.list_ready_summaries(session, chart_id, limit=limit)
+    return [m.summary for m in meetings if m.summary]
+
+
 @consultation_router.message(F.text == "/reset")
 async def handle_reset(
     message: Message,
@@ -1104,6 +1122,13 @@ async def _continue_consultation_with_skill(
     needs_temporal = decision.needs_temporal_context or calendar_top is not None
     now_chart = get_current_bazi() if needs_temporal else None
 
+    # W5e-MVP (2026-05-21) — pull the most recent master-meeting
+    # summaries for this chart and inject them as a high-authority
+    # block. Bigger KuzuDB integration (Node-level L8_personal_master
+    # + RAG filter by chart_id) is parked as W5e-full in tasks.md;
+    # this MVP at least surfaces the notes immediately.
+    master_summaries = await _load_master_meeting_summaries(session, chart.id)
+
     system_prompt = load_base_prompt() if skill_spec is not None else load_system_prompt()
     messages = compose_messages(
         system_prompt=system_prompt,
@@ -1121,6 +1146,7 @@ async def _continue_consultation_with_skill(
         partner_chart=partner_chart,
         clarifications=clarifications,
         concept_hints=concept_hints,
+        master_meeting_summaries=master_summaries,
     )
 
     typing_task = asyncio.create_task(_keep_typing(message))
