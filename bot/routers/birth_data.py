@@ -15,7 +15,6 @@ from ai.context import HistoryStore
 from ai.text_extract import ExtractedBirthData, extract_birth_data
 from bot.keyboards import (
     back_to_time_kb,
-    calc_intro_kb,
     city_choice_kb,
     confirm_kb,
     edit_menu_kb,
@@ -321,19 +320,24 @@ def _parse_birth_time(text: str) -> time | None:
 
 @birth_data_router.callback_query(F.data == "menu:calc")
 async def handle_calc(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
-    """Smart-entry start (Wave 2): prompt for a one-liner; user may
-    drop to stepwise mode via «Пошагово» button.
+    """Calc start (2026-05-21, Bogdan): straight into the classic
+    step-by-step FSM (date → time → city → gender). Wave 2 smart-entry
+    («paste it all in one line») turned out unreliable — the fast LLM
+    occasionally fails to parse and the user lands on the same date
+    prompt anyway, only later and confused. Until the smart-entry
+    parser is stabilised it's better UX to ask the date directly.
 
-    Old «date first» behaviour preserved as the explicit stepwise
-    fallback below (`calc:stepwise`)."""
-    await state.set_state(BirthDataForm.waiting_full_text)
+    The smart-entry handlers below stay on disk so we can switch back
+    quickly when the parser is improved (or expose it as an explicit
+    «paste full data» button later).
+    """
+    await state.set_state(BirthDataForm.waiting_date)
     if isinstance(callback.message, Message):
         await _step(
             bot=bot,
             chat_id=callback.message.chat.id,
             state=state,
-            text=SMART_INTRO_PROMPT,
-            kb=calc_intro_kb(),
+            text=DATE_PROMPT,
         )
     await callback.answer()
 

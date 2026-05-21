@@ -76,14 +76,15 @@ def _fake_message(text: str) -> MagicMock:
 
 
 @pytest.mark.asyncio
-async def test_handle_calc_enters_waiting_full_text(
-    fake_state: MagicMock, fake_bot: MagicMock
-) -> None:
+async def test_handle_calc_enters_waiting_date(fake_state: MagicMock, fake_bot: MagicMock) -> None:
+    # 2026-05-21 Bogdan: `menu:calc` now goes straight into the
+    # classic step-by-step FSM (waiting_date) instead of Wave 2
+    # smart-entry prompt. See bot/routers/birth_data.py::handle_calc.
     cb = _fake_callback()
     await handle_calc(cb, fake_state, fake_bot)
 
     data = await fake_state.get_data()
-    assert data["__state"] == BirthDataForm.waiting_full_text
+    assert data["__state"] == BirthDataForm.waiting_date
     fake_bot.send_message.assert_awaited_once()
     cb.answer.assert_awaited_once()
 

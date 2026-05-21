@@ -29,12 +29,13 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import io
 import uuid as _uuid
 from datetime import date
 from decimal import Decimal
 
 import structlog
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.enums import ChatAction
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
@@ -59,6 +60,7 @@ from ai.temporal_context import compose_messages, get_current_bazi
 from bot.config import get_settings
 from bot.keyboards import add_partner_chart_kb, partner_chart_selector_kb, pricing_kb
 from bot.services.menu import format_chart_label
+from bot.services.teletranscribe import TeleTranscribeError, transcribe_voice
 from bot.states import ConsultationState
 from calculator.calendar_select import EVENT_TYPE_RU, pick_best_dates
 from calculator.models import ChartOutput
@@ -183,25 +185,42 @@ async def handle_clarification_answer(
     user: User,
     history_store: HistoryStore,
 ) -> None:
-    """Collect one clarifying-question answer at a time.
-
-    FSM data shape (set by handle_question when the skill-router returns
-    clarifying_questions): clarifying_questions, answers, skill,
-    concept_hints, original_question, plus chart_id from the previous
-    handle_ask_pressed.
-
-    Loop logic:
-    - On every text turn append to ``answers``.
-    - If there are more unanswered questions → send the next one, stay.
-    - Once all are collected → reload chart + skill_spec + partner_chart
-      and delegate to ``_continue_consultation_with_skill``.
+    """Text answer to a clarifying question. Slash commands are ignored.
+    Delegates the FSM bookkeeping to `_process_clarification_text` so
+    the voice handler (`handle_voice_clarification`) can reuse the
+    same logic with a transcript.
     """
     if not message.text or message.text.startswith("/"):
         return
     answer = message.text.strip()
     if not answer:
         return
+    await _process_clarification_text(
+        message,
+        state=state,
+        session=session,
+        user=user,
+        history_store=history_store,
+        answer=answer,
+    )
 
+
+async def _process_clarification_text(
+    message: Message,
+    *,
+    state: FSMContext,
+    session: AsyncSession,
+    user: User,
+    history_store: HistoryStore,
+    answer: str,
+) -> None:
+    """Append one clarifying-question answer to FSM data and either
+    ask the next question or, when all are collected, hand off to the
+    main consultation pipeline (partner-chart prompt or skill answer).
+
+    Extracted so both text (`handle_clarification_answer`) and voice
+    (`handle_voice_clarification`) paths share the same state logic.
+    """
     data = await state.get_data()
     questions = data.get("clarifying_questions") or []
     answers = list(data.get("answers") or [])
@@ -588,13 +607,18 @@ async def handle_pricing_skip(
     session: AsyncSession,
     user: User,
     state: FSMContext,
+    history_store: HistoryStore,
 ) -> None:
-    """Admin-only: reset the free-question flag so the same user can
-    keep asking. Used during pre-release testing — we need to ask many
-    questions in one session without paying. Hardened: the button is
-    only added to ``pricing_kb`` for admin (see consultation guard),
-    but we still re-check ``user.telegram_id == admin_telegram_id``
-    here in case the callback_data ever leaks (no-op on non-admin).
+    """Admin-only: reset the free-question flag.
+
+    1.17.12 (2026-05-21): if the user had a pending question that
+    triggered the guard, replay it immediately — no need to retype.
+    Otherwise nudge them to press «Задать вопрос».
+
+    Hardened: the button is only added to ``pricing_kb`` for admin
+    (see consultation guard), but we still re-check
+    ``user.telegram_id == admin_telegram_id`` here in case the
+    callback_data ever leaks (no-op on non-admin).
     """
     settings = get_settings()
     if user.telegram_id != settings.admin_telegram_id:
@@ -604,15 +628,184 @@ async def handle_pricing_skip(
 
     await _user_repo.reset_free_question(session, user.id)
     user.free_question_used = False
-    await callback.answer("Сброшено — задавайте следующий вопрос")
-    if isinstance(callback.message, Message):
+    await callback.answer("Сброшено")
+    logger.info("pricing.admin_skip", user_id=str(user.id), telegram_id=user.telegram_id)
+
+    if not isinstance(callback.message, Message):
+        return
+
+    # Check if there is a stashed question to replay.
+    data = await state.get_data()
+    pending_question = (data.get("pending_free_question") or "").strip()
+
+    if not pending_question:
         await callback.message.answer(
             "🔧 Тестовый режим: лимит сброшен. Нажмите «Задать вопрос» и продолжайте.",
         )
-    logger.info("pricing.admin_skip", user_id=str(user.id), telegram_id=user.telegram_id)
+        return
+
+    chart = await _resolve_active_chart(state, session, user)
+    if chart is None:
+        await callback.message.answer(
+            "🔧 Лимит сброшен, но карта не найдена. "
+            "Откройте карту через меню и задайте вопрос заново.",
+            reply_markup=_no_chart_kb(),
+        )
+        await state.set_state(None)
+        return
+
+    # Drop the stash so a future guard hit doesn't replay an old question,
+    # and clear the FSM bubble — the pipeline manages its own state.
+    await state.update_data(pending_free_question=None)
+    await state.set_state(None)
+    logger.info(
+        "consultation.pricing_skip_resumes_pending",
+        user_id=str(user.id),
+        question_preview=pending_question[:80],
+    )
+    await _process_question_after_guards(
+        callback.message,
+        state=state,
+        session=session,
+        user=user,
+        history_store=history_store,
+        question=pending_question,
+        chart=chart,
+    )
 
 
 # ── Question handler ─────────────────────────────────────────────────────
+
+
+async def _voice_to_text(message: Message, bot: Bot) -> str | None:
+    """Download a Telegram voice message and transcribe it via
+    TeleTranscribe. Returns the transcript text on success, or None
+    on download/transcription failure (after telling the user)."""
+    if message.voice is None:
+        return None
+    notice = await message.answer("Расшифровываю голосовое — секунду…")
+    try:
+        buf = io.BytesIO()
+        await bot.download(message.voice.file_id, destination=buf)
+        audio_bytes = buf.getvalue()
+    except Exception as exc:
+        logger.warning("consultation.voice_download_failed", error=str(exc))
+        await message.answer(
+            "Не получилось скачать голосовое из Telegram. Попробуйте текстом или запишите ещё раз."
+        )
+        return None
+    try:
+        transcript = await transcribe_voice(audio_bytes=audio_bytes)
+    except TeleTranscribeError as exc:
+        logger.warning("consultation.transcribe_failed", error=str(exc))
+        await message.answer(
+            "Сервис расшифровки сейчас не отвечает. Напишите вопрос текстом — отвечу сразу."
+        )
+        return None
+    # Best-effort tidy: drop the "transcribing..." notice so the chat
+    # isn't cluttered. Silently ignored if Telegram refuses.
+    with contextlib.suppress(TelegramBadRequest):
+        await notice.delete()
+    return transcript.strip() or None
+
+
+@consultation_router.message(ConsultationState.waiting_question, F.voice)
+async def handle_voice_question(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+    user: User,
+    history_store: HistoryStore,
+    bot: Bot,
+) -> None:
+    """Voice equivalent of `handle_question`. Transcribes the audio
+    via TeleTranscribe (same service used by the journal voice flow)
+    and pipes the transcript through the regular text pipeline so all
+    guards (free-question, no-chart) and the skill router still apply.
+    """
+    transcript = await _voice_to_text(message, bot)
+    if transcript is None:
+        return
+
+    chart = await _resolve_active_chart(state, session, user)
+    if chart is None or message.bot is None:
+        await message.answer(
+            "Не нашла карту — постройте её через меню и повторите вопрос.",
+            reply_markup=_no_chart_kb(),
+        )
+        await state.set_state(None)
+        return
+
+    if user.free_question_used:
+        settings = get_settings()
+        is_admin = user.telegram_id == settings.admin_telegram_id
+        await state.update_data(pending_free_question=transcript)
+        await message.answer(
+            _FREE_QUESTION_USED_MSG,
+            reply_markup=pricing_kb(allow_skip=is_admin),
+        )
+        logger.info(
+            "consultation.blocked_by_free_question_guard",
+            user_id=str(user.id),
+            telegram_id=user.telegram_id,
+            admin_skip_offered=is_admin,
+            source="voice",
+        )
+        return
+
+    logger.info(
+        "consultation.voice_question_accepted",
+        user_id=str(user.id),
+        transcript_preview=transcript[:80],
+    )
+    await _process_question_after_guards(
+        message,
+        state=state,
+        session=session,
+        user=user,
+        history_store=history_store,
+        question=transcript,
+        chart=chart,
+    )
+
+
+@consultation_router.message(ConsultationState.collecting_clarifications, F.voice)
+async def handle_voice_clarification(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+    user: User,
+    history_store: HistoryStore,
+    bot: Bot,
+) -> None:
+    """Voice answer to a clarifying question. Transcribes via
+    TeleTranscribe, sets `message.text` semantics through a delegating
+    call into `handle_clarification_answer`. We don't have a clean
+    way to mutate `message.text` in-place, so we shape the call by
+    using the same state machinery — append the transcript as if the
+    user typed it.
+    """
+    transcript = await _voice_to_text(message, bot)
+    if transcript is None:
+        return
+
+    # Mirror the storage logic from handle_clarification_answer: append
+    # to `answers`, advance or finish. Reusing the existing handler is
+    # not practical (it reads `message.text`), so we duplicate the few
+    # lines of FSM bookkeeping here and delegate to a small helper.
+    logger.info(
+        "consultation.voice_clarification_accepted",
+        user_id=str(user.id),
+        transcript_preview=transcript[:80],
+    )
+    await _process_clarification_text(
+        message,
+        state=state,
+        session=session,
+        user=user,
+        history_store=history_store,
+        answer=transcript,
+    )
 
 
 @consultation_router.message(ConsultationState.waiting_question, F.text)
@@ -625,16 +818,12 @@ async def handle_question(
 ) -> None:
     """Entry point for one consultation turn.
 
-    Two routing paths gated by ``settings.skill_router_enabled``:
-
-    1. **Skill-router (default)** — fast LLM picks a skill, may request
-       clarifying questions or a partner chart, then resumes via
-       ``_continue_consultation_with_skill`` with skill_spec injected.
-    2. **Legacy** — direct call to ``_continue_consultation_with_skill``
-       without skill_spec, using the full 39 KB Anastasia system prompt.
-
-    Guards (free-question, no-chart, slash-command) are identical in
-    both paths."""
+    Two routing paths gated by ``settings.skill_router_enabled`` —
+    skill-router (default) and legacy. Both share guards (free-question,
+    no-chart, slash-command); the actual pipeline runs in
+    `_process_question_after_guards` so that pricing-skip can replay
+    a stashed question without forcing the user to retype it.
+    """
     if not message.text or message.text.startswith("/"):
         return
     question = message.text.strip()
@@ -655,11 +844,16 @@ async def handle_question(
     if user.free_question_used:
         settings = get_settings()
         is_admin = user.telegram_id == settings.admin_telegram_id
+        # 1.17.12 (2026-05-21) — stash the question so admin-skip can
+        # replay it instantly instead of asking the user to retype.
+        await state.update_data(pending_free_question=question)
         await message.answer(
             _FREE_QUESTION_USED_MSG,
             reply_markup=pricing_kb(allow_skip=is_admin),
         )
-        await state.set_state(None)
+        # Keep FSM state as `waiting_question` so the pending data
+        # survives until handle_pricing_skip clears it. (Was set to
+        # None here previously, which would have dropped the stash.)
         logger.info(
             "consultation.blocked_by_free_question_guard",
             user_id=str(user.id),
@@ -668,6 +862,35 @@ async def handle_question(
         )
         return
 
+    await _process_question_after_guards(
+        message,
+        state=state,
+        session=session,
+        user=user,
+        history_store=history_store,
+        question=question,
+        chart=chart,
+    )
+
+
+async def _process_question_after_guards(
+    message: Message,
+    *,
+    state: FSMContext,
+    session: AsyncSession,
+    user: User,
+    history_store: HistoryStore,
+    question: str,
+    chart: Chart,
+) -> None:
+    """Run the skill-router / continuation pipeline for a single
+    question once all up-front guards (chart, free-question,
+    slash-command) have already passed.
+
+    Exists as a separate function so `handle_pricing_skip` can replay
+    a pending free-question right after resetting the limit, without
+    forcing the user to retype it (1.17.12 UX fix 2026-05-21).
+    """
     chart_data = ChartOutput.model_validate(chart.chart_data)
     settings = get_settings()
 
