@@ -265,6 +265,113 @@ async def _send_daily_forecast_inner(
         await session.commit()
 
 
+async def scan_important_dates_job() -> None:
+    """Wave 4e — daily scan for upcoming «important dates» on charts
+    that have ``important_dates_enabled=True``.
+
+    Triggered by a single cron at 09:00 UTC. For each enabled chart:
+    - look forward 0..2 days (today + 2 ahead)
+    - if any ImportantDate falls in that window and the chart hasn't
+      been notified within the last 7 days, send a notification
+    - mark `last_important_date_at = now()` so we honour the
+      ≤1/week rate limit
+
+    No per-chart APScheduler jobs needed — one global cron walks the
+    DB and decides who needs a ping. Cheap, idempotent (rate-limit
+    keeps duplicates out across scheduler-container restarts).
+    """
+    from datetime import datetime, timedelta
+
+    from calculator.important_dates import (
+        find_important_dates_in_range,
+        format_important_date_message,
+    )
+    from db.models import User
+    from db.repositories.journal_repo import ChartJournalSettingsRepository
+
+    session_factory = _make_session_factory()
+    bot = _make_bot()
+    chart_repo = ChartRepository()
+    journal_settings_repo = ChartJournalSettingsRepository()
+
+    try:
+        async with session_factory() as session:
+            enabled = await journal_settings_repo.list_important_dates_enabled(session)
+            logger.info("important_dates.scan_start", enabled_charts=len(enabled))
+
+            now = datetime.now()
+            today = now.date()
+            horizon_end = today + timedelta(days=2)
+            week_ago = now - timedelta(days=7)
+
+            for js in enabled:
+                # Rate-limit ≤1/week so we don't spam on consecutive
+                # activations (e.g. a stretch of 七杀 days back to back).
+                if js.last_important_date_at and js.last_important_date_at > week_ago:
+                    continue
+
+                chart = await chart_repo.get_by_id(session, js.chart_id)
+                if chart is None:
+                    continue
+                user = await session.get(User, chart.user_id)
+                telegram_id = getattr(user, "telegram_id", None) if user is not None else None
+                if telegram_id is None:
+                    continue
+
+                chart_data = ChartOutput.model_validate(chart.chart_data)
+                hits = find_important_dates_in_range(chart_data, today, horizon_end)
+                if not hits:
+                    continue
+
+                # Send only the soonest hit per scan to avoid burying
+                # the user in a wall of forecasts. Subsequent hits get
+                # picked up by next week's scan (or the day-of cron).
+                hit = hits[0]
+                days_ahead = (hit.date_ - today).days
+                text = format_important_date_message(chart_data, hit, days_ahead=days_ahead)
+                kb = InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [
+                            InlineKeyboardButton(
+                                text="📝 Записать рефлексию",
+                                callback_data=f"journal:write:{chart.id}",
+                            )
+                        ],
+                        [
+                            InlineKeyboardButton(
+                                text="◀ К карте",  # noqa: RUF001
+                                callback_data=f"chart:open:{chart.id}",
+                            )
+                        ],
+                    ]
+                )
+                try:
+                    await bot.send_message(
+                        chat_id=telegram_id,
+                        text=text,
+                        parse_mode="HTML",
+                        reply_markup=kb,
+                    )
+                    await journal_settings_repo.mark_important_date_sent(session, chart.id)
+                    logger.info(
+                        "important_dates.notification_sent",
+                        chart_id=str(chart.id),
+                        telegram_id=telegram_id,
+                        target_date=hit.date_.isoformat(),
+                        severity=hit.severity,
+                    )
+                except (TelegramBadRequest, TelegramForbiddenError) as exc:
+                    logger.warning(
+                        "important_dates.notification_failed",
+                        chart_id=str(chart.id),
+                        error=str(exc),
+                        exc_type=type(exc).__name__,
+                    )
+            await session.commit()
+    finally:
+        await bot.session.close()
+
+
 async def send_journal_reminder_job(*, chart_id: uuid.UUID) -> None:
     """Wave 4 — daily reminder for the reflection journal.
 

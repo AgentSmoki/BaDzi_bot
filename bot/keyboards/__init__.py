@@ -132,6 +132,7 @@ def chart_actions_kb(chart_id: uuid.UUID | None = None) -> InlineKeyboardMarkup:
             text="🎓 Загрузить Встречу с Мастером",
             callback_data=f"meeting:show:{chart_id}",
         )
+        builder.button(text="🌟 Важные даты", callback_data=f"chart:impdates:{chart_id}")
         builder.button(text="✏️ Переименовать", callback_data=f"chart:rename:{chart_id}")
         builder.button(text="🗑 Удалить карту", callback_data=f"chart:delete:{chart_id}")
     builder.button(text="В меню", callback_data="menu:back")
@@ -159,6 +160,7 @@ def chart_actions_kb_post_interpret(
             text="🎓 Загрузить Встречу с Мастером",
             callback_data=f"meeting:show:{chart_id}",
         )
+        builder.button(text="🌟 Важные даты", callback_data=f"chart:impdates:{chart_id}")
         builder.button(text="✏️ Переименовать", callback_data=f"chart:rename:{chart_id}")
         builder.button(text="🗑 Удалить карту", callback_data=f"chart:delete:{chart_id}")
     builder.button(text="В меню", callback_data="menu:back")

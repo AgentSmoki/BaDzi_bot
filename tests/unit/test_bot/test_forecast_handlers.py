@@ -52,6 +52,19 @@ def fake_session() -> MagicMock:
     return s
 
 
+@pytest.fixture(autouse=True)
+def _stub_journal_settings_toggle(monkeypatch: pytest.MonkeyPatch) -> None:
+    """2026-05-21 — forecast handlers now auto-enable important-date
+    alerts after creating a subscription (Wave 4e ↔ W3 link). The
+    real toggle hits the DB through ChartJournalSettings.get_or_create
+    which a MagicMock session can't satisfy, so stub it on all tests."""
+    monkeypatch.setattr(
+        forecast_module._journal_settings_repo,
+        "toggle_important_dates",
+        AsyncMock(),
+    )
+
+
 @pytest.fixture
 def fake_state() -> MagicMock:
     s = MagicMock()

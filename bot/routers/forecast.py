@@ -53,6 +53,7 @@ from db.models import (
 )
 from db.repositories.chart_repo import ChartRepository
 from db.repositories.forecast_repo import ChartForecastSubscriptionRepository
+from db.repositories.journal_repo import ChartJournalSettingsRepository
 
 # Wave 3d hotfix 2026-05-20: Telegram limits callback_data to 64 bytes.
 # UUID = 36 chars → any compound callback with two UUIDs overflows. We
@@ -66,6 +67,7 @@ logger = structlog.get_logger(__name__)
 forecast_router = Router(name="forecast")
 _chart_repo = ChartRepository()
 _sub_repo = ChartForecastSubscriptionRepository()
+_journal_settings_repo = ChartJournalSettingsRepository()
 
 
 _NOT_YOUR_CHART = "Эта карта не ваша или удалена."
@@ -244,6 +246,10 @@ async def handle_monthly_confirm(
         payment_provider="free_dev_bypass" if settings.forecast_free_bypass else None,
         period_days=settings.forecast_period_days,
     )
+    # 2026-05-21 Bogdan — связка W3↔W4e: subscribing to forecasts
+    # auto-enables «important dates» alerts for the same chart (user
+    # can still turn them off via the chart-menu toggle).
+    await _journal_settings_repo.toggle_important_dates(session, chart_id=chart.id, enabled=True)
     await session.commit()
 
     note = (
@@ -331,6 +337,9 @@ async def handle_daily_confirm(
         payment_provider="free_dev_bypass" if settings.forecast_free_bypass else None,
         period_days=settings.forecast_period_days,
     )
+    # 2026-05-21 — same auto-enable as monthly: forecast purchase
+    # turns on important-date alerts.
+    await _journal_settings_repo.toggle_important_dates(session, chart_id=chart.id, enabled=True)
     await session.commit()
 
     msg = (

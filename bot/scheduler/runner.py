@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from bot.config import get_settings
 from bot.scheduler.jobs import (
+    scan_important_dates_job,
     send_daily_forecast_job,
     send_journal_reminder_job,
     send_monthly_forecast_job,
@@ -157,6 +158,18 @@ async def rebuild_jobs_for_all_subs(
     async with session_factory() as session:
         subs = await sub_repo.list_all_active(session)
         journal_settings = await journal_settings_repo.list_enabled(session)
+
+    # Wave 4e — single global cron at 09:00 UTC scans all charts with
+    # `important_dates_enabled=True` for upcoming activations and pings
+    # the user (rate-limited to ≤1/week per chart, handled inside the job).
+    scheduler.add_job(
+        scan_important_dates_job,
+        trigger=CronTrigger(hour=9, minute=0, timezone="UTC"),
+        id="important_dates:daily_scan",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+    count += 1
 
     # Wave 4 — journal reminders: one cron per enabled-journal chart.
     # ⚠ APScheduler SQLAlchemyJobStore pickles kwargs into PG. ``Bot``

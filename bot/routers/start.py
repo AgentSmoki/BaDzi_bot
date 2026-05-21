@@ -296,6 +296,56 @@ async def handle_chart_delete_request(
     await callback.answer()
 
 
+@start_router.callback_query(F.data.startswith("chart:impdates:"))
+async def handle_chart_important_dates_toggle(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+) -> None:
+    """Wave 4e — toggle the «important dates» alert for one chart.
+
+    The scheduler's `scan_important_dates_job` (cron 09:00 UTC) walks
+    `journal_settings.list_important_dates_enabled()` and pings owners
+    of charts that pop a high-severity activation in the next 0-2 days.
+    Rate-limited inside the job to ≤1/week so users aren't spammed.
+    """
+    from db.repositories.journal_repo import ChartJournalSettingsRepository
+
+    if not callback.data:
+        await callback.answer()
+        return
+    try:
+        chart_id = uuid.UUID(callback.data.split(":")[2])
+    except (ValueError, IndexError):
+        await callback.answer("Неверная карта", show_alert=True)
+        return
+
+    chart = await _chart_repo.get_by_id(session, chart_id)
+    if chart is None or chart.user_id != user.id:
+        await callback.answer("Карта не найдена", show_alert=True)
+        return
+
+    repo = ChartJournalSettingsRepository()
+    current = await repo.get_or_create(session, chart_id=chart_id)
+    new_state = not bool(current.important_dates_enabled)
+    await repo.toggle_important_dates(session, chart_id=chart_id, enabled=new_state)
+
+    if new_state:
+        msg = (
+            "🌟 Важные даты включены. Буду присылать уведомления за 2 дня "
+            "и в день активации сильных Шэнь-Ша. Не чаще раза в неделю."
+        )
+    else:
+        msg = "Важные даты выключены."
+    await callback.answer(msg, show_alert=True)
+    logger.info(
+        "chart.important_dates_toggled",
+        chart_id=str(chart_id),
+        new_state=new_state,
+        user_id=str(user.id),
+    )
+
+
 @start_router.callback_query(F.data.startswith("chart:rename:"))
 async def handle_chart_rename(
     callback: CallbackQuery,
