@@ -30,6 +30,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import io
+import re
 import uuid as _uuid
 from datetime import date
 from decimal import Decimal
@@ -375,6 +376,29 @@ async def handle_partner_skip(
 # Telegram caps text messages at 4096 chars; 4000 leaves headroom
 # for HTML tags and edge-of-paragraph splits.
 _TG_MAX_CHARS = 4000
+
+
+_MD_BOLD_RE = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
+
+
+def _markdown_to_html(text: str) -> str:
+    """Convert the small subset of Markdown that LLMs reliably emit
+    into the HTML tags Telegram understands (the bot ships with
+    parse_mode=HTML globally).
+
+    Currently handles: **bold** → <b>bold</b>. Single-asterisk italic
+    is left alone because LLMs often use `*` as bullet markers and
+    accidentally italicising chunks of a list reads worse than the
+    raw star. Backticks and underscores are also left alone for the
+    same reason — Telegram tolerates them as text. HTML special
+    chars (`<`, `>`, `&`) inside the LLM output are extremely rare
+    and the bot accepts loose HTML anyway, so we don't escape them.
+
+    Live regression: ответ Анастасии в Telegram показывал «1. **Кратко**»
+    с буквальными звёздочками (2026-05-22). Этот хелпер закрывает gap
+    между LLM-форматом и parse_mode=HTML.
+    """
+    return _MD_BOLD_RE.sub(r"<b>\1</b>", text)
 
 
 def _split_for_telegram(text: str, max_len: int) -> list[str]:
@@ -1169,6 +1193,10 @@ async def _continue_consultation_with_skill(
             await typing_task
 
     text = answer.result.text.strip()
+    # Bot ships with parse_mode=HTML globally, but the LLM almost
+    # always uses Markdown `**bold**`. Convert to <b>…</b> so users
+    # don't see literal asterisks (live regression 2026-05-22).
+    text = _markdown_to_html(text)
     # Telegram caps text messages at 4096 chars. Partner-comparison
     # answers with clarifications can break that (~5000+ chars).
     # Split on paragraph boundaries and attach the keyboard only to
