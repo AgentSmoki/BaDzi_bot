@@ -178,6 +178,61 @@
 
 - [ ] **1.17.8 Qwen3-3B миграция** (бывший 1.9.17) — когда модель появится в YC каталоге, swap `settings.yc_fast_model` + проверить JSON-output mode. Дешевле в 5× и быстрее на 1-1.5 сек.
 
+### 🌊 Wave 7 — Переработка Анастасии: 3 школы + алгоритмы мышления (ADR-011)
+
+> **Контекст:** разбор сенсея 2026-05-21 показал что Анастасия даёт поверхностные ответы (видит одно 六冲, пропускает 3-vs-1 паттерн). Архитектурное решение Богдана: три параллельных версии Анастасии — Классическая / Мастер ЭдоХа / Современная — с inline-выбором в начале каждой консультации. Алгоритмы мышления (chain-of-thought) встроены в школу ЭдоХа. Полный план: `~/.claude/plans/misty-enchanting-parnas.md` (часть 2).
+
+#### Phase 1 — Quick wins по формату ответа (закрыт 2026-05-22)
+
+- [x] **1.18.0 Phase 1** — нарратив вместо raw dump + расшифровка иероглифов inline + HTML-bold + 4-5 эмодзи. Коммиты `0ad9d29` + `09c02e8`:
+  - HTML конверсия `**X**` → `<b>X</b>` ([bot/routers/consultation.py::_markdown_to_html](bot/routers/consultation.py))
+  - Запрет на bullet-dump аналитики в [INSTRUCTION_PREFIX](ai/prompts/__init__.py) — «Что я вижу в вашей карте» теперь 2-3 абзаца нарративом
+  - Правило inline-расшифровки иероглифов в [base.md](ai/prompts/base.md): формат `<b>иероглиф</b> (русский перевод)`, без 「」
+  - Эмодзи бюджет 1-2 → 4-5 indicating
+  - Live-verified через MCP: вопрос «какая моя главная сильная сторона?» → нарратив, иероглифы все расшифрованы, 5 эмодзи
+
+#### Phase 4 (pre-проект) — Драфты алгоритмов мышления
+
+> Сначала пишем 6 markdown-драфтов в `ai/prompts/algorithms/`, показываем Богдану, итерируем. Не интегрируем в код в этой фазе — это документы для согласования.
+
+- [x] **1.18.1 risk_assessment.md** — 3-vs-1 паттерн для опасных периодов (commit `0ad9d29`). Полный разбор на эталонной карте Богдана (март 2026 — реальная катастрофа, не май). Готов для ревью.
+- [ ] **1.18.2 opportunity_window.md** — благоприятные периоды через 三合 (триадные слияния), 桃花, благородные звёзды
+- [ ] **1.18.3 relationships_match.md** — алгоритм сравнения двух карт: столпы дня + Дворец Супруга + 六合 vs 六冲
+- [ ] **1.18.4 career_alignment.md** — какая работа подходит: 偏官/正官 на месяце + Полезное Божество + талант (食神/伤官)
+- [ ] **1.18.5 decision_chain.md** — вопросы «делать X или Y?»: шахматная аналогия, оценка позиций обеих сторон, расчёт ходов
+- [ ] **1.18.6 health_diagnostics.md** — баланс стихий → ТКМ-системы → ослабленный / гипер орган
+- [ ] **1.18.7 term_unpack.md** — мета-алгоритм: при появлении незнакомого термина остановись, расшифруй, потом продолжай
+
+#### Phase 2 — Три версии base.md + UX выбор школы
+
+- [ ] **1.18.10 base_classic.md** (≈12 KB) — школа Yuan Hai Zi Ping / Раймонд Ло. Структурный анализ через 10 Богов, 25 格局, сила Дневного Мастера, Полезное Божество. БЕЗ алгоритмов школы ЭдоХа.
+- [ ] **1.18.11 base_edoha.md** (≈14 KB) — школа мастера ЭдоХа. Embedded алгоритмы мышления (Phase 4). Принцип «вначале человек, потом теория». Метафоры обязательны. В конце ответа: «Если хотите — могу дать классическую версию».
+- [ ] **1.18.12 base_modern.md** (≈12 KB) — синтез нескольких школ + язык психологии. Менее жёсткая в трактовках, больше про самопознание.
+- [ ] **1.18.13 UX выбор школы** — расширение FSM + клавиатур:
+  - Новый `ConsultationState.choosing_school` в [bot/states.py](bot/states.py)
+  - `school_selector_kb()` в [bot/keyboards/__init__.py](bot/keyboards/__init__.py) — три кнопки: `school:classic` / `school:edoha` / `school:modern`
+  - [handle_ask_pressed](bot/routers/consultation.py) — вместо сразу `waiting_question` показать school_selector + перейти в `choosing_school`
+  - Callback-handlers `F.data.startswith("school:")` → save `chosen_school` в FSM data → set_state(waiting_question)
+  - [_continue_consultation_with_skill](bot/routers/consultation.py) читает `chosen_school` из FSM и прокидывает в [compose_messages](ai/temporal_context.py)
+  - [load_base_prompt](ai/prompts/__init__.py) → `load_base_prompt(school: SchoolName)` с `lru_cache` per school
+- [ ] **1.18.14 Опция «запомнить выбор»** (отложить) — DB migration `Chart.default_school` NULLABLE. Если установлен → не спрашивать каждый раз.
+- [ ] **1.18.15 Phase 2 live-verify через MCP** — задать одинаковый вопрос «какой опасный месяц 2026?» на трёх школах → увидеть три разных ответа. edoha должен дать март (3-vs-1), classic — май (классическое 六冲), modern — психологический ответ.
+
+#### Phase 5 — Knowledge base разметка по школам + Edoha KB
+
+- [ ] **1.18.20 KB разметка** — frontmatter `school: classic | edoha | modern | universal` во всех 33 teacher-docs в [База/teacher/](База/teacher/). Большинство → `universal` (базовые правила), специфика → `classic` / `edoha`.
+- [ ] **1.18.21 RAG retrieve фильтрация** — [ai/rag/retrieve.py](ai/rag/retrieve.py) принимает `school: SchoolName | None`. Если задана → фильтрует nodes по `school IN (universal, <chosen>)`. [load_knowledge_for_question](ai/rag/public.py) прокидывает school из compose_messages.
+- [ ] **1.18.22 Edoha KB expansion из транскриптов сенсея** — обработать транскрипт встречи сенсея (1783 sec, ≈10k слов) через subagent: extract triplets → sidecar JSON → ingest в KuzuDB как `школа: edoha, source_authority: 10, level: L8_personal_master`. **Не путать с W5e-MVP** (individual master meetings per chart) — это глобальный материал для всех edoha-консультаций.
+- [ ] **1.18.23 Self-improvement loop** (отложить) — кнопки «👍 / 👎 / ✏️» под каждым ответом, накопление feedback'ов в KB с `school: <выбранная>`.
+- [ ] **1.18.24 Phase 5 live-verify** — edoha-вопрос про опасные периоды → `[KNOWLEDGE]` блок содержит цитаты сенсея про 3-vs-1. classic-вопрос на тот же запрос → `[KNOWLEDGE]` без edoha-материалов.
+
+#### Что НЕ в Wave 7
+
+- ЮKassa (W7 monetization, отложено отдельно)
+- 3D эмодзи в SVG-карте (L-1)
+- KuzuDB → Apache AGE migration (1.9.15)
+- A/B тестирование школ — после стабилизации Phase 5
+
 ### 🌊 Wave 1 (closed 2026-05-19, commit `57c8973`, LIVE)
 
 - [x] **W1a Парсинг дат** — `_parse_birth_date` принимает ISO (`1990-05-15`), 2-digit год (cutoff 30: `27.04.88` → 1988; `15.06.15` → 2015), packed ddmmyy и dd-mm-yy слитно. 24 теста.
