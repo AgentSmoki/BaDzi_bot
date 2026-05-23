@@ -11,12 +11,16 @@ Strategy:
    the directly-matched rule.
 3. Always exclude stub nodes (``topic = 'stub'``) — they have empty
    bodies and only exist as edge targets.
+4. Wave 7 Phase 5: filter by ``school`` — when the user picked a
+   school, only ``universal`` + that school's docs are surfaced. ``None``
+   = no filter (legacy callers and forecast generators that don't
+   thread a school yet).
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Final
+from typing import Final, Literal
 
 import kuzu
 
@@ -24,6 +28,11 @@ from ai.rag.models import RetrievedNode
 from ai.rag.store import open_connection
 
 logger = logging.getLogger(__name__)
+
+# Mirrors ``ai.prompts.SchoolName`` (kept duplicated here to avoid an
+# import from the bot stack into the RAG module — RAG must stay free
+# of bot/ dependencies per ADR-001 layering).
+SchoolFilter = Literal["classic", "edoha", "modern"]
 
 # Score weights. Levels run 1..7; higher = more applied. The
 # multiplier keeps a single-concept L7 match (3.7) ahead of a
@@ -63,24 +72,45 @@ def _row_to_node(row: list[object], score: float) -> RetrievedNode:
     )
 
 
+def _school_clause(school: SchoolFilter | None) -> str:
+    """Build the school-filter WHERE fragment.
+
+    ``None`` = no filter (every non-stub node is fair game).
+    ``classic|edoha|modern`` = ``universal`` ∪ ``<chosen>``. The clause
+    tolerates missing values (legacy DB rows pre-Phase-5 default to
+    ``universal`` via the bootstrap migration; brand-new stubs created
+    by ``_ensure_stub_node`` also start as ``universal``).
+    """
+    if school is None:
+        return ""
+    return " AND (n.school IS NULL OR n.school IN ['universal', $school])"
+
+
 def _query_concept_hits(
-    conn: kuzu.Connection, concepts: list[str]
+    conn: kuzu.Connection,
+    concepts: list[str],
+    *,
+    school: SchoolFilter | None = None,
 ) -> dict[str, tuple[list[object], int]]:
     """High-precision path — nodes whose ``related_concepts`` array
     intersects ``concepts``. Returns ``{node_id: (row, overlap)}``."""
     if not concepts:
         return {}
+    school_clause = _school_clause(school)
+    params: dict[str, object] = {"concepts": concepts}
+    if school is not None:
+        params["school"] = school
     result = conn.execute(
-        """
+        f"""
         MATCH (n:Node)
-        WHERE n.topic <> 'stub'
+        WHERE n.topic <> 'stub'{school_clause}
         UNWIND n.related_concepts AS c
         WITH n, c WHERE c IN $concepts
         WITH n, count(c) AS overlap
         RETURN n.id, n.level, n.topic, n.title, n.body, n.summary,
                n.source, n.source_authority, overlap
         """,
-        {"concepts": concepts},
+        params,
     )
     hits: dict[str, tuple[list[object], int]] = {}
     while result.has_next():  # type: ignore[union-attr]
@@ -91,7 +121,10 @@ def _query_concept_hits(
 
 
 def _query_title_hits(
-    conn: kuzu.Connection, tokens: list[str]
+    conn: kuzu.Connection,
+    tokens: list[str],
+    *,
+    school: SchoolFilter | None = None,
 ) -> dict[str, tuple[list[object], int]]:
     """High-recall path — every token (len ≥ 4) is checked as a
     substring of the lowercased title. We do one query per token rather
@@ -102,15 +135,19 @@ def _query_title_hits(
     out: dict[str, tuple[list[object], int]] = {}
     if not tokens:
         return out
+    school_clause = _school_clause(school)
     for tok in tokens:
+        params: dict[str, object] = {"tok": tok}
+        if school is not None:
+            params["school"] = school
         result = conn.execute(
-            """
+            f"""
             MATCH (n:Node)
-            WHERE n.topic <> 'stub' AND lower(n.title) CONTAINS $tok
+            WHERE n.topic <> 'stub' AND lower(n.title) CONTAINS $tok{school_clause}
             RETURN n.id, n.level, n.topic, n.title, n.body, n.summary,
                    n.source, n.source_authority
             """,
-            {"tok": tok},
+            params,
         )
         while result.has_next():  # type: ignore[union-attr]
             row = list(result.get_next())  # type: ignore[union-attr]
@@ -124,24 +161,44 @@ def _query_title_hits(
     return out
 
 
-def _expand_neighbours(conn: kuzu.Connection, seed_ids: list[str]) -> list[RetrievedNode]:
+def _expand_neighbours(
+    conn: kuzu.Connection,
+    seed_ids: list[str],
+    *,
+    school: SchoolFilter | None = None,
+) -> list[RetrievedNode]:
     """For each seed, pull neighbouring real-doc nodes one hop away on
     *typed* edges (COMBINES_WITH / EXAMPLE_OF / CLASHES_WITH /
     GENERATES / CONTROLS). Plain REFERS_TO is excluded — it's the
     bulk of the graph and would flood the result with noise.
+
+    ``school`` filter applies to the *target* (b) — supporting context
+    pulled into a school-scoped consultation must come from the same
+    school's overlay (or ``universal``).
     """
     if not seed_ids:
         return []
+    # The original WHERE binds ``b`` as the neighbour target — apply
+    # school filter to it just like in the seed queries.
+    school_extra = (
+        " AND (b.school IS NULL OR b.school IN ['universal', $school])"
+        if school is not None
+        else ""
+    )
+    params: dict[str, object] = {"ids": seed_ids}
+    if school is not None:
+        params["school"] = school
+    typed_edges = "['COMBINES_WITH','EXAMPLE_OF','CLASHES_WITH','GENERATES','CONTROLS']"
     result = conn.execute(
-        """
+        f"""
         MATCH (a:Node)-[r]->(b:Node)
         WHERE a.id IN $ids
           AND b.topic <> 'stub'
-          AND label(r) IN ['COMBINES_WITH','EXAMPLE_OF','CLASHES_WITH','GENERATES','CONTROLS']
+          AND label(r) IN {typed_edges}{school_extra}
         RETURN DISTINCT b.id, b.level, b.topic, b.title, b.body, b.summary,
                         b.source, b.source_authority
         """,
-        {"ids": seed_ids},
+        params,
     )
     out: list[RetrievedNode] = []
     while result.has_next():  # type: ignore[union-attr]
@@ -166,6 +223,7 @@ def retrieve_nodes(
     title_tokens: list[str] | None = None,
     top_k: int = 5,
     expand_neighbours: bool = True,
+    school: SchoolFilter | None = None,
 ) -> list[RetrievedNode]:
     """End-to-end retrieval.
 
@@ -192,8 +250,8 @@ def retrieve_nodes(
         return []
 
     try:
-        concept_hits = _query_concept_hits(conn, concepts)
-        title_hits = _query_title_hits(conn, title_tokens or [])
+        concept_hits = _query_concept_hits(conn, concepts, school=school)
+        title_hits = _query_title_hits(conn, title_tokens or [], school=school)
     except RuntimeError as exc:
         logger.warning("rag.retrieve.query_failed", extra={"error": str(exc)})
         return []
@@ -221,7 +279,7 @@ def retrieve_nodes(
         return direct
 
     try:
-        neighbours = _expand_neighbours(conn, [n.node_id for n in direct])
+        neighbours = _expand_neighbours(conn, [n.node_id for n in direct], school=school)
     except RuntimeError as exc:
         logger.warning("rag.retrieve.expand_failed", extra={"error": str(exc)})
         return direct

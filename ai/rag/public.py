@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from ai.rag.extract import extract_concepts, extract_search_tokens
 from ai.rag.format import format_knowledge_block
-from ai.rag.retrieve import retrieve_nodes
+from ai.rag.retrieve import SchoolFilter, retrieve_nodes
 
 
 def load_knowledge_for_question(
@@ -14,6 +14,7 @@ def load_knowledge_for_question(
     *,
     top_k: int = 5,
     concept_hints: list[str] | None = None,
+    school: SchoolFilter | None = None,
 ) -> str:
     """End-to-end: question → concepts + title-tokens → graph hits →
     [KNOWLEDGE] body.
@@ -23,6 +24,11 @@ def load_knowledge_for_question(
     so domain-specific tokens the router noticed (``七殺``, ``桃花``,
     ``столп месяца``) participate in the KuzuDB Cypher join even when
     they don't appear verbatim in the question text.
+
+    ``school`` (Wave 7 Phase 5, ADR-011) — when the user picked an
+    interpretation school, restricts retrieval to ``universal`` +
+    that school's nodes. ``None`` = no school filter (legacy callers
+    like forecast generators that don't thread the user's choice).
 
     Returns ``""`` when there's nothing to attach (no KB, no matches) —
     :func:`compose_messages` then omits the section so we don't ship a
@@ -41,5 +47,5 @@ def load_knowledge_for_question(
     tokens = extract_search_tokens(question)
     if not concepts and not tokens:
         return ""
-    nodes = retrieve_nodes(concepts, title_tokens=tokens, top_k=top_k)
+    nodes = retrieve_nodes(concepts, title_tokens=tokens, top_k=top_k, school=school)
     return format_knowledge_block(nodes)

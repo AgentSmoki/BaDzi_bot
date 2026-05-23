@@ -28,6 +28,7 @@ from ai.calendar_context import render_calendar_block
 from ai.orchestrator import ChatMessage
 from ai.prompts import get_instruction_prefix
 from ai.rag import load_knowledge_for_question
+from ai.rag.retrieve import SchoolFilter
 from ai.skills import SkillSpec
 from calculator import calculate_chart
 from calculator.calendar_select import ScoredDay
@@ -295,6 +296,11 @@ def compose_messages(
     # master-meeting transcripts, injected as a high-authority block
     # for Anastasia to weave in.
     master_meeting_summaries: list[str] | None = None,
+    # Wave 7 Phase 5 — restrict KuzuDB retrieval to nodes belonging to
+    # the user's chosen interpretation school (+ universal). ``None``
+    # falls through with no filter, preserving the legacy behaviour
+    # for callers that don't yet thread school (forecast.py).
+    school: str | None = None,
 ) -> list[ChatMessage]:
     """Build the final ``messages`` list for the orchestrator.
 
@@ -355,7 +361,17 @@ def compose_messages(
                 f"{notes_body}\n"
                 "[/PERSONAL_MASTER_NOTES]"
             )
-    knowledge_block = load_knowledge_for_question(question, concept_hints=concept_hints)
+    # Wave 7 Phase 5 — narrow ``school`` into the typed Literal accepted
+    # by the RAG layer. Unknown values silently fall through (the RAG
+    # function tolerates ``None`` = no filter).
+    school_filter: SchoolFilter | None = (
+        school  # type: ignore[assignment]
+        if school in {"classic", "edoha", "modern"}
+        else None
+    )
+    knowledge_block = load_knowledge_for_question(
+        question, concept_hints=concept_hints, school=school_filter
+    )
     if knowledge_block:
         sections.append(f"[KNOWLEDGE]\n{knowledge_block}\n[/KNOWLEDGE]")
     sections.append(get_instruction_prefix())

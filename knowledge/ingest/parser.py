@@ -18,7 +18,7 @@ from typing import Final
 
 import yaml
 
-from knowledge.ingest.models import IngestedDoc
+from knowledge.ingest.models import VALID_SCHOOLS, IngestedDoc, SchoolValue
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +103,21 @@ def parse_md_file(path: Path, *, kb_root: Path | None = None) -> IngestedDoc | N
     root = kb_root if kb_root is not None else path.parent
     node_id = _compute_node_id(path, root)
 
+    # Wave 7 Phase 5 — school defaults to ``universal`` when frontmatter
+    # omits the field (covers legacy pre-Phase-5 docs) or contains a
+    # typo (rejecting silently keeps re-ingest robust; a noisy warning
+    # surfaces operator errors).
+    school_raw = str(meta.get("school", "universal")).strip().lower()
+    school: SchoolValue
+    if school_raw in VALID_SCHOOLS:
+        school = school_raw  # type: ignore[assignment]
+    else:
+        logger.warning(
+            "ingest.unknown_school_value",
+            extra={"path": str(path), "school": school_raw},
+        )
+        school = "universal"
+
     try:
         return IngestedDoc(
             path=path,
@@ -114,6 +129,7 @@ def parse_md_file(path: Path, *, kb_root: Path | None = None) -> IngestedDoc | N
             summary=str(meta.get("summary", "")),
             source=str(meta.get("source", "")),
             source_authority=int(meta.get("source_authority", 5)),
+            school=school,
             applicable_when=tuple(str(c).lower() for c in meta.get("applicable_when", []) or []),
             related_concepts=tuple(str(c).lower() for c in meta.get("related_concepts", []) or []),
             last_updated=last_updated,

@@ -48,6 +48,44 @@ def test_parses_valid_md_to_ingested_doc(tmp_path: Path) -> None:
     assert doc.source_authority == 9
 
 
+# ── Wave 7 Phase 5 — school frontmatter handling ─────────────────────────
+
+
+def test_parse_school_defaults_to_universal_when_omitted(tmp_path: Path) -> None:
+    """Legacy docs (pre-Phase-5) don't carry the `school:` key. Parser
+    must default to ``universal`` so re-ingest doesn't drop them."""
+    p = _write(tmp_path / "legacy.md")
+    doc = parse_md_file(p, kb_root=tmp_path)
+    assert doc is not None
+    assert doc.school == "universal"
+
+
+@pytest.mark.parametrize("school", ["universal", "classic", "edoha", "modern"])
+def test_parse_school_explicit_value_round_trips(tmp_path: Path, school: str) -> None:
+    """All four valid school values are accepted verbatim."""
+    content = _VALID.replace(
+        "source_authority: 9",
+        f"source_authority: 9\nschool: {school}",
+    )
+    p = _write(tmp_path / f"{school}.md", content)
+    doc = parse_md_file(p, kb_root=tmp_path)
+    assert doc is not None
+    assert doc.school == school
+
+
+def test_parse_school_unknown_value_falls_back_to_universal(tmp_path: Path) -> None:
+    """Typos like ``school: clasic`` shouldn't poison the graph — parser
+    warns and substitutes the safe default."""
+    content = _VALID.replace(
+        "source_authority: 9",
+        "source_authority: 9\nschool: bogus_school",
+    )
+    p = _write(tmp_path / "typo.md", content)
+    doc = parse_md_file(p, kb_root=tmp_path)
+    assert doc is not None
+    assert doc.school == "universal"
+
+
 def test_content_hash_is_sha256_of_body_only(tmp_path: Path) -> None:
     """Frontmatter edits must not invalidate the hash (only body counts)."""
     p = _write(tmp_path / "a.md")

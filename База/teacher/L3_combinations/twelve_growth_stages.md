@@ -20,8 +20,8 @@ applicable_when: []
 source: anastasia_system_prompt_v2
 source_authority: 8
 last_updated: 2026-05-17
+school: universal
 ---
-
 ## 9.1. Двенадцать Стадий Роста (十二長生)
 
 Каждый Небесный Ствол проходит через 12 стадий в Земных Ветвях:

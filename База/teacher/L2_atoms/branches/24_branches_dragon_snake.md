@@ -7,8 +7,8 @@ applicable_when: []
 source: teacher_pdf_foundation_course
 source_authority: 9
 last_updated: 2026-05-17
+school: universal
 ---
-
 # 12 земных ветвей: Дракон ⾠ и Змея 巳
 
 ## Принцип

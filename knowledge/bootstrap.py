@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING
 
 import kuzu
 
-from knowledge.schema import ALL_DDL, NODE_TABLE_NAME, REL_TABLE_NAMES
+from knowledge.schema import ALL_DDL, MIGRATION_DDL, NODE_TABLE_NAME, REL_TABLE_NAMES
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -115,6 +115,24 @@ def bootstrap(db_path: Path, *, recreate: bool = False) -> BootstrapResult:
         conn.execute(stmt)
         created += 1
         logger.info("bootstrap.ddl_ok", extra={"stmt": stmt.split("(", 1)[0].strip()})
+
+    # Wave 7 Phase 5 — apply ALTER-style migrations with tolerance.
+    # Kuzu has no «ADD COLUMN IF NOT EXISTS» so we catch the «already
+    # exists» RuntimeError and log; any other error still propagates so
+    # an actual schema bug doesn't pass silently.
+    for stmt in MIGRATION_DDL:
+        try:
+            conn.execute(stmt)
+            created += 1
+            logger.info("bootstrap.migration_ok", extra={"stmt": stmt})
+        except RuntimeError as exc:
+            # Kuzu surfaces «Binder exception: ... already exists» when
+            # the migration was applied on a previous run.
+            msg = str(exc).lower()
+            if "already exists" in msg or "already" in msg:
+                logger.info("bootstrap.migration_skip", extra={"stmt": stmt})
+            else:
+                raise
 
     nodes, rels = _list_tables(conn)
     return BootstrapResult(

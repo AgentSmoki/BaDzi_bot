@@ -132,7 +132,11 @@ def test_concept_hints_forwarded_to_knowledge_loader(
     captured: dict[str, Any] = {}
 
     def fake_loader(
-        question: str, *, top_k: int = 5, concept_hints: list[str] | None = None
+        question: str,
+        *,
+        top_k: int = 5,
+        concept_hints: list[str] | None = None,
+        school: str | None = None,
     ) -> str:
         captured["question"] = question
         captured["concept_hints"] = concept_hints
@@ -158,7 +162,11 @@ def test_concept_hints_default_is_none(
     captured: dict[str, Any] = {}
 
     def fake_loader(
-        question: str, *, top_k: int = 5, concept_hints: list[str] | None = None
+        question: str,
+        *,
+        top_k: int = 5,
+        concept_hints: list[str] | None = None,
+        school: str | None = None,
     ) -> str:
         captured["concept_hints"] = concept_hints
         return ""

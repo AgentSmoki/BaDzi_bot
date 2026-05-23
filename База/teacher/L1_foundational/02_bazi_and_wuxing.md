@@ -7,8 +7,8 @@ applicable_when: []
 source: teacher_pdf_foundation_course
 source_authority: 9
 last_updated: 2026-05-17
+school: universal
 ---
-
 ## Принцип
 
 Карта Ба Цзы представляет собой 4 столпа с 8-ю иероглифами — это дата рождения человека, записанная символами Китайского Календаря.

@@ -19,8 +19,8 @@ applicable_when: []
 source: anastasia_system_prompt_v2
 source_authority: 8
 last_updated: 2026-05-17
+school: classic
 ---
-
 ## 4.4. Система Десяти Божеств (十神)
 
 Десять Божеств определяются через отношение каждого элемента карты к Дневному Мастеру (日主). Это КЛЮЧЕВАЯ система интерпретации.

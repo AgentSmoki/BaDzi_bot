@@ -34,6 +34,7 @@ CREATE NODE TABLE IF NOT EXISTS Node(
     summary STRING,
     source STRING,
     source_authority INT64,
+    school STRING,
     applicable_when STRING[],
     related_concepts STRING[],
     embedding FLOAT[],
@@ -42,6 +43,26 @@ CREATE NODE TABLE IF NOT EXISTS Node(
     PRIMARY KEY (id)
 )
 """.strip()
+"""Wave 7 Phase 5 (ADR-011): ``school`` column added. Values:
+``universal`` — base theory shared across schools (10 stems, 12 branches,
+5 elements, cycles, clashes); ``classic`` — Yuan Hai Zi Ping methodology
+(25 格局, 用神, classical 神煞 application); ``edoha`` — Мастер ЭдоХа
+authored material; ``modern`` — psychological synthesis. Existing DBs
+without the column are migrated by ``MIGRATION_DDL`` below."""
+
+MIGRATION_DDL: Final[tuple[str, ...]] = (
+    # Wave 7 Phase 5 — add `school` to existing pre-Phase-5 databases.
+    # Kuzu lacks `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so the
+    # statement is run inside a try/except in bootstrap (the error
+    # «column already exists» is normal on a fresh DB created with the
+    # current NODE_TABLE_DDL — that path already has the column).
+    "ALTER TABLE Node ADD school STRING DEFAULT 'universal'",
+)
+"""One-shot schema upgrades that must be tolerated if already applied.
+Bootstrap runs each statement under a single try/except — if Kuzu throws
+because the change is already present (column exists, etc.) we log and
+continue. This keeps ``python -m knowledge.bootstrap`` idempotent without
+forcing operators to track per-deployment migration state."""
 
 # REL_TABLES_DDL stays in declaration order — ``Node`` must exist first
 # (handled by listing NODE_TABLE_DDL before this in ALL_DDL).
@@ -59,6 +80,9 @@ REL_TABLES_DDL: Final[tuple[str, ...]] = (
 )
 
 ALL_DDL: Final[tuple[str, ...]] = (NODE_TABLE_DDL, *REL_TABLES_DDL)
+"""Idempotent CREATE statements applied unconditionally on bootstrap.
+Migration-style ALTER statements live in :data:`MIGRATION_DDL` and are
+applied with error tolerance."""
 
 REL_TABLE_NAMES: Final[tuple[str, ...]] = (
     "REFERS_TO",

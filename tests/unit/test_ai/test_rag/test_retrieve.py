@@ -23,6 +23,7 @@ def _doc(
     related_concepts: tuple[str, ...] = (),
     source_authority: int = 5,
     topic: str = "stars",
+    school: str = "universal",
 ) -> IngestedDoc:
     return IngestedDoc(
         path=Path(f"/virtual/{node_id}.md"),
@@ -38,6 +39,7 @@ def _doc(
         related_concepts=related_concepts,
         last_updated=datetime(2026, 5, 17, tzinfo=UTC),
         content_hash=f"hash-{node_id}",
+        school=school,  # type: ignore[arg-type]
     )
 
 
@@ -146,6 +148,98 @@ def test_no_concepts_no_tokens_returns_empty(kb: Path) -> None:
 def test_unknown_concept_returns_empty(kb: Path) -> None:
     nodes = retrieve_nodes(["this_concept_does_not_exist"], top_k=5, expand_neighbours=False)
     assert nodes == []
+
+
+# ── Wave 7 Phase 5 — school filter ───────────────────────────────────────
+
+
+@pytest.fixture
+def kb_with_school_mix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """KB with one node per school + one universal — used to assert
+    that ``school=`` filter narrows results correctly."""
+    db_path = tmp_path / "kuzu_db_schools"
+    bootstrap(db_path)
+    db = kuzu.Database(str(db_path))
+    conn = kuzu.Connection(db)
+    upsert_doc(
+        conn,
+        _doc(
+            "doc/uni",
+            title="Universal element rule",
+            level=5,
+            related_concepts=("alpha",),
+            school="universal",
+        ),
+        [],
+    )
+    upsert_doc(
+        conn,
+        _doc(
+            "doc/cls",
+            title="Classic doc",
+            level=5,
+            related_concepts=("alpha",),
+            school="classic",
+        ),
+        [],
+    )
+    upsert_doc(
+        conn,
+        _doc(
+            "doc/edh",
+            title="Edoha doc",
+            level=5,
+            related_concepts=("alpha",),
+            school="edoha",
+        ),
+        [],
+    )
+    upsert_doc(
+        conn,
+        _doc(
+            "doc/mdn",
+            title="Modern doc",
+            level=5,
+            related_concepts=("alpha",),
+            school="modern",
+        ),
+        [],
+    )
+    monkeypatch.setenv("KUZU_DB_PATH", str(db_path))
+    store.reset_cache()
+    monkeypatch.setattr(
+        store,
+        "_get_database",
+        lambda: kuzu.Database(str(db_path), read_only=True),  # type: ignore[arg-type]
+    )
+    store._get_concept_vocabulary.cache_clear()
+    yield db_path
+    store.reset_cache()
+
+
+def test_school_filter_none_returns_all_schools(kb_with_school_mix: Path) -> None:
+    """No school filter = legacy behaviour, every school in results."""
+    nodes = retrieve_nodes(["alpha"], top_k=10, expand_neighbours=False, school=None)
+    ids = {n.node_id for n in nodes}
+    assert ids == {"doc/uni", "doc/cls", "doc/edh", "doc/mdn"}
+
+
+def test_school_filter_edoha_excludes_classic_and_modern(
+    kb_with_school_mix: Path,
+) -> None:
+    """Picking edoha narrows to universal + edoha only."""
+    nodes = retrieve_nodes(["alpha"], top_k=10, expand_neighbours=False, school="edoha")
+    ids = {n.node_id for n in nodes}
+    assert ids == {"doc/uni", "doc/edh"}
+    assert "doc/cls" not in ids
+    assert "doc/mdn" not in ids
+
+
+def test_school_filter_classic_keeps_universal(kb_with_school_mix: Path) -> None:
+    """Universal docs always pass through — they're the shared base."""
+    nodes = retrieve_nodes(["alpha"], top_k=10, expand_neighbours=False, school="classic")
+    ids = {n.node_id for n in nodes}
+    assert ids == {"doc/uni", "doc/cls"}
 
 
 def test_returns_empty_when_db_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

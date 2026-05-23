@@ -7,8 +7,8 @@ applicable_when: []
 source: teacher_pdf_foundation_course
 source_authority: 9
 last_updated: 2026-05-17
+school: universal
 ---
-
 ## Принцип
 
 В любой карте Ба Цзы верхний иероглиф столпа дня называется **Элементом Личности**. Другие названия: **Господин дня**, **Дневная доминанта**.

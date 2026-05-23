@@ -17,8 +17,8 @@ applicable_when:
 source: classical_yuan_hai_zi_ping
 source_authority: 10
 last_updated: 2026-05-17
+school: universal
 ---
-
 # Белый Тигр (白虎)
 
 ## Принцип

@@ -7,8 +7,8 @@ applicable_when: []
 source: teacher_pdf_foundation_course
 source_authority: 9
 last_updated: 2026-05-17
+school: universal
 ---
-
 ## Принцип
 
 Огонь Ян 丙 — это Солнце и солнечный свет. Это единственный элемент, которого нет на планете Земля, и он самый важный из всех, потому что Солнце даёт нам свет, энергию и мудрость.

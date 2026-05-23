@@ -13,8 +13,8 @@ applicable_when: []
 source: anastasia_system_prompt_v2
 source_authority: 8
 last_updated: 2026-05-17
+school: classic
 ---
-
 ## 4.7. Специальные структуры карты (格局)
 
 ### Обычные структуры (正格):

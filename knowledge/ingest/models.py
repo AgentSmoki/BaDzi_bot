@@ -33,6 +33,18 @@ REL_KINDS: Final[tuple[RelationKind, ...]] = (
     "example_of",
 )
 
+# Wave 7 Phase 5 — three coexisting interpretation schools (+ universal
+# as the catch-all default for shared base theory).
+SchoolValue = Literal["universal", "classic", "edoha", "modern"]
+"""Frontmatter ``school:`` values accepted by the ingest pipeline.
+Mirrors ``ai.prompts.SchoolName`` plus the ``universal`` bucket for
+docs that apply across all schools (10 stems, 12 branches, cycles,
+clashes — the shared theory)."""
+
+VALID_SCHOOLS: Final[frozenset[str]] = frozenset({"universal", "classic", "edoha", "modern"})
+"""Runtime guard for frontmatter validation — parser uses this to fall
+back to ``universal`` on typos rather than ingest a bogus value."""
+
 
 @dataclass(frozen=True, slots=True)
 class IngestedDoc:
@@ -63,6 +75,13 @@ class IngestedDoc:
     related_concepts: tuple[str, ...]
     last_updated: datetime
     content_hash: str
+    # Wave 7 Phase 5 — interpretation school this doc belongs to.
+    # Defaults to ``universal`` in the parser when frontmatter omits it,
+    # so legacy docs ingested before Phase 5 (and test fixtures that
+    # don't care about school) don't break. Placed at the end of the
+    # field list so positional callers and KW-only callers both keep
+    # working without rewrites.
+    school: SchoolValue = "universal"
 
 
 @dataclass(frozen=True, slots=True)

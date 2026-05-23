@@ -7,8 +7,8 @@ applicable_when: []
 source: teacher_pdf_foundation_course
 source_authority: 9
 last_updated: 2026-05-17
+school: universal
 ---
-
 ## Принцип
 
 Наказание (刑) — одно из наиболее сложных взаимодействий между земными ветвями в карте Ба Цзы и часто плохо понимается.

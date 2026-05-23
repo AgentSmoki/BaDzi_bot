@@ -7,8 +7,8 @@ applicable_when: []
 source: teacher_pdf_foundation_course
 source_authority: 9
 last_updated: 2026-05-17
+school: universal
 ---
-
 ## Принцип
 
 Из самого слова «вред» должно быть очевидно, что этот тип отношений между Земными ветвями означает ситуацию, сценарий или результат, который вреден для человека.

@@ -1272,6 +1272,9 @@ async def _continue_consultation_with_skill(
         clarifications=clarifications,
         concept_hints=concept_hints,
         master_meeting_summaries=master_summaries,
+        # Wave 7 Phase 5 — propagate the user's chosen school so RAG
+        # only surfaces docs tagged ``universal`` + ``<school>``.
+        school=chosen_school,
     )
 
     typing_task = asyncio.create_task(_keep_typing(message))
