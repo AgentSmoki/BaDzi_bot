@@ -68,6 +68,20 @@ def stub_skill_router(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(consultation_module, "select_skill", fake_select_skill)
 
 
+@pytest.fixture(autouse=True)
+def stub_llm_extract(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Phase 3.5 (2026-05-23) — `_continue_consultation_with_skill` now
+    calls `extract_concepts_llm` which talks to Redis + Qwen3.6. Stub
+    it out to keep these tests focused on the compose→chat→persist
+    flow without hitting either service. Tests that exercise the
+    extractor live in test_llm_extract.py."""
+
+    async def fake_llm_extract(_question: str, **_kw: Any) -> list[str]:
+        return []
+
+    monkeypatch.setattr(consultation_module, "extract_concepts_llm", fake_llm_extract)
+
+
 # ── Fixtures ─────────────────────────────────────────────────────────────
 
 

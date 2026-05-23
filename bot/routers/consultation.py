@@ -54,6 +54,7 @@ from ai.context import HistoryStore
 from ai.fallback import chat_with_fallback
 from ai.orchestrator import ChatMessage, OrchestratorError
 from ai.prompts import SchoolName, load_base_prompt, load_system_prompt
+from ai.rag.llm_extract import extract_concepts_llm
 from ai.router import route
 from ai.skill_router import select_skill
 from ai.skills import SkillSpec, load_skill
@@ -1254,6 +1255,26 @@ async def _continue_consultation_with_skill(
     # + RAG filter by chart_id) is parked as W5e-full in tasks.md;
     # this MVP at least surfaces the notes immediately.
     master_summaries = await _load_master_meeting_summaries(session, chart.id)
+
+    # Phase 3.5 (2026-05-23) — LLM concept extraction. Qwen3.6 fast tier
+    # extracts implied Chinese terms (e.g. "ругаюсь с женой" → 夫妻宫 /
+    # 六冲) that the deterministic vocab+stem extractors in
+    # ai/rag/extract.py would miss. Result is UNION'd with the
+    # skill_router's concept_hints — both feed retrieve_nodes' Cypher
+    # join. Redis-cached by sha256(question) TTL 24h, ~0.05 ₽
+    # amortised on cache hit. Returns [] on any failure → retrieval
+    # gracefully falls back to vocab+stem only.
+    llm_concepts = await extract_concepts_llm(original_question)
+    if llm_concepts:
+        existing = set(concept_hints or [])
+        # Preserve router hints order (they were chosen with more context);
+        # LLM-extracted novelties appended at the end.
+        merged: list[str] = list(concept_hints or [])
+        for c in llm_concepts:
+            if c not in existing:
+                merged.append(c)
+                existing.add(c)
+        concept_hints = merged
 
     # Wave 7 Phase 2 (ADR-011): when skill-router path is active and the
     # user picked a school, layer base.md + base_<school>.md as system
