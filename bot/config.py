@@ -105,6 +105,16 @@ class Settings(BaseSettings):
     # ── KuzuDB (knowledge graph) ──────────────────────────────────────────────
     kuzu_db_path: Path = Path("./knowledge/kuzu_db")
 
+    # ── Unsplash (Wave 7 Phase E — daily forecast hero image) ─────────────────
+    # Free tier: 50 requests/hour. App registered 2026-05-22 as «BaDzi Bot».
+    # Used by ai/day_image.py to fetch a natural-scenery photo matching the
+    # day-pillar energy (e.g. misty mountain for 戊子 = Earth Yang + Water).
+    # All three None-able so dev/CI works without keys; runtime gracefully
+    # skips the image when access_key is missing.
+    unsplash_application_id: str | None = None
+    unsplash_access_key: SecretStr | None = None
+    unsplash_secret_key: SecretStr | None = None
+
     # ── Yandex Object Storage (S3-compatible) ─────────────────────────────────
     yc_object_storage_bucket: str = "badzi-bot-assets"
     yc_access_key_id: SecretStr

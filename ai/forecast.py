@@ -13,8 +13,8 @@ budget tier as ``base_interpretation.py``. Forecast is blocky markdown:
 each block has a ``## БЛОК N. <title>`` heading so parsing/Telegram-
 splitting stays consistent with the rest of the bot.
 
-The generator builds a small ``[FORECAST_CONTEXT]`` payload (натальная
-карта + столпы цели + активный такт) inline. It does **not** invoke the
+The generator builds a small ``[FORECAST_CONTEXT]`` payload (карта
+рождения + столпы цели + активный такт) inline. It does **not** invoke the
 RAG, skill-router, or partner-chart machinery — those are tied to the
 interactive consultation flow. Forecast prompts cite chart data
 strictly (anti-hallucination) but stay narrative, not factual lookup.
@@ -89,14 +89,23 @@ def _chart_at_noon(target: date) -> ChartOutput:
     )
 
 
+_PILLAR_LABELS: Final[tuple[str, str, str, str]] = ("Год", "Месяц", "День", "Час")
+"""Position-to-label map for chart.pillars. ChartOutput.pillars is always
+ordered year/month/day/hour — see calculator.pillars.calculate_pillars."""
+
+
 def _format_chart_for_forecast(chart: ChartOutput) -> str:
-    """Compact natal chart block — ~400 chars. Forecast doesn't need
-    the full ``[BAZI_DATA]`` payload; just the elements that drive
-    energy comparison."""
-    pillars_line = " · ".join(f"{p.stem}{p.branch}" for p in chart.pillars)
+    """Compact birth chart block — ~500 chars. Each pillar is labelled
+    (Год/Месяц/День/Час) so the LLM knows which one it cites in the
+    response and can call it by name — fixes the «丙午 приносит…» dangling
+    reference seen in prod 2026-05-22."""
+    pillar_lines = [
+        f"  {_PILLAR_LABELS[i]}: {p.stem}{p.branch}" for i, p in enumerate(chart.pillars)
+    ]
     parts = [
         f"Дневной Мастер: {chart.day_master}",
-        f"Столпы (Y·M·D·H): {pillars_line}",
+        "Столпы рождения:",
+        *pillar_lines,
     ]
     if chart.element_balance:
         bal = ", ".join(f"{k} {v:.0%}" for k, v in chart.element_balance.items())
@@ -113,10 +122,30 @@ def _format_chart_for_forecast(chart: ChartOutput) -> str:
 def _format_target_chart(chart: ChartOutput, *, drop_hour: bool = True) -> str:
     """Pillars of the target date/month — drop the hour pillar (it's
     a 12:00 placeholder and would mislead the LLM into spurious
-    «час свиньи активирует X» claims)."""
+    «час свиньи активирует X» claims).
+
+    Pillars are labelled by position (Год/Месяц/День) so the LLM can
+    cite them by name in the response instead of dropping the iero­glyph
+    as a dangling subject («丙午 приносит» without saying whose pillar
+    that is)."""
     relevant = chart.pillars[:3] if drop_hour else chart.pillars
-    pillars_line = " · ".join(f"{p.stem}{p.branch}" for p in relevant)
-    return f"Столпы цели: {pillars_line}"
+    pillar_lines = [f"  {_PILLAR_LABELS[i]}: {p.stem}{p.branch}" for i, p in enumerate(relevant)]
+    return "Столпы цели:\n" + "\n".join(pillar_lines)
+
+
+_INLINE_GLOSSARY_RULE = """\
+ПРАВИЛО РАСШИФРОВКИ ИЕРОГЛИФОВ (КРИТИЧНО — ЛЮБОЙ ГОЛЫЙ ИЕРОГЛИФ = ОШИБКА):
+- При ПЕРВОМ упоминании любого китайского иероглифа или термина в ответе \
+обязательно дай русскую расшифровку прямо в скобках формата \
+`<b>иероглиф</b> (русский перевод)`.
+- Пример: `<b>卯酉冲</b> (столкновение Кролика и Петуха)`, \
+`<b>丙午</b> (Бин-У: Огонь Ян над Лошадью)`, `<b>七杀</b> (Семь Убийц — \
+энергия давления, как строгий начальник)`, `<b>劫财</b> (Грабитель — \
+энергия партнёров-конкурентов)`.
+- Если упоминаешь столп цели (`丙午`) — всегда называй ЧТО это за столп \
+(год/месяц/день из секции [TARGET_PILLARS]): «Год приносит <b>丙午</b> \
+(Бин-У, Огонь Лошади)» вместо «<b>丙午</b> приносит…».
+- Не используй угловые скобки 「」 — только HTML-теги."""
 
 
 _DAILY_INSTRUCTION = f"""\
@@ -126,13 +155,17 @@ _DAILY_INSTRUCTION = f"""\
 Структура (используй ровно эти заголовки):
 {json.dumps(dict(_DAILY_BLOCK_TITLES.items()), ensure_ascii=False, indent=2)}
 
-Каждый блок: 60-140 слов, связный текст без буллет-списков. \
-Опирайся ТОЛЬКО на данные [BAZI_DATA] (натальная карта) и [TARGET_PILLARS] \
-(столпы дня). Сравнивай их через 10 Божеств, взаимодействия (合沖刑害破), \
-символические звёзды.
+Каждый блок: 80-180 слов, связный текст нарративом без буллет-списков. \
+Опирайся ТОЛЬКО на данные [BAZI_DATA] (карта рождения) и [TARGET_PILLARS] \
+(столпы дня — подписаны по позициям Год/Месяц/День). Сравнивай их через \
+10 Божеств, взаимодействия (合沖刑害破), символические звёзды.
 
-Стиль Анастасии: тёплый, проницательный, без `!`, метафоры из §6 base.md \
-если уместно. Без эзотерической вычурности — конкретика по картам."""
+{_INLINE_GLOSSARY_RULE}
+
+Стиль Анастасии: тёплый, проницательный, без `!`, 4-5 эмодзи на ответ \
+(🌿🔥⛰⚔️💧 для стихий, ✨ для звёзд, ⏳ для времени, 💡 для рекомендаций, \
+☯️ финал). Метафоры из §6 base.md если уместно. Без эзотерической \
+вычурности — конкретика по картам."""
 
 
 _MONTHLY_INSTRUCTION = f"""\
@@ -142,15 +175,18 @@ _MONTHLY_INSTRUCTION = f"""\
 Структура (используй ровно эти заголовки):
 {json.dumps(dict(_MONTHLY_BLOCK_TITLES.items()), ensure_ascii=False, indent=2)}
 
-Каждый блок: 80-180 слов. БЛОК 5 «По неделям» — 4 короткие абзаца по \
+Каждый блок: 100-220 слов. БЛОК 5 «По неделям» — 4 короткие абзаца по \
 одной на каждую неделю месяца, с конкретной темой недели.
 
-Опирайся ТОЛЬКО на данные [BAZI_DATA] и [TARGET_PILLARS] (столпы первого \
-дня месяца). Анализируй через 10 Божеств, взаимодействия, активный \
-такт удачи.
+Опирайся ТОЛЬКО на данные [BAZI_DATA] (карта рождения) и [TARGET_PILLARS] \
+(столпы — подписаны по позициям). Анализируй через 10 Божеств, \
+взаимодействия, активный такт удачи.
 
-Стиль Анастасии: тёплый, без `!`, метафоры из §6 base.md уместно. \
-БЛОК 6 «Рекомендации» — 3-5 конкретных действий, не общие фразы."""
+{_INLINE_GLOSSARY_RULE}
+
+Стиль Анастасии: тёплый, без `!`, 4-5 эмодзи на ответ. Метафоры из §6 \
+base.md уместно. БЛОК 6 «Рекомендации» — 3-5 конкретных действий, \
+не общие фразы."""
 
 
 def _build_system_prompt() -> str:
@@ -172,7 +208,7 @@ async def generate_daily_forecast(
     target_chart = _chart_at_noon(target_date)
 
     user_payload = (
-        "[BAZI_DATA] (натальная карта)\n"
+        "[BAZI_DATA] (карта рождения)\n"
         f"{_format_chart_for_forecast(chart)}\n\n"
         f"[TARGET_DATE]\n{target_date.isoformat()}\n\n"
         "[TARGET_PILLARS] (столпы выбранного дня)\n"
@@ -228,7 +264,7 @@ async def generate_monthly_forecast(
     period_end = period_start + timedelta(days=29)
 
     user_payload = (
-        "[BAZI_DATA] (натальная карта)\n"
+        "[BAZI_DATA] (карта рождения)\n"
         f"{_format_chart_for_forecast(chart)}\n\n"
         f"[TARGET_MONTH]\n"
         f"С {period_start.isoformat()} по {period_end.isoformat()}\n\n"

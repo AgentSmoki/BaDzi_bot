@@ -102,6 +102,34 @@ async def test_select_skill_relationships_needs_partner_chart(
 
 
 @pytest.mark.asyncio
+async def test_select_skill_risk_for_dangerous_period_question(
+    monkeypatch: pytest.MonkeyPatch,
+    reference_chart,  # type: ignore[no-untyped-def]
+) -> None:
+    """Wave 7: risk skill triggered on «опасный месяц / трудный период»
+    style questions. Router must prefer `risk` over `time` (which would
+    give a neutral year overview)."""
+
+    async def fake_chat(**_kwargs: Any) -> ChatResult:
+        return _ok_chat_result(
+            '{"skill":"risk","confidence":0.94,'
+            '"clarifying_questions":[],'
+            '"needs_partner_chart":false,'
+            '"concept_hints":["六冲","流月地支","3-vs-1"],'
+            '"reason":"запрос на оценку опасных периодов — алгоритм 3-vs-1"}'
+        )
+
+    monkeypatch.setattr("ai.skill_router.chat", fake_chat)
+    sel = await select_skill(
+        question="Какой самый опасный месяц для меня в 2026 году?",
+        chart=reference_chart,
+    )
+    assert sel.skill == "risk"
+    assert sel.confidence == pytest.approx(0.94)
+    assert "3-vs-1" in sel.concept_hints
+
+
+@pytest.mark.asyncio
 async def test_select_skill_with_clarifying_questions(
     monkeypatch: pytest.MonkeyPatch,
     reference_chart,  # type: ignore[no-untyped-def]

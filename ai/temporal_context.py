@@ -120,7 +120,7 @@ def _render_natal_stars_block(chart: ChartOutput) -> str:
         chart.symbolic_stars.stars,
         key=lambda s: (nature_order.get(s.nature, 9), s.category, s.name_zh),
     )
-    lines = ["**Натальные звёзды (神煞):**"]
+    lines = ["**Врождённые звёзды (神煞):**"]
     for s in sorted_stars:
         pillars_str = "/".join(s.pillars)
         lines.append(
@@ -232,17 +232,17 @@ def _render_resonance_block(natal: ChartOutput, now: ChartOutput) -> str:
         for cb, c_name in now_branches:
             if _SIX_HARMONIES.get(nb) == cb:
                 hits.append(
-                    f"  - 六合 (гармония): натальная ветвь {nb} ({n_name}) ↔ "
+                    f"  - 六合 (гармония): ветвь рождения {nb} ({n_name}) ↔ "
                     f"текущая {cb} ({c_name}) → активирует столп {n_name}"
                 )
             elif _SIX_CLASHES.get(nb) == cb:
                 hits.append(
-                    f"  - 六冲 (столкновение): натальная ветвь {nb} ({n_name}) ↔ "
+                    f"  - 六冲 (столкновение): ветвь рождения {nb} ({n_name}) ↔ "
                     f"текущая {cb} ({c_name}) → возмущает столп {n_name}"
                 )
     if not hits:
         return ""
-    return "\n".join(["**Резонансы натала с текущим моментом:**", *hits])
+    return "\n".join(["**Резонансы карты рождения с текущим моментом:**", *hits])
 
 
 def get_current_bazi(

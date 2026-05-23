@@ -299,20 +299,20 @@ def score_day_for_event(
             if _SIX_HARMONIES.get(nb) == db:
                 score += 2.0
                 factors.append(
-                    f"六合 (гармония): натальная {nb} ({natal_pillar_name}) ↔ "
+                    f"六合 (гармония): {nb} рождения ({natal_pillar_name}) ↔ "
                     f"{db} в {day_pillar_name}"
                 )
             elif _SIX_CLASHES.get(nb) == db:
                 if nb == natal_day_branch:
                     score -= 3.0
                     factors.append(
-                        f"六冲 (столкновение со столпом дня): натальная {nb} (day) ↔ "
+                        f"六冲 (столкновение со столпом дня): {nb} рождения (day) ↔ "
                         f"{db} в {day_pillar_name}"
                     )
                 else:
                     score -= 1.5
                     factors.append(
-                        f"六冲 (столкновение): натальная {nb} "
+                        f"六冲 (столкновение): {nb} рождения "
                         f"({natal_pillar_name}) ↔ {db} в {day_pillar_name}"
                     )
 

@@ -29,11 +29,21 @@ def test_load_skill_happy_path(name: SkillName) -> None:
     assert "# Skill" in spec.body or "Универсальный" in spec.body
 
 
-def test_list_skills_returns_all_five() -> None:
+def test_list_skills_returns_all_builtin() -> None:
     skills = list_skills()
-    assert len(skills) == 5
+    assert len(skills) == 6
     names = {s.name for s in skills}
-    assert names == {"work", "relationships", "health", "time", "default"}
+    assert names == {"work", "relationships", "health", "time", "risk", "default"}
+
+
+def test_risk_skill_body_describes_3vs1_pattern() -> None:
+    """The `risk` skill (Wave 7) carries the chain-of-thought algorithm
+    from the Мастер ЭдоХа school. Body must reference the core principle
+    so router few-shots and main-LLM injection stay aligned."""
+    spec = load_skill("risk")
+    assert "3-vs-1" in spec.body
+    assert "六冲" in spec.body  # canonical clash term must be present
+    assert any("опасн" in kw or "риск" in kw for kw in spec.trigger_keywords)
 
 
 def test_list_skills_is_tuple_for_cache_safety() -> None:

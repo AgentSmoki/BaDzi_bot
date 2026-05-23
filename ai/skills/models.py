@@ -17,9 +17,13 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-SkillName = Literal["work", "relationships", "health", "time", "default"]
+SkillName = Literal["work", "relationships", "health", "time", "risk", "default"]
 """The fixed enum of skill identifiers. Adding a new skill = add to
-this Literal + create ``ai/skills/<name>.md``."""
+this Literal + create ``ai/skills/<name>.md``.
+
+``risk`` (Wave 7) handles dangerous-period questions via the 3-vs-1
+chain-of-thought from the Мастер ЭдоХа school — accumulated branches
+beat lone 六冲 clashes in danger ranking."""
 
 
 class SkillSpec(BaseModel):

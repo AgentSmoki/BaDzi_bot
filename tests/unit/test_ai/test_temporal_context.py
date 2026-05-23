@@ -175,7 +175,7 @@ def test_render_chart_block_includes_natal_stars_for_reference_chart(  # type: i
     All of them must surface in the LLM payload now — without this,
     Anastasia can't cite stars the user feels active today."""
     md = render_chart_block(reference_chart)
-    assert "**Натальные звёзды (神煞):**" in md
+    assert "**Врождённые звёзды (神煞):**" in md
     # Specific stars Bogdan asked about in live session
     assert "白虎" in md
     assert "Белый Тигр" in md
@@ -202,9 +202,9 @@ def test_natal_stars_block_omitted_for_chart_with_no_stars() -> None:
     )
     md = render_chart_block(chart)
     if chart.symbolic_stars and chart.symbolic_stars.stars:
-        assert "**Натальные звёзды (神煞):**" in md
+        assert "**Врождённые звёзды (神煞):**" in md
     else:
-        assert "**Натальные звёзды (神煞):**" not in md
+        assert "**Врождённые звёзды (神煞):**" not in md
 
 
 def test_temporal_block_includes_now_stars_when_present() -> None:
@@ -228,19 +228,19 @@ def test_temporal_block_detects_resonance_between_natal_and_now(  # type: ignore
     when = datetime(2026, 5, 16, 12, 0, tzinfo=UTC)
     now_chart = get_current_bazi(when=when)
     md = render_temporal_block(now_chart, when=when, natal_chart=reference_chart)
-    # 2026-05-16 day pillar is 庚寅 → 寅 should harmonize with natal 亥
-    assert "**Резонансы натала с текущим моментом:**" in md
+    # 2026-05-16 day pillar is 庚寅 → 寅 should harmonize with birth-chart 亥
+    assert "**Резонансы карты рождения с текущим моментом:**" in md
     assert "寅" in md
     assert "亥" in md
     assert "六合" in md
 
 
 def test_temporal_block_omits_resonance_when_no_natal_chart_given() -> None:
-    """If natal is not passed, no resonance block — keep contract minimal."""
+    """If birth chart is not passed, no resonance block — keep contract minimal."""
     when = datetime(2026, 5, 16, 12, 0, tzinfo=UTC)
     now_chart = get_current_bazi(when=when)
     md = render_temporal_block(now_chart, when=when)
-    assert "Резонансы натала" not in md
+    assert "Резонансы" not in md
 
 
 def test_compose_messages_temporal_passes_natal_for_resonance_detection(  # type: ignore[no-untyped-def]
@@ -258,8 +258,8 @@ def test_compose_messages_temporal_passes_natal_for_resonance_detection(  # type
         now_chart=now_chart,
     )
     body = msgs[-1].content
-    assert "**Натальные звёзды (神煞):**" in body
-    assert "**Резонансы натала с текущим моментом:**" in body
+    assert "**Врождённые звёзды (神煞):**" in body
+    assert "**Резонансы карты рождения с текущим моментом:**" in body
 
 
 # ── v3 structured-tag format (task 2.2.5) ─────────────────────────────────
