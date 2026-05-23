@@ -22,13 +22,15 @@ from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from ai.day_image import fetch_day_energy_image
 from ai.forecast import (
     ForecastResult,
     generate_daily_forecast,
     generate_monthly_forecast,
 )
 from bot.config import get_settings
-from calculator.models import ChartOutput
+from calculator import calculate_chart
+from calculator.models import ChartInput, ChartOutput
 from db.engine import get_engine
 from db.models import ForecastKind
 from db.repositories.chart_repo import ChartRepository
@@ -115,15 +117,42 @@ async def _send_or_record_error(
     text: str,
     delivery_id: uuid.UUID,
     session: AsyncSession,
+    hero_image_url: str | None = None,
 ) -> None:
     """Send to Telegram; on failure mark error on the delivery row so
     the user-facing «история прогнозов» сможет показать что было
-    отправлено и что не дошло."""
+    отправлено и что не дошло.
+
+    Wave 7 Phase E: ``hero_image_url`` (опц.) — Unsplash-картинка
+    под энергию столпа дня, отправляется как отдельное photo-сообщение
+    перед текстом прогноза. Если ``None`` (Unsplash отключён / ошибка)
+    — отправляем только текст как раньше.
+    """
     delivery_repo = ForecastDeliveryRepository()
     try:
+        if hero_image_url:
+            # Photo first без caption — Telegram caption capped at 1024
+            # chars, и текст прогноза часто длиннее. Картинка идёт как
+            # «открывающий кадр», текст следом.
+            try:
+                await bot.send_photo(chat_id=telegram_id, photo=hero_image_url)
+            except (TelegramBadRequest, TelegramForbiddenError) as photo_exc:
+                # Картинка — украшение, не контракт. Падение тут не
+                # должно блокировать доставку текста; логируем и идём
+                # дальше.
+                logger.warning(
+                    "forecast.hero_image_failed",
+                    delivery_id=str(delivery_id),
+                    url=hero_image_url,
+                    error=str(photo_exc),
+                )
         await bot.send_message(chat_id=telegram_id, text=text, parse_mode="HTML")
         await delivery_repo.mark_sent(session, delivery_id)
-        logger.info("forecast.delivered", delivery_id=str(delivery_id))
+        logger.info(
+            "forecast.delivered",
+            delivery_id=str(delivery_id),
+            had_hero_image=bool(hero_image_url),
+        )
     except (TelegramBadRequest, TelegramForbiddenError) as exc:
         await delivery_repo.mark_error(session, delivery_id, str(exc))
         logger.warning(
@@ -219,6 +248,35 @@ async def _send_daily_forecast_inner(
         header = _DELIVERY_HEADER[ForecastKind.daily]
         body = f"{header}\n\n{forecast.text}"
 
+        # Wave 7 Phase E — Unsplash hero image на основе столпа дня
+        # target_date. Берём день из synthetic noon-chart (тот же что
+        # forecast.py использует для генерации текста), извлекаем
+        # дневной столп, просим Unsplash картинку под энергии. Кэш
+        # по stem+branch = одна картинка на день для всех юзеров.
+        # При ошибке fetch_day_energy_image вернёт None → ниже
+        # _send_or_record_error отправит только текст без картинки.
+        try:
+            day_chart = calculate_chart(
+                ChartInput(
+                    birth_datetime=datetime.combine(
+                        target_date, datetime.min.time().replace(hour=12)
+                    ),
+                    latitude=0.0,
+                    longitude=0.0,
+                    tz_offset=0.0,
+                    gender="male",
+                )
+            )
+            day_pillar = day_chart.pillars[2]  # year=0, month=1, day=2, hour=3
+            hero_image_url = await fetch_day_energy_image(day_pillar)
+        except Exception as exc:
+            logger.warning(
+                "forecast.daily.hero_image_skipped",
+                subscription_id=str(subscription_id),
+                error=str(exc),
+            )
+            hero_image_url = None
+
         # Insert delivery row (UNIQUE protects retry doubles).
         delivery = await delivery_repo.record(
             session,
@@ -261,6 +319,7 @@ async def _send_daily_forecast_inner(
             text=body,
             delivery_id=delivery.id,
             session=session,
+            hero_image_url=hero_image_url,
         )
         await session.commit()
 

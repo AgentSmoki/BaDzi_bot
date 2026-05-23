@@ -8,6 +8,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 
 from ai.card_renderer import close_browser
 from ai.context import HistoryStore
+from ai.day_image import close_day_image_cache
 from ai.orchestrator import close_clients as close_llm_clients
 from ai.rag.llm_extract import close_concept_cache
 from bot.config import Settings, get_settings
@@ -62,6 +63,8 @@ async def _shutdown(bot: Bot, dispatcher: Dispatcher, history_store: HistoryStor
     await history_store.aclose()
     # Phase 3.5 — release the RAG concept-cache Redis pool
     await close_concept_cache()
+    # Phase E — release the Unsplash day-image cache Redis pool
+    await close_day_image_cache()
     await dispatcher.storage.close()
     await bot.session.close()
     await get_engine().dispose()
