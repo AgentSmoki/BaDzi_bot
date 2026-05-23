@@ -34,6 +34,7 @@ import re
 import uuid as _uuid
 from datetime import date
 from decimal import Decimal
+from typing import get_args
 
 import structlog
 from aiogram import Bot, F, Router
@@ -57,6 +58,7 @@ from ai.router import route
 from ai.skill_router import select_skill
 from ai.skills import SkillSpec, load_skill
 from ai.skills.loader import SkillFileError
+from ai.skills.models import SkillName
 from ai.temporal_context import compose_messages, get_current_bazi
 from bot.config import get_settings
 from bot.keyboards import (
@@ -666,8 +668,15 @@ async def handle_partner_use_existing(
 def _safe_load_skill(name: str) -> SkillSpec | None:
     """Resolve a SkillName-string into a SkillSpec, falling back to
     ``default`` on file errors. Returns ``None`` only if even ``default``
-    won't load (catastrophic — caller treats as legacy flow)."""
-    if name not in {"work", "relationships", "health", "time", "default"}:
+    won't load (catastrophic — caller treats as legacy flow).
+
+    The whitelist is derived from ``SkillName`` via ``get_args`` so
+    adding a new skill (Wave 7 added ``risk``) only requires updating
+    the Literal in one place. Previously hardcoded — and Wave 7's
+    ``risk`` was silently downgraded to ``default`` (live regression
+    found 2026-05-23 during Phase 2+5 verify)."""
+    valid = set(get_args(SkillName))
+    if name not in valid:
         name = "default"
     try:
         return load_skill(name)
