@@ -314,6 +314,23 @@ def partner_chart_selector_kb(
     return builder.as_markup()
 
 
+def school_selector_kb() -> InlineKeyboardMarkup:
+    """Wave 7 Phase 2 — three coexisting interpretation schools.
+
+    Shown after «Задать вопрос по карте» / before each new consultation
+    turn. The callback_data values are tight enums (``school:classic`` /
+    ``school:edoha`` / ``school:modern``) that the consultation router
+    persists in FSM data as ``chosen_school`` and threads through
+    ``load_base_prompt(school=...)`` on the system-prompt side.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🎓 Классическая", callback_data="school:classic")
+    builder.button(text="🌀 Мастер ЭдоХа", callback_data="school:edoha")
+    builder.button(text="🧬 Современная", callback_data="school:modern")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
 def pricing_kb(*, allow_skip: bool = False) -> InlineKeyboardMarkup:
     """Pricing keyboard shown after the free question is consumed.
 

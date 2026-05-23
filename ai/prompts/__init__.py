@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Final
+from typing import Final, Literal
 
 _PROMPTS_DIR: Final = Path(__file__).resolve().parent
 
@@ -17,6 +17,21 @@ ANASTASIA_SYSTEM: Final = "anastasia_system"
 ANASTASIA_BASE: Final = "base"
 SKILL_ROUTER_SYSTEM: Final = "skill_router_system"
 BIRTH_EXTRACT_SYSTEM: Final = "birth_extract_system"
+
+# Wave 7 Phase 2 — three parallel schools layered over `base.md`.
+# Each file is methodology-only (no identity/glossary duplication); `base.md`
+# stays the universal core. `compose_messages(school=...)` concatenates
+# base + school layer + skill body so the LLM gets one coherent system
+# prompt per consultation turn.
+SchoolName = Literal["classic", "edoha", "modern"]
+"""Three coexisting interpretation traditions. Adding a fourth = new
+``Literal`` value + ``ai/prompts/base_<name>.md`` + UI button."""
+
+_SCHOOL_FILE_MAP: Final[dict[SchoolName, str]] = {
+    "classic": "base_classic",
+    "edoha": "base_edoha",
+    "modern": "base_modern",
+}
 
 
 @lru_cache(maxsize=8)
@@ -41,13 +56,35 @@ def load_system_prompt() -> str:
     return get_prompt(ANASTASIA_SYSTEM)
 
 
-def load_base_prompt() -> str:
-    """Slimmed-down base prompt (~7 KB) used by the new skill-router
-    flow. Contains persona + style + glossary + ethics + metaphor
-    bank, but defers domain-specific methodology (work / relationships
-    / health / time) to per-skill prompts injected via the [SKILL]
-    section by ``ai.temporal_context.compose_messages``."""
-    return get_prompt(ANASTASIA_BASE)
+def load_base_prompt(school: SchoolName | None = None) -> str:
+    """Slimmed-down base prompt (~12 KB) used by the skill-router flow.
+    Contains persona + style + glossary + ethics + metaphor bank, but
+    defers domain-specific methodology to per-skill prompts injected
+    via the [SKILL] section by ``ai.temporal_context.compose_messages``.
+
+    Wave 7 Phase 2: optional ``school`` argument concatenates the
+    methodology overlay (``base_classic.md`` / ``base_edoha.md`` /
+    ``base_modern.md``) after the universal core. Returns the same
+    string identity across calls for cache friendliness — cache keyed
+    on ``school`` so each variant is loaded once per process.
+
+    ``school=None`` returns just ``base.md`` — backward-compat for
+    ``ai/forecast.py`` and ``ai/base_interpretation.py`` which run
+    outside the interactive consultation flow and don't know which
+    school the user picked."""
+    return _load_base_prompt_cached(school)
+
+
+@lru_cache(maxsize=4)
+def _load_base_prompt_cached(school: SchoolName | None) -> str:
+    """Implementation backing ``load_base_prompt``. Separate function
+    so the public API stays kwargless-friendly while still benefiting
+    from positional ``lru_cache`` keying."""
+    base = get_prompt(ANASTASIA_BASE)
+    if school is None:
+        return base
+    school_body = get_prompt(_SCHOOL_FILE_MAP[school])
+    return f"{base}\n\n---\n\n{school_body}"
 
 
 def load_skill_router_prompt() -> str:

@@ -911,6 +911,18 @@ async def handle_confirm_calc(
                     if isinstance(clar_raw, list) and clar_raw
                     else None
                 )
+                # Wave 7 Phase 2 — carry chosen_school across the partner
+                # flow. Must be read BEFORE state.clear() (the FSM data is
+                # wiped by clear()), then handed as an explicit kwarg to
+                # resume_after_partner_added.
+                pending_school_raw = data.get("chosen_school")
+                pending_school: str | None = (
+                    str(pending_school_raw)
+                    if isinstance(pending_school_raw, str)
+                    and pending_school_raw in {"classic", "edoha", "modern"}
+                    else None
+                )
+
                 import uuid as _uuid
 
                 try:
@@ -947,6 +959,7 @@ async def handle_confirm_calc(
                         user=user,
                         session=session,
                         history_store=history_store,
+                        chosen_school=pending_school,  # type: ignore[arg-type]
                     )
                     return
                 # owner chart missing — fall through to the generic

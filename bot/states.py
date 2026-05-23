@@ -15,6 +15,13 @@ class BirthDataForm(StatesGroup):
 
 
 class ConsultationState(StatesGroup):
+    # Wave 7 Phase 2 (ADR-011): before each question the user picks an
+    # interpretation school (classic / edoha / modern). Handler shows the
+    # 3-button selector and waits in this state for the callback. Then
+    # transitions to ``waiting_question``. The chosen school is persisted
+    # in FSM data as ``chosen_school`` and threaded through skill-router
+    # → compose_messages → load_base_prompt(school=...).
+    choosing_school = State()
     waiting_question = State()
     # Wave 6 / ADR-010: skill-router may request 1-3 clarifying questions
     # before the main LLM call. The handler enters this state and collects

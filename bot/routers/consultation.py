@@ -52,14 +52,19 @@ from ai.calendar_parse import detect_calendar_request
 from ai.context import HistoryStore
 from ai.fallback import chat_with_fallback
 from ai.orchestrator import ChatMessage, OrchestratorError
-from ai.prompts import load_base_prompt, load_system_prompt
+from ai.prompts import SchoolName, load_base_prompt, load_system_prompt
 from ai.router import route
 from ai.skill_router import select_skill
 from ai.skills import SkillSpec, load_skill
 from ai.skills.loader import SkillFileError
 from ai.temporal_context import compose_messages, get_current_bazi
 from bot.config import get_settings
-from bot.keyboards import add_partner_chart_kb, partner_chart_selector_kb, pricing_kb
+from bot.keyboards import (
+    add_partner_chart_kb,
+    partner_chart_selector_kb,
+    pricing_kb,
+    school_selector_kb,
+)
 from bot.services.menu import format_chart_label
 from bot.services.teletranscribe import TeleTranscribeError, transcribe_voice
 from bot.states import ConsultationState
@@ -88,6 +93,20 @@ _FREE_QUESTION_USED_MSG = (
 # low-confidence guesses on ambiguous questions — better to give a
 # generic-but-correct answer than a specialised-and-wrong one.
 _SKILL_ROUTER_CONFIDENCE_FLOOR: float = 0.4
+
+# Wave 7 Phase 2 — valid callback values for the school selector.
+# Kept in sync with ai/prompts.SchoolName via a small parser below.
+_VALID_SCHOOLS: frozenset[str] = frozenset({"classic", "edoha", "modern"})
+
+
+def _parse_school(raw: str | None) -> SchoolName | None:
+    """Narrow FSM-data ``chosen_school`` (Any) to ``SchoolName | None``.
+    Unknown values silently fall back to ``None`` — that path drops the
+    school overlay and uses the universal ``base.md`` alone."""
+    if isinstance(raw, str) and raw in _VALID_SCHOOLS:
+        return raw  # type: ignore[return-value]
+    return None
+
 
 _PARTNER_REQUEST_MSG = (
     "Похоже, вы спрашиваете про конкретного человека. Чтобы я сравнила "
@@ -152,10 +171,69 @@ async def handle_ask_pressed(
         return
 
     await state.update_data(chart_id=str(chart.id))
+    # Wave 7 Phase 2 (ADR-011) — before each question the user picks
+    # an interpretation school. handle_school_chosen then advances to
+    # waiting_question and persists chosen_school in FSM data so every
+    # entry-point downstream (handle_question / clarifications / partner
+    # skip / resume_after_partner_added) can thread it into the
+    # load_base_prompt call that builds the system prompt.
+    await state.set_state(ConsultationState.choosing_school)
+    await callback.message.answer(
+        "Какой подход вам ближе? Выберите школу — от этого зависит стиль и методология ответа.",
+        reply_markup=school_selector_kb(),
+    )
+    await callback.answer()
+
+
+# Wave 7 Phase 2 — school selector callback. Catches all three buttons
+# (school:classic / school:edoha / school:modern) from school_selector_kb.
+@consultation_router.callback_query(ConsultationState.choosing_school, F.data.startswith("school:"))
+async def handle_school_chosen(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    """Persist chosen_school in FSM data and advance to waiting_question.
+
+    Wave 7 / ADR-011: the three coexisting schools (classic / edoha /
+    modern) live as methodology overlays on top of ``base.md``. Selection
+    here is read later by every consultation entry-point (handle_question,
+    clarifications collector, partner-skip, partner-add resume) and
+    threaded into ``load_base_prompt(school=...)``.
+    """
+    if not isinstance(callback.message, Message) or not callback.data:
+        await callback.answer()
+        return
+
+    raw_school = callback.data.removeprefix("school:")
+    school = _parse_school(raw_school)
+    if school is None:
+        # Defensive — UI only exposes the 3 valid options, so a non-match
+        # here means a stale callback from an old keyboard build. Surface
+        # gently and stay in selector state.
+        await callback.answer("Школа не распознана. Выберите вариант с кнопок.", show_alert=False)
+        return
+
+    await state.update_data(chosen_school=school)
     await state.set_state(ConsultationState.waiting_question)
 
-    await callback.message.answer("Напишите ваш вопрос:")
+    # Friendly confirmation per school so the user feels the switch.
+    confirmations = {
+        "classic": (
+            "Школа 🎓 Классическая — отвечу через 10 Богов, Структуру "
+            "и Полезное Божество. Напишите вопрос:"
+        ),
+        "edoha": (
+            "Школа 🌀 Мастер ЭдоХа — отвечу через накопленные силы "
+            "и метафоры поля. Напишите вопрос:"
+        ),
+        "modern": (
+            "Школа 🧬 Современная — отвечу через архетипы "
+            "и психологические паттерны. Напишите вопрос:"
+        ),
+    }
+    await callback.message.answer(confirmations[school])
     await callback.answer()
+    logger.info("consultation.school_chosen", school=school)
 
 
 async def _resolve_active_chart(
@@ -295,6 +373,7 @@ async def _process_clarification_text(
     chart_data = ChartOutput.model_validate(chart.chart_data)
     skill_spec = _safe_load_skill(skill_name)
     partner_chart_data = await _load_partner_chart_data(session, chart)
+    chosen_school = _parse_school(data.get("chosen_school"))
 
     await _continue_consultation_with_skill(
         message,
@@ -308,6 +387,7 @@ async def _process_clarification_text(
         partner_chart=partner_chart_data,
         clarifications=clarifications,
         concept_hints=concept_hints,
+        chosen_school=chosen_school,
     )
 
 
@@ -355,6 +435,7 @@ async def handle_partner_skip(
 
     chart_data = ChartOutput.model_validate(chart.chart_data)
     skill_spec = _safe_load_skill(skill_name)
+    chosen_school = _parse_school(data.get("chosen_school"))
     await state.set_state(None)
 
     await _continue_consultation_with_skill(
@@ -369,6 +450,7 @@ async def handle_partner_skip(
         partner_chart=None,
         clarifications=clarifications,
         concept_hints=concept_hints,
+        chosen_school=chosen_school,
     )
     await callback.answer()
 
@@ -936,6 +1018,12 @@ async def _process_question_after_guards(
     chart_data = ChartOutput.model_validate(chart.chart_data)
     settings = get_settings()
 
+    # Wave 7 Phase 2 — pick up the school chosen by the user before the
+    # question (FSM data, set by handle_school_chosen). Threaded through
+    # every downstream entry-point into load_base_prompt.
+    fsm_data = await state.get_data()
+    chosen_school = _parse_school(fsm_data.get("chosen_school"))
+
     if not settings.skill_router_enabled:
         # Legacy path — no skill router, full Anastasia prompt as before.
         await _continue_consultation_with_skill(
@@ -950,6 +1038,7 @@ async def _process_question_after_guards(
             partner_chart=None,
             clarifications=None,
             concept_hints=None,
+            chosen_school=chosen_school,
         )
         return
 
@@ -1025,6 +1114,7 @@ async def _process_question_after_guards(
         partner_chart=partner_chart_data,
         clarifications=None,
         concept_hints=list(skill_sel.concept_hints),
+        chosen_school=chosen_school,
     )
 
 
@@ -1043,6 +1133,7 @@ async def resume_after_partner_added(
     user: User,
     session: AsyncSession,
     history_store: HistoryStore,
+    chosen_school: SchoolName | None = None,
 ) -> None:
     """Called from `bot.routers.birth_data` right after a partner chart
     is calculated, persisted and linked to the owner chart.
@@ -1078,6 +1169,7 @@ async def resume_after_partner_added(
         partner_chart=partner_chart_output,
         clarifications=pending_clarifications,
         concept_hints=pending_concept_hints,
+        chosen_school=chosen_school,
     )
 
 
@@ -1097,6 +1189,7 @@ async def _continue_consultation_with_skill(
     partner_chart: ChartOutput | None,
     clarifications: list[tuple[str, str]] | None,
     concept_hints: list[str] | None,
+    chosen_school: SchoolName | None = None,
 ) -> None:
     """Compose the prompt, call the main LLM, persist, reply.
 
@@ -1153,7 +1246,15 @@ async def _continue_consultation_with_skill(
     # this MVP at least surfaces the notes immediately.
     master_summaries = await _load_master_meeting_summaries(session, chart.id)
 
-    system_prompt = load_base_prompt() if skill_spec is not None else load_system_prompt()
+    # Wave 7 Phase 2 (ADR-011): when skill-router path is active and the
+    # user picked a school, layer base.md + base_<school>.md as system
+    # prompt. ``chosen_school=None`` falls back to bare base.md so legacy
+    # callers (forecast, base_interpretation) and users who haven't yet
+    # selected a school keep the prior behaviour.
+    if skill_spec is not None:
+        system_prompt = load_base_prompt(school=chosen_school)
+    else:
+        system_prompt = load_system_prompt()
     messages = compose_messages(
         system_prompt=system_prompt,
         chart=chart_data,
