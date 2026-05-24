@@ -48,6 +48,14 @@ class Settings(BaseSettings):
     # wins; this ceiling protects when the model gets chatty.
     max_output_tokens_ceiling: int = 32_000
 
+    # ── Free-question allowance (Wave 7 UX 2026-05-24) ────────────────────────
+    # Сколько бесплатных вопросов до pricing-screen. Раньше был bool
+    # `free_question_used` (1 вопрос). Теперь counter `free_questions_used`
+    # + этот лимит. После ``free_questions_limit`` вопросов бот шлёт
+    # pricing_kb (тарифы неактивны + «Продолжить бесплатно»). ЮКасса
+    # пока не подключена; skip доступен всем (см. pricing_kb docstring).
+    free_questions_limit: int = 3
+
     # ── Skill router (Wave 6, ADR-010) ────────────────────────────────────────
     # Fast LLM that classifies user questions into a skill (work / relationships
     # / health / time / default), drives smart-entry parsing (text→chart),

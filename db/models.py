@@ -106,7 +106,13 @@ class User(Base):
     username: Mapped[str | None] = mapped_column(sa.String(64))
     first_name: Mapped[str] = mapped_column(sa.String(128))
     locale: Mapped[str] = mapped_column(sa.String(8), default="ru", server_default="ru")
-    free_question_used: Mapped[bool] = mapped_column(default=False, server_default=sa.false())
+    # Wave 7 UX rework (2026-05-24): counter вместо bool. Default 0 =
+    # «бесплатных вопросов потрачено». Лимит держится в settings
+    # (по умолчанию 3). 4-й вопрос → pricing_kb. Поле free_question_used
+    # удалено миграцией 2026-05-24_<rev>.
+    free_questions_used: Mapped[int] = mapped_column(
+        sa.Integer, default=0, server_default=sa.text("0"), nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 

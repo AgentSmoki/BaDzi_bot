@@ -120,7 +120,7 @@ def fake_user() -> MagicMock:
     u.telegram_id = 1234567
     # New users haven't used their one free question yet; tests that
     # exercise the guard override this to True.
-    u.free_question_used = False
+    u.free_questions_used = 0
     return u
 
 
@@ -312,8 +312,8 @@ async def test_question_happy_path_persists_consultation_and_history(
     )
     create_mock = AsyncMock()
     monkeypatch.setattr(consultation_module._consultation_repo, "create", create_mock)
-    mark_free_mock = AsyncMock()
-    monkeypatch.setattr(consultation_module._user_repo, "mark_free_question_used", mark_free_mock)
+    mark_free_mock = AsyncMock(return_value=1)
+    monkeypatch.setattr(consultation_module._user_repo, "increment_free_questions", mark_free_mock)
     seen_calls = _patched_chat(monkeypatch, text="Вы — Огонь Инь.")
 
     await handle_question(
@@ -324,10 +324,15 @@ async def test_question_happy_path_persists_consultation_and_history(
         history_store=history_store,
     )
 
-    # Reply sent to the user with the bot's answer
+    # Reply sent to the user with the bot's answer. Wave 7 UX rework
+    # (2026-05-24) adds a «осталось N/3» footer message AFTER the main
+    # answer — so the LAST message.answer call is the footer, not the
+    # consultation text. We assert the answer body appears in ANY call.
     fake_message.answer.assert_awaited()
-    answer_text = fake_message.answer.call_args.args[0]
-    assert "Вы — Огонь" in answer_text
+    all_msgs = [c.args[0] for c in fake_message.answer.call_args_list]
+    assert any("Вы — Огонь" in m for m in all_msgs)
+    # And the footer is the LAST call, with the «осталось» counter
+    assert "Осталось бесплатных" in all_msgs[-1]
 
     # Consultation row written
     create_mock.assert_awaited_once()
@@ -338,7 +343,8 @@ async def test_question_happy_path_persists_consultation_and_history(
     assert persist_kwargs["completion_tokens"] == 900
     assert persist_kwargs["trace_id"] == "t-test"
 
-    # Free-question flag flipped after a successful answer (1.12.0).
+    # Counter bumped after a successful answer (Wave 7 UX 2026-05-24,
+    # бывш. mark_free_question_used: bool flip).
     mark_free_mock.assert_awaited_once_with(fake_session, fake_user.id)
 
     # History contains both turns in chronological order
@@ -363,7 +369,7 @@ async def test_question_blocked_when_free_question_already_used(
 ) -> None:
     """1.12.0 guard: second question goes to pricing_kb instead of
     burning OpenRouter/YC tokens. The LLM is never called."""
-    fake_user.free_question_used = True
+    fake_user.free_questions_used = 3  # Wave 7 UX: counter ≥ limit triggers pricing
     fake_message.text = "Второй вопрос подряд"
     monkeypatch.setattr(
         consultation_module._chart_repo,
@@ -372,8 +378,8 @@ async def test_question_blocked_when_free_question_already_used(
     )
     create_mock = AsyncMock()
     monkeypatch.setattr(consultation_module._consultation_repo, "create", create_mock)
-    mark_free_mock = AsyncMock()
-    monkeypatch.setattr(consultation_module._user_repo, "mark_free_question_used", mark_free_mock)
+    mark_free_mock = AsyncMock(return_value=1)
+    monkeypatch.setattr(consultation_module._user_repo, "increment_free_questions", mark_free_mock)
     seen_calls = _patched_chat(monkeypatch)
 
     await handle_question(
@@ -415,8 +421,8 @@ async def test_question_does_not_flip_flag_on_llm_failure(
         "get_latest_by_user",
         AsyncMock(return_value=fake_chart),
     )
-    mark_free_mock = AsyncMock()
-    monkeypatch.setattr(consultation_module._user_repo, "mark_free_question_used", mark_free_mock)
+    mark_free_mock = AsyncMock(return_value=1)
+    monkeypatch.setattr(consultation_module._user_repo, "increment_free_questions", mark_free_mock)
 
     async def boom(**_kw: Any) -> Any:
         raise UpstreamError("both tiers down")
@@ -455,7 +461,9 @@ async def test_question_with_temporal_keyword_includes_now_block(
         AsyncMock(return_value=fake_chart),
     )
     monkeypatch.setattr(consultation_module._consultation_repo, "create", AsyncMock())
-    monkeypatch.setattr(consultation_module._user_repo, "mark_free_question_used", AsyncMock())
+    monkeypatch.setattr(
+        consultation_module._user_repo, "increment_free_questions", AsyncMock(return_value=1)
+    )
     seen = _patched_chat(monkeypatch)
 
     await handle_question(

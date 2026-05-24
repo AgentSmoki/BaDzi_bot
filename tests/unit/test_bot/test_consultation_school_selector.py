@@ -71,7 +71,7 @@ def fake_user() -> MagicMock:
     u = MagicMock()
     u.id = _uuid.uuid4()
     u.telegram_id = 545371253
-    u.free_question_used = False
+    u.free_questions_used = 0
     return u
 
 

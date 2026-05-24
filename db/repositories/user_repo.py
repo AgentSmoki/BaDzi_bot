@@ -63,16 +63,25 @@ class UserRepository:
         existing = await session.execute(sa.select(User).where(User.telegram_id == telegram_id))
         return existing.scalar_one(), False
 
-    async def mark_free_question_used(self, session: AsyncSession, user_id: uuid.UUID) -> None:
-        await session.execute(
-            sa.update(User).where(User.id == user_id).values(free_question_used=True)
+    async def increment_free_questions(self, session: AsyncSession, user_id: uuid.UUID) -> int:
+        """Wave 7 UX rework (2026-05-24): bump counter after each free
+        consultation. Returns NEW count (1 after first, 2 after second,
+        etc). Caller compares with ``settings.free_questions_limit``
+        to render the «осталось N/3» footer or trigger the pricing
+        screen on the next turn."""
+        result = await session.execute(
+            sa.update(User)
+            .where(User.id == user_id)
+            .values(free_questions_used=User.free_questions_used + 1)
+            .returning(User.free_questions_used)
         )
+        return int(result.scalar_one())
 
-    async def reset_free_question(self, session: AsyncSession, user_id: uuid.UUID) -> None:
-        """Flip the free-question flag back to False. Admin testing aid —
-        not exposed to regular users (the pricing screen's «Пропустить
-        (тест)» button is rendered only when the caller is the admin,
-        and the callback handler re-validates admin status)."""
+    async def reset_free_questions(self, session: AsyncSession, user_id: uuid.UUID) -> None:
+        """Drop the counter back to zero. Used by ``handle_pricing_skip``
+        — пока ЮКасса не подключена, кнопка «Продолжить бесплатно»
+        доступна всем (не только admin как раньше). После подключения
+        оплаты — метод вызывает только webhook успешной транзакции."""
         await session.execute(
-            sa.update(User).where(User.id == user_id).values(free_question_used=False)
+            sa.update(User).where(User.id == user_id).values(free_questions_used=0)
         )

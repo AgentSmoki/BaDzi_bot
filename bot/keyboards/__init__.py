@@ -331,21 +331,28 @@ def school_selector_kb() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def pricing_kb(*, allow_skip: bool = False) -> InlineKeyboardMarkup:
-    """Pricing keyboard shown after the free question is consumed.
+def pricing_kb(*, allow_skip: bool = True) -> InlineKeyboardMarkup:
+    """Pricing keyboard shown after the free quota is consumed.
 
-    ``allow_skip``: when True, adds a hidden «Пропустить (тест)» button
-    that resets ``free_question_used`` so the same user can keep asking
-    (admin-only, used during pre-release testing). The handler is
-    behind an explicit admin-id check, so a leaked callback_data on
-    a non-admin chat is inert.
+    Wave 7 UX rework (2026-05-24):
+    - Тарифные кнопки помечены «(скоро)» и шлют callback_data
+      ``pay:disabled:*`` → handler показывает alert «оплата
+      подключается». До запуска ЮКассы (1.12.3) кнопки нерабочие,
+      но видны клиенту как «обещание».
+    - «🔓 Продолжить бесплатно» (бывш. «🔧 Пропустить (тест)») —
+      теперь доступна **всем** (не только admin). Раньше gate был
+      нужен чтобы избежать абуза тестового флага в проде; сейчас
+      ЮКасса не работает в принципе, поэтому skip-режим = единственный
+      путь продолжить разговор. При подключении ЮКассы вернуть
+      ``allow_skip=False`` (или удалить параметр вместе с handler'ом
+      pricing:skip).
     """
     builder = InlineKeyboardBuilder()
-    builder.button(text="Месяц — 290 ₽", callback_data="pay:monthly")
-    builder.button(text="3 месяца — 990 ₽", callback_data="pay:quarterly")
-    builder.button(text="Год — 2 490 ₽", callback_data="pay:annual")
+    builder.button(text="💳 Месяц — 290 ₽ (скоро)", callback_data="pay:disabled:monthly")
+    builder.button(text="💳 3 месяца — 990 ₽ (скоро)", callback_data="pay:disabled:quarterly")
+    builder.button(text="💳 Год — 2 490 ₽ (скоро)", callback_data="pay:disabled:annual")
     if allow_skip:
-        builder.button(text="🔧 Пропустить (тест)", callback_data="pricing:skip")
+        builder.button(text="🔓 Продолжить бесплатно", callback_data="pricing:skip")
     builder.button(text="Назад", callback_data="menu:back")
     builder.adjust(1)
     return builder.as_markup()

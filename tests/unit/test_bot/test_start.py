@@ -166,11 +166,14 @@ async def test_menu_pricing_renders_stub_with_pricing_kb(
     fake_callback.message.answer.assert_awaited_once()
     text = fake_callback.message.answer.call_args.args[0]
     assert "Тарифы" in text
-    # The keyboard passed in `reply_markup` must be the pricing kb (has pay:* buttons)
+    # The keyboard passed in `reply_markup` must be the pricing kb.
+    # Wave 7 UX rework (2026-05-24): тарифы теперь pay:disabled:* (alert
+    # «оплата подключается»). При запуске ЮКассы — заменить на pay:* активные.
     kb = fake_callback.message.answer.call_args.kwargs["reply_markup"]
     cbs = _callback_data_set(kb)
-    assert "pay:monthly" in cbs
-    assert "pay:annual" in cbs
+    assert "pay:disabled:monthly" in cbs
+    assert "pay:disabled:annual" in cbs
+    assert "pricing:skip" in cbs  # «Продолжить бесплатно» доступна всем
     fake_callback.answer.assert_awaited()
 
 

@@ -87,9 +87,23 @@ _consultation_repo = ConsultationRepository()
 _user_repo = UserRepository()
 
 
-_FREE_QUESTION_USED_MSG = (
-    "У вас был один бесплатный вопрос. Чтобы продолжить диалог с Анастасией, выберите тариф ниже."
-)
+def _free_questions_used_msg(limit: int) -> str:
+    """Сообщение когда исчерпан лимит бесплатных вопросов. Wave 7 UX
+    (2026-05-24): динамическое — раньше было «у вас был ОДИН бесплатный
+    вопрос», сейчас лимит ≥ 3."""
+    return (
+        f"Вы использовали все {limit} бесплатных вопросов. Чтобы продолжить "
+        "диалог с Анастасией, выберите тариф ниже — или продолжите бесплатно "
+        "(пока подключаем оплату)."
+    )
+
+
+def _remaining_footer(remaining: int, limit: int) -> str:
+    """Wave 7 UX footer показывающий сколько бесплатных вопросов
+    осталось. Показываем ПОСЛЕ каждого ответа пока ``remaining > 0``.
+    Если оплата подключена (или вопросы безлимитны) — не показываем."""
+    return f"\n———\n🎁 Осталось бесплатных вопросов: {remaining} из {limit}"
+
 
 # Wave 6 / Phase 6: confidence threshold for skill_router below which we
 # fall back to the universal «default» skill. Routers occasionally emit
@@ -732,7 +746,7 @@ async def handle_reset(
     await message.answer("История диалога очищена. Карта осталась.")
 
 
-# ── pricing:skip — admin testing aid ─────────────────────────────────────
+# ── pricing:skip — продолжить бесплатно (пока ЮКасса не подключена) ──────
 
 
 @consultation_router.callback_query(F.data == "pricing:skip")
@@ -743,27 +757,27 @@ async def handle_pricing_skip(
     state: FSMContext,
     history_store: HistoryStore,
 ) -> None:
-    """Admin-only: reset the free-question flag.
+    """Сбрасывает счётчик бесплатных вопросов в 0 и продолжает разговор.
 
-    1.17.12 (2026-05-21): if the user had a pending question that
-    triggered the guard, replay it immediately — no need to retype.
-    Otherwise nudge them to press «Задать вопрос».
+    Wave 7 UX rework (2026-05-24): раньше admin-only (testing aid). Теперь
+    **доступно всем** — пока ЮКасса не подключена (1.12.3 в backlog),
+    это единственный способ продолжить за лимитом 3 бесплатных. При
+    подключении оплаты — удалить (или скрыть через ``allow_skip=False``
+    в pricing_kb).
 
-    Hardened: the button is only added to ``pricing_kb`` for admin
-    (see consultation guard), but we still re-check
-    ``user.telegram_id == admin_telegram_id`` here in case the
-    callback_data ever leaks (no-op on non-admin).
+    Auto-resume (1.17.12 fix, доработано 2026-05-24): если в FSM был
+    pending_free_question — запускаем consultation сразу, не заставляем
+    пользователя вводить вопрос заново.
     """
-    settings = get_settings()
-    if user.telegram_id != settings.admin_telegram_id:
-        # Non-admin clicked a leaked admin callback — silently dismiss.
-        await callback.answer()
-        return
-
-    await _user_repo.reset_free_question(session, user.id)
-    user.free_question_used = False
-    await callback.answer("Сброшено")
-    logger.info("pricing.admin_skip", user_id=str(user.id), telegram_id=user.telegram_id)
+    await _user_repo.reset_free_questions(session, user.id)
+    user.free_questions_used = 0
+    await callback.answer("Лимит сброшен")
+    logger.info(
+        "pricing.skip_used",
+        user_id=str(user.id),
+        telegram_id=user.telegram_id,
+        is_admin=(user.telegram_id == get_settings().admin_telegram_id),
+    )
 
     if not isinstance(callback.message, Message):
         return
@@ -774,14 +788,14 @@ async def handle_pricing_skip(
 
     if not pending_question:
         await callback.message.answer(
-            "🔧 Тестовый режим: лимит сброшен. Нажмите «Задать вопрос» и продолжайте.",
+            "Лимит сброшен. Нажмите «Задать вопрос» и продолжайте.",
         )
         return
 
     chart = await _resolve_active_chart(state, session, user)
     if chart is None:
         await callback.message.answer(
-            "🔧 Лимит сброшен, но карта не найдена. "
+            "Лимит сброшен, но карта не найдена. "
             "Откройте карту через меню и задайте вопрос заново.",
             reply_markup=_no_chart_kb(),
         )
@@ -805,6 +819,21 @@ async def handle_pricing_skip(
         history_store=history_store,
         question=pending_question,
         chart=chart,
+    )
+
+
+# ── pay:disabled:* — все 3 тарифа пока неактивны ─────────────────────────
+
+
+@consultation_router.callback_query(F.data.startswith("pay:disabled:"))
+async def handle_payment_disabled(callback: CallbackQuery) -> None:
+    """Wave 7 UX (2026-05-24): тарифные кнопки в pricing_kb помечены
+    «(скоро)» и шлют этот callback. Показываем alert чтобы клиент знал
+    что оплата в процессе подключения. При запуске ЮКассы — заменить
+    handler'ом активной оплаты + удалить «(скоро)» из labels."""
+    await callback.answer(
+        "💳 Подключение оплаты в процессе. Пока используйте «Продолжить бесплатно».",
+        show_alert=True,
     )
 
 
@@ -870,19 +899,23 @@ async def handle_voice_question(
         await state.set_state(None)
         return
 
-    if user.free_question_used:
-        settings = get_settings()
-        is_admin = user.telegram_id == settings.admin_telegram_id
+    settings = get_settings()
+    remaining = settings.free_questions_limit - user.free_questions_used
+    if remaining <= 0:
         await state.update_data(pending_free_question=transcript)
+        # Wave 7 UX: allow_skip=True по умолчанию (доступно всем пока
+        # ЮКасса не подключена). При запуске оплаты — поменять на
+        # ``allow_skip=False`` или удалить параметр совсем.
         await message.answer(
-            _FREE_QUESTION_USED_MSG,
-            reply_markup=pricing_kb(allow_skip=is_admin),
+            _free_questions_used_msg(settings.free_questions_limit),
+            reply_markup=pricing_kb(),
         )
         logger.info(
             "consultation.blocked_by_free_question_guard",
             user_id=str(user.id),
             telegram_id=user.telegram_id,
-            admin_skip_offered=is_admin,
+            used=user.free_questions_used,
+            limit=settings.free_questions_limit,
             source="voice",
         )
         return
@@ -974,25 +1007,25 @@ async def handle_question(
         await state.set_state(None)
         return
 
-    # Free-question guard (task 1.12.0).
-    if user.free_question_used:
-        settings = get_settings()
-        is_admin = user.telegram_id == settings.admin_telegram_id
-        # 1.17.12 (2026-05-21) — stash the question so admin-skip can
-        # replay it instantly instead of asking the user to retype.
+    # Free-questions guard (Wave 7 UX rework 2026-05-24, бывш. 1.12.0).
+    settings = get_settings()
+    remaining = settings.free_questions_limit - user.free_questions_used
+    if remaining <= 0:
+        # 1.17.12 stash сохраняем: handle_pricing_skip → auto-resume
+        # без повторного ввода вопроса.
         await state.update_data(pending_free_question=question)
         await message.answer(
-            _FREE_QUESTION_USED_MSG,
-            reply_markup=pricing_kb(allow_skip=is_admin),
+            _free_questions_used_msg(settings.free_questions_limit),
+            reply_markup=pricing_kb(),
         )
         # Keep FSM state as `waiting_question` so the pending data
-        # survives until handle_pricing_skip clears it. (Was set to
-        # None here previously, which would have dropped the stash.)
+        # survives until handle_pricing_skip clears it.
         logger.info(
             "consultation.blocked_by_free_question_guard",
             user_id=str(user.id),
             telegram_id=user.telegram_id,
-            admin_skip_offered=is_admin,
+            used=user.free_questions_used,
+            limit=settings.free_questions_limit,
         )
         return
 
@@ -1343,7 +1376,19 @@ async def _continue_consultation_with_skill(
         await message.answer(chunk)
     await message.answer(chunks[-1], reply_markup=_after_answer_kb())
 
-    await _user_repo.mark_free_question_used(session, user.id)
+    # Wave 7 UX rework (2026-05-24): счётчик вместо bool. Возвращает
+    # обновлённое значение — используем для footer «осталось N/3».
+    new_used = await _user_repo.increment_free_questions(session, user.id)
+    user.free_questions_used = new_used
+
+    # Footer с остатком бесплатных вопросов — только пока ЮКасса не
+    # подключена. При активной оплате (settings.payments_enabled и
+    # подписка купленa) footer лишний; пока показываем всем без
+    # подписки.
+    settings = get_settings()
+    remaining = max(0, settings.free_questions_limit - new_used)
+    if remaining > 0:
+        await message.answer(_remaining_footer(remaining, settings.free_questions_limit))
 
     await history_store.append(
         user.telegram_id, ChatMessage(role="user", content=original_question)
