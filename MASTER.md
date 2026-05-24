@@ -5,8 +5,93 @@
 
 **Разработчик:** Богдан
 **Дата старта:** март 2026
-**Статус:** 🚧 Разделы 1.5, 1.6 и большая часть 1.7 закрыты (2026-05-07). End-to-end FSM собирает данные → Calculator → БД → SVG/CairoSVG-карта (PNG) → Telegram. ⚠️ **Открытые баги визуала после последнего деплоя** — см. секцию «Известные проблемы» ниже. 369/369 тестов ✓ покрытие 97%.
+**Статус:** 🚧 Разделы 1.5, 1.6 и большая часть 1.7 закрыты (2026-05-07). End-to-end FSM собирает данные → Calculator → БД → SVG/CairoSVG-карта (PNG) → Telegram. ⚠️ **Открытые баги визуала после последнего деплоя** — см. секцию «Известные проблемы» ниже. 871/871 тестов ✓ покрытие 97.85%.
 **Версия документа:** 3.4
+
+---
+
+## Сессия 2026-05-24 — EdoHa Digital Twin импорт (1.18.22 закрыт)
+
+**Контекст.** Phase 5.4 backlog'а («Edoha sensei ingest») реализован — все
+**7742 узла Digital Twin Мастера ЭдоХа** из `/Users/admin/Documents/Razarabotka/EdoHa/kuzu/db`
+импортированы в BaDzi `knowledge/kuzu_db` с `school='edoha'`. До этого
+импорта при выборе школы 🌀 Мастер ЭдоХа RAG возвращал только 32 universal
+ноды (edoha-фильтр в Phase 5 был, но edoha-нодов = 0); теперь возвращает
+universal + 7742 edoha с приоритизацией L8 квинтэссенции (Manifesto/
+Quote/Fact) над L7 (MentalModel/CausalBelief/Document) и L6 (Relation/
+StyleMarker).
+
+**2-фазный pipeline** (kuzu version conflict — EdoHa на 0.11.3 file-format,
+BaDzi на 0.10 dir-format):
+
+| Phase | Скрипт | Venv | Что |
+|---|---|---|---|
+| 1 | `scripts/edoha_export_json.py` | EdoHa | Читает EdoHa kuzu (0.11) → JSONL в `/tmp/edoha_export/` (8 nodes_*.jsonl + edges.jsonl) |
+| 2 | `scripts/import_edoha_kuzu.py` | BaDzi | JSONL → `IngestedDoc` через адаптер → `knowledge.ingest.writer.upsert_doc` в BaDzi kuzu |
+| 3 (опц.) | `scripts/export_edoha_to_md.py` | любой | 524 highlight .md в `База/edoha/highlights/` для git-видимости |
+
+**Маппинг типов** (id-префикс `edoha:<type>:<original_pk>`):
+- Manifesto (212) → L8 / auth 10
+- Quote (112) → L8 / auth 10
+- Fact (788) → L8 / auth 9
+- MentalModel (808) → L7 / auth 9
+- CausalBelief (1595) → L7 / auth 8
+- Document (537) → L7 / auth 9
+- Relation (539) → L6 / auth 8
+- StyleMarker (3151) → L6 / auth 7
+
+**Edges**: 7850 (только DERIVED_FROM реально заполнен в EdoHa — остальные
+REL pустые: BELONGS_TO_DIGEST=0, CITES=0, REINFORCES=0, CONTRADICTS=0).
+Маппинг: DERIVED_FROM → REFERS_TO с `kind='derived_from'` (через стандартный
+writer.py, kind дискриминатор пока не используется в Cypher retrieve).
+
+**Технические находки сессии:**
+
+1. **EdoHa schema несовместима с BaDzi напрямую** — EdoHa использует
+   фрактальную иерархию Person/Digest/Document + 7 L4 entity tables;
+   BaDzi — одна плоская Node table. Решено через JSONL intermediate,
+   не пытаемся реплицировать EdoHa schema в BaDzi.
+
+2. **Kuzu version mismatch** (EdoHa 0.11.3 single-file vs BaDzi 0.10
+   directory) сделал прямое чтение из BaDzi venv невозможным
+   (`IO exception: Cannot open file .lock: Not a directory`). 2-фазный
+   pipeline через JSONL обходит это без upgrade'а BaDzi (lock-in на
+   0.10 из-за docker named volume, см. ADR-004).
+
+3. **Buffer pool OOM на 5000+ upserts** — kuzu 0.10 по умолчанию
+   аллоцирует 80% RAM, на 8 GB ноутбуке с MCP+IDE упирался в OOM на
+   3000-м StyleMarker. Решение: `kuzu.Database(buffer_pool_size=1*1024**3)`
+   + `CHECKPOINT` каждые 500 upserts → 7742 nodes импортируются за ~7
+   минут без сбоев.
+
+4. **Edges export query** — в kuzu 0.11 нельзя `RETURN a._label, b._label`
+   (`_label` не свойство node alias). Решение: `RETURN a, b` целиком
+   как dict, потом `dict["_label"]` уже есть в Python-стороне.
+
+**Распределение в BaDzi kuzu после импорта:**
+
+```
+classic    14
+edoha    7742
+universal  32
+```
+
+**RAG retrieve smoke** (вопрос «опасный месяц 2026?» с `school='edoha'`):
+возвращает ~11 KB [KNOWLEDGE] блока с цитатами s248 «Прогноз октября
+2024» из транскриптов мастера про конфликт энергий Дракона и Собаки —
+впервые edoha-выборка даёт качественно отличный контекст от classic/
+modern.
+
+**Что НЕ работает / отложено:**
+
+- W5e-MVP master meetings: интеграция Богдановских master-meeting
+  summaries как L8_personal_master c filter по `chart_id` (нужен схема
+  extension для chart_id-binding на Node). Сейчас EdoHa импорт даёт
+  global personal master content (не per-chart) — это OK, но
+  индивидуальные сессии Богдана с мастером пока не добавляются автоматом.
+- bge-m3 embeddings (Phase 2.5) — стало особенно важным теперь когда
+  7800+ узлов в графе; без векторного ranking sparse retrieval может
+  пропускать релевантное.
 
 ---
 

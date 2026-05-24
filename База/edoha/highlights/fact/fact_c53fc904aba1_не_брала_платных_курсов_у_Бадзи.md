@@ -1,0 +1,20 @@
+---
+level: L8
+topic: edoha_fact
+title: "не брала платных курсов у Бадзи"
+school: edoha
+source_authority: 9
+source: edoha_digital_twin
+last_updated: 2026-05-24
+related_concepts: []
+applicable_when: []
+---
+
+# Fact
+
+не брала платных курсов у Бадзи
+
+
+## Доказательства
+
+- Платно я не брала Никакого бадзи

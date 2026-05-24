@@ -1,0 +1,17 @@
+---
+level: L8
+topic: edoha_quote
+title: "Это не я придумал. Это тысячелетие."
+school: edoha
+source_authority: 10
+source: s352_ЭдоХа_1_ch002
+last_updated: 2026-05-24
+related_concepts: []
+applicable_when: []
+---
+
+# Quote
+
+> Это не я придумал. Это тысячелетие.
+
+_Повторов: 1_

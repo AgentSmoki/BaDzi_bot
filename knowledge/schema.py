@@ -47,8 +47,23 @@ CREATE NODE TABLE IF NOT EXISTS Node(
 ``universal`` — base theory shared across schools (10 stems, 12 branches,
 5 elements, cycles, clashes); ``classic`` — Yuan Hai Zi Ping methodology
 (25 格局, 用神, classical 神煞 application); ``edoha`` — Мастер ЭдоХа
-authored material; ``modern`` — psychological synthesis. Existing DBs
-without the column are migrated by ``MIGRATION_DDL`` below."""
+authored material (7742 nodes imported via scripts/import_edoha_kuzu.py
+2026-05-24 — level=8 для Manifesto/Quote/Fact квинтэссенции, L7 для
+MentalModel/CausalBelief/Document, L6 для Relation/StyleMarker); ``modern``
+— psychological synthesis. Existing DBs without the column are migrated
+by ``MIGRATION_DDL`` below.
+
+**Level convention** (используется в ai/rag/retrieve.py::_score через
+_LEVEL_WEIGHT=0.4):
+- L1-L2: фундаментальная теория (Heavenly Stems, Earthly Branches)
+- L3: combinations (10 Gods, 12 stages)
+- L4: interactions (六冲, 六合, 三刑)
+- L5: stars (神煞)
+- L6: structures (格局) + EdoHa secondary (Relation/StyleMarker)
+- L7: predictive patterns + EdoHa structured (MentalModel/CausalBelief/Document)
+- **L8: L8_personal_master** — личная квинтэссенция мастера (EdoHa
+  Manifesto/Quote/Fact + будущие master-meetings W5e). Имеет
+  приоритет в score: +3.2 vs L7=+2.8 (level*0.4)."""
 
 MIGRATION_DDL: Final[tuple[str, ...]] = (
     # Wave 7 Phase 5 — add `school` to existing pre-Phase-5 databases.
