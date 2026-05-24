@@ -177,13 +177,19 @@ def _sanitize_query(raw: str) -> str:
 
 
 async def _llm_query_for_pillar(pillar: Pillar) -> str:
-    """Ask the fast LLM for a search query. ``""`` on any failure."""
+    """Ask the fast LLM for a search query. ``""`` on any failure.
+
+    YC ``/v1/chat/completions`` requires the full
+    ``gpt://<folder>/<short>/latest`` URI — short model names give
+    400 «Failed to parse model URI» (Wave 6 Phase 7 regression,
+    same fix as ai.skill_router uses)."""
     settings = get_settings()
     user_msg = _pillar_to_prompt(pillar)
+    model_uri = f"gpt://{settings.yc_ai_folder_id}/{settings.yc_fast_model}/latest"
     try:
         result = await chat(
             provider="yc",
-            model=settings.yc_fast_model,
+            model=model_uri,
             messages=[
                 ChatMessage(role="system", content=_SYSTEM_PROMPT),
                 ChatMessage(role="user", content=user_msg),

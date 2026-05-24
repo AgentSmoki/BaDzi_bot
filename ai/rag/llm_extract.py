@@ -214,10 +214,13 @@ async def extract_concepts_llm(
         return cached
 
     settings = get_settings()
+    # YC requires the full gpt://<folder>/<short>/latest URI (skill_router
+    # had the same issue, fixed in Wave 6 Phase 7).
+    model_uri = f"gpt://{settings.yc_ai_folder_id}/{settings.yc_fast_model}/latest"
     try:
         result = await chat(
             provider="yc",
-            model=settings.yc_fast_model,
+            model=model_uri,
             messages=[
                 ChatMessage(role="system", content=_SYSTEM_PROMPT),
                 ChatMessage(role="user", content=question),
