@@ -36,14 +36,29 @@ def test_list_skills_returns_all_builtin() -> None:
     assert names == {"work", "relationships", "health", "time", "risk", "default"}
 
 
-def test_risk_skill_body_describes_3vs1_pattern() -> None:
-    """The `risk` skill (Wave 7) carries the chain-of-thought algorithm
-    from the Мастер ЭдоХа school. Body must reference the core principle
-    so router few-shots and main-LLM injection stay aligned."""
+def test_risk_skill_body_is_school_neutral_disciplinator() -> None:
+    """Wave 7 Option X (2026-05-24) rewrote risk.md as a school-neutral
+    disciplinator — what to analyse + how to format. The concrete
+    ranking algorithm (3-vs-1 for edoha, 六冲+三刑 for classic, growth
+    zones for modern) moved to base_<school>.md overlays.
+
+    Body MUST:
+    - Cover what to analyse (chart features, incoming pillars, mitigators)
+    - Reference school-specific algorithms by name (not embed any)
+    - NOT carry the 3-vs-1 algorithm directly (that's edoha-only now)
+    """
     spec = load_skill("risk")
-    assert "3-vs-1" in spec.body
-    assert "六冲" in spec.body  # canonical clash term must be present
+    body = spec.body
+    # Trigger keywords still cover the risk domain
     assert any("опасн" in kw or "риск" in kw for kw in spec.trigger_keywords)
+    # Body references school methodology dispatch (not embeds algorithm)
+    assert "школ" in body.lower()
+    assert "base_<school>.md" in body or "выбранной школы" in body
+    # Body covers the universal analysis points
+    assert "天乙貴人" in body or "благородные" in body.lower()
+    assert "六冲" in body  # canonical clash term still appears as context
+    # Body explicitly forbids cross-school methodology mixing
+    assert "Не смешивай методологии" in body or "Не путай методологии" in body
 
 
 def test_list_skills_is_tuple_for_cache_safety() -> None:
