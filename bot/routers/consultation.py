@@ -69,6 +69,12 @@ from bot.keyboards import (
     school_selector_kb,
 )
 from bot.services.menu import format_chart_label
+from bot.services.telegram_split import (
+    TG_MAX_CHARS as _TG_MAX_CHARS,
+)
+from bot.services.telegram_split import (
+    split_for_telegram as _split_for_telegram,
+)
 from bot.services.teletranscribe import TeleTranscribeError, transcribe_voice
 from bot.states import ConsultationState
 from calculator.calendar_select import EVENT_TYPE_RU, pick_best_dates
@@ -473,8 +479,8 @@ async def handle_partner_skip(
 
 
 # Telegram caps text messages at 4096 chars; 4000 leaves headroom
-# for HTML tags and edge-of-paragraph splits.
-_TG_MAX_CHARS = 4000
+# for HTML tags and edge-of-paragraph splits. Constant is imported
+# from bot/services/telegram_split.py (shared with scheduler/jobs.py).
 
 
 _MD_BOLD_RE = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
@@ -498,57 +504,6 @@ def _markdown_to_html(text: str) -> str:
     между LLM-форматом и parse_mode=HTML.
     """
     return _MD_BOLD_RE.sub(r"<b>\1</b>", text)
-
-
-def _split_for_telegram(text: str, max_len: int) -> list[str]:
-    """Split a long LLM answer into chunks that fit Telegram's 4096-
-    char message limit.
-
-    Prefers paragraph boundaries (double newline), falls back to
-    single newlines, then to hard char-slice if a paragraph itself
-    is longer than `max_len`. Empty chunks are dropped.
-    """
-    if len(text) <= max_len:
-        return [text]
-
-    out: list[str] = []
-    current = ""
-    for paragraph in text.split("\n\n"):
-        candidate = paragraph if not current else f"{current}\n\n{paragraph}"
-        if len(candidate) <= max_len:
-            current = candidate
-            continue
-        if current:
-            out.append(current)
-            current = ""
-        if len(paragraph) <= max_len:
-            current = paragraph
-            continue
-        # One paragraph alone is bigger than max_len — split on lines,
-        # then char-slice as the last resort.
-        for line in paragraph.split("\n"):
-            line_candidate = line if not current else f"{current}\n{line}"
-            if len(line_candidate) <= max_len:
-                current = line_candidate
-                continue
-            if current:
-                out.append(current)
-                current = ""
-            if len(line) <= max_len:
-                current = line
-            else:
-                for i in range(0, len(line), max_len):
-                    piece = line[i : i + max_len]
-                    if current:
-                        out.append(current)
-                        current = ""
-                    if i + max_len < len(line):
-                        out.append(piece)
-                    else:
-                        current = piece
-    if current:
-        out.append(current)
-    return [c for c in out if c]
 
 
 async def _partner_kb_for_user(
@@ -783,8 +738,20 @@ async def handle_pricing_skip(
         return
 
     # Check if there is a stashed question to replay.
+    # FSM data — основной источник; Redis-ключ — fallback на случай
+    # если FSM была затёрта между guard и сейчас (school selector,
+    # навигация, /start и т.д.).
     data = await state.get_data()
     pending_question = (data.get("pending_free_question") or "").strip()
+    if not pending_question:
+        redis_pending = await history_store.pop_pending_question(user.telegram_id)
+        if redis_pending:
+            pending_question = redis_pending
+            logger.info(
+                "consultation.pricing_skip_used_redis_fallback",
+                user_id=str(user.id),
+                telegram_id=user.telegram_id,
+            )
 
     if not pending_question:
         await callback.message.answer(
@@ -1013,7 +980,11 @@ async def handle_question(
     if remaining <= 0:
         # 1.17.12 stash сохраняем: handle_pricing_skip → auto-resume
         # без повторного ввода вопроса.
+        # Двойной stash: FSM data + Redis (TTL 1ч). FSM может быть
+        # затёрта другими callback'ами (school selector, навигация),
+        # Redis-ключ переживёт любые такие сбросы.
         await state.update_data(pending_free_question=question)
+        await history_store.stash_pending_question(user.telegram_id, question)
         await message.answer(
             _free_questions_used_msg(settings.free_questions_limit),
             reply_markup=pricing_kb(),

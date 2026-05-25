@@ -43,6 +43,7 @@ EventType = Literal[
     "surgery",
     "move",
     "launch",
+    "spiritual",
 ]
 
 EVENT_TYPE_RU: Final[dict[EventType, str]] = {
@@ -52,6 +53,7 @@ EVENT_TYPE_RU: Final[dict[EventType, str]] = {
     "surgery": "Операция / медицинская процедура",
     "move": "Переезд",
     "launch": "Запуск проекта",
+    "spiritual": "Медитация / чайная церемония / ритуал",
 }
 
 
@@ -170,6 +172,13 @@ EVENT_RULES: Final[dict[EventType, EventRules]] = {
         preferred_day_elements=("wood", "fire"),
         avoided_day_elements=(),
         source="modern interpretation — entrepreneurial launches",
+    ),
+    "spiritual": EventRules(
+        required_stars=("天乙贵人", "月德贵人", "天德贵人", "文昌贵人", "学堂"),
+        forbidden_stars=("白虎", "飞刃", "灾煞", "亡神"),
+        preferred_day_elements=("water", "wood"),
+        avoided_day_elements=("fire",),
+        source="modern interpretation — meditative / spiritual practices",
     ),
 }
 

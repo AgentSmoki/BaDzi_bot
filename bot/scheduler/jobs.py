@@ -29,6 +29,7 @@ from ai.forecast import (
     generate_monthly_forecast,
 )
 from bot.config import get_settings
+from bot.services.telegram_split import split_for_telegram
 from calculator import calculate_chart
 from calculator.models import ChartInput, ChartOutput
 from db.engine import get_engine
@@ -146,12 +147,19 @@ async def _send_or_record_error(
                     url=hero_image_url,
                     error=str(photo_exc),
                 )
-        await bot.send_message(chat_id=telegram_id, text=text, parse_mode="HTML")
+        # Split длинного текста на параграфы чтобы не словить
+        # «Bad Request: message is too long» (Telegram cap 4096 chars).
+        # Без split один длинный forecast → photo прошёл, текст упал →
+        # клиент видит только картинку.
+        chunks = split_for_telegram(text)
+        for chunk in chunks:
+            await bot.send_message(chat_id=telegram_id, text=chunk, parse_mode="HTML")
         await delivery_repo.mark_sent(session, delivery_id)
         logger.info(
             "forecast.delivered",
             delivery_id=str(delivery_id),
             had_hero_image=bool(hero_image_url),
+            chunk_count=len(chunks),
         )
     except (TelegramBadRequest, TelegramForbiddenError) as exc:
         await delivery_repo.mark_error(session, delivery_id, str(exc))
@@ -240,13 +248,26 @@ async def _send_daily_forecast_inner(
             return
         chart_output = ChartOutput.model_validate(chart.chart_data)
 
-        forecast: ForecastResult = await generate_daily_forecast(
-            chart=chart_output, target_date=target_date
-        )
+        # Re-use already-generated content when retrying a failed send.
+        # См. forecast.monthly.reusing_existing_content fix — без этого
+        # каждые 5 мин rebuild_jobs запускает новый LLM-вызов для
+        # delivery row которая зависла без sent_at.
+        if existing is not None and existing.content:
+            body = existing.content
+            logger.info(
+                "forecast.daily.reusing_existing_content",
+                subscription_id=str(subscription_id),
+                slot_key=slot_key,
+                delivery_id=str(existing.id),
+            )
+        else:
+            forecast: ForecastResult = await generate_daily_forecast(
+                chart=chart_output, target_date=target_date
+            )
 
-        # Render delivery body with header.
-        header = _DELIVERY_HEADER[ForecastKind.daily]
-        body = f"{header}\n\n{forecast.text}"
+            # Render delivery body with header.
+            header = _DELIVERY_HEADER[ForecastKind.daily]
+            body = f"{header}\n\n{forecast.text}"
 
         # Wave 7 Phase E — Unsplash hero image на основе столпа дня
         # target_date. Берём день из synthetic noon-chart (тот же что
@@ -277,21 +298,27 @@ async def _send_daily_forecast_inner(
             )
             hero_image_url = None
 
-        # Insert delivery row (UNIQUE protects retry doubles).
-        delivery = await delivery_repo.record(
-            session,
-            subscription_id=subscription_id,
-            slot_key=slot_key,
-            content=body,
-        )
-        await session.commit()
-        if delivery is None:
-            logger.debug(
-                "forecast.daily.dedup_blocked",
-                subscription_id=str(subscription_id),
+        # Insert delivery row (UNIQUE protects retry doubles). If we
+        # already have an existing row with content (failed previous send)
+        # — re-use it instead of creating a new one.
+        if existing is not None and existing.content:
+            delivery = existing
+        else:
+            new_delivery = await delivery_repo.record(
+                session,
+                subscription_id=subscription_id,
                 slot_key=slot_key,
+                content=body,
             )
-            return
+            await session.commit()
+            if new_delivery is None:
+                logger.debug(
+                    "forecast.daily.dedup_blocked",
+                    subscription_id=str(subscription_id),
+                    slot_key=slot_key,
+                )
+                return
+            delivery = new_delivery
 
     # Fresh session for the send + final write — keeps LLM call (which
     # held the session open for ~10-30s) decoupled from the network IO.
@@ -560,23 +587,39 @@ async def _send_monthly_forecast_inner(
             return
         chart_output = ChartOutput.model_validate(chart.chart_data)
 
-        forecast = await generate_monthly_forecast(chart=chart_output, period_start=period_start)
-        header_label = (
-            f"{_DELIVERY_HEADER[ForecastKind.monthly]} — неделя {week}"
-            if week is not None
-            else _DELIVERY_HEADER[ForecastKind.monthly]
-        )
-        body = f"{header_label}\n\n{forecast.text}"
+        # Re-use already-generated content when retrying a failed send.
+        # Без этого rebuild_jobs every 5min regenerates LLM (7-10k tokens)
+        # for a delivery row that just failed на «message too long».
+        if existing is not None and existing.content:
+            body = existing.content
+            delivery = existing
+            logger.info(
+                "forecast.monthly.reusing_existing_content",
+                subscription_id=str(subscription_id),
+                slot_key=slot_key,
+                delivery_id=str(existing.id),
+            )
+        else:
+            forecast = await generate_monthly_forecast(
+                chart=chart_output, period_start=period_start
+            )
+            header_label = (
+                f"{_DELIVERY_HEADER[ForecastKind.monthly]} — неделя {week}"
+                if week is not None
+                else _DELIVERY_HEADER[ForecastKind.monthly]
+            )
+            body = f"{header_label}\n\n{forecast.text}"
 
-        delivery = await delivery_repo.record(
-            session,
-            subscription_id=subscription_id,
-            slot_key=slot_key,
-            content=body,
-        )
-        await session.commit()
-        if delivery is None:
-            return
+            new_delivery = await delivery_repo.record(
+                session,
+                subscription_id=subscription_id,
+                slot_key=slot_key,
+                content=body,
+            )
+            await session.commit()
+            if new_delivery is None:
+                return
+            delivery = new_delivery
 
     async with session_factory() as session:
         sub = await sub_repo.get_by_id(session, subscription_id)

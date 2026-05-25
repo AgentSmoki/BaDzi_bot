@@ -322,8 +322,31 @@ def compose_messages(
     fabrication per research 2026-05-16. History is preserved verbatim
     so the LLM can refer back to earlier answers.
     """
+    # [TODAY] — текущая дата всегда инжектится в первой секции, ВНЕ
+    # зависимости от того определил ли router temporal-intent. Без
+    # этого LLM (training cutoff Jan 2026) при вопросах про «ближайшие
+    # благоприятные дни» / «когда мне можно» может выдать прошедшие
+    # даты «из обучения». См. инцидент с @S_Kate2011 2026-05-25.
+    today = datetime.now(UTC).date()
+    weekday_ru = [
+        "понедельник",
+        "вторник",
+        "среда",
+        "четверг",
+        "пятница",
+        "суббота",
+        "воскресенье",
+    ][today.weekday()]
+    today_block = (
+        f"[TODAY]\n"
+        f"Сегодня: {today.isoformat()} ({weekday_ru}).\n"
+        f"Никогда не предлагай прошедшие даты (раньше сегодня) — только\n"
+        f"сегодня и будущие. Если клиент спросил «когда лучше», диапазон\n"
+        f"всегда начинается с сегодня или позже.\n"
+        f"[/TODAY]"
+    )
     chart_block = render_chart_block(chart)
-    sections = [f"[BAZI_DATA]\n{chart_block}\n[/BAZI_DATA]"]
+    sections = [today_block, f"[BAZI_DATA]\n{chart_block}\n[/BAZI_DATA]"]
     if partner_chart is not None:
         partner_block = render_chart_block(partner_chart)
         sections.append(f"[PARTNER_CHART]\n{partner_block}\n[/PARTNER_CHART]")

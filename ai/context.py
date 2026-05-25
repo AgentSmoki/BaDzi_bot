@@ -30,9 +30,21 @@ HISTORY_MAX_MESSAGES: Final = 20
 HISTORY_KEY_PREFIX: Final = "chat:"
 HISTORY_KEY_SUFFIX: Final = ":history"
 
+PENDING_QUESTION_TTL_SECONDS: Final = 60 * 60  # 1 hour
+"""TTL для pending-question stash. После часа клиент скорее всего
+уже забыл что хотел спросить — лучше очистить и не replay'ить."""
+
 
 def _key(user_id: int) -> str:
     return f"{HISTORY_KEY_PREFIX}{user_id}{HISTORY_KEY_SUFFIX}"
+
+
+def _pending_key(user_id: int) -> str:
+    """Отдельный Redis ключ для stash'а вопроса, заблокированного
+    free-question guard. Надёжнее FSM data — переживает любой
+    callback который мог бы сбросить state.
+    """
+    return f"{HISTORY_KEY_PREFIX}{user_id}:pending_question"
 
 
 class HistoryStore:
@@ -96,6 +108,30 @@ class HistoryStore:
     async def clear(self, user_id: int) -> None:
         """Drop the conversation. Used by /reset and admin commands."""
         await self._r.delete(_key(user_id))
+
+    async def stash_pending_question(self, user_id: int, question: str) -> None:
+        """Сохранить вопрос клиента, заблокированный free-question guard,
+        в отдельный Redis-ключ с TTL 1 час. Используется как
+        надёжный fallback на случай если FSM-data будет затёрта между
+        guard и нажатием «продолжить бесплатно»."""
+        if not question:
+            return
+        await self._r.set(
+            _pending_key(user_id),
+            question,
+            ex=PENDING_QUESTION_TTL_SECONDS,
+        )
+
+    async def pop_pending_question(self, user_id: int) -> str | None:
+        """Прочитать и удалить stash'нутый вопрос. None если ничего
+        не было либо TTL истёк. Удаление в одной операции = идемпотентно
+        при повторном нажатии «продолжить бесплатно»."""
+        key = _pending_key(user_id)
+        # GETDEL: атомарно прочитать и удалить. redis-py >= 4.5 поддерживает.
+        value = await self._r.getdel(key)
+        if value is None or not isinstance(value, str):
+            return None
+        return value.strip() or None
 
     async def aclose(self) -> None:
         """Idempotent shutdown — release the Redis connection pool."""
