@@ -620,6 +620,6 @@ def _build_energies_summary(chart: Chart, target_day: date) -> str:
     natal_dm = chart_data.get("day_master", "?")
     return (
         f"Дата: {target_day.strftime('%d.%m.%Y')}\n"
-        f"Натальный Дневной Мастер: {natal_dm}\n"
+        f"Дневной Мастер карты: {natal_dm}\n"
         f"Столпы дня (Y·M·D): {day_pillars}"
     )
