@@ -114,16 +114,18 @@ def test_parse_blocks_missing_blocks_become_empty() -> None:
 
 
 def test_parse_blocks_preserves_follow_up_question_in_body() -> None:
-    """Follow-up `**Дальше можно спросить:** «...»` is part of the body —
-    parse_blocks should keep it intact, the formatter renders it as-is."""
+    """Follow-up `**Чтобы узнать больше, задайте вопрос по этой карте: ...**`
+    is part of the body — parse_blocks should keep it intact, the
+    formatter renders it as-is."""
     text = (
         "## БЛОК 7. Работа\n"
         "Вы трудитесь как Дерево Ян — упорно и системно.\n\n"
-        "**Дальше можно спросить:** «Какие сферы лучше подходят моему столпу месяца?»"
+        "**Чтобы узнать больше, задайте вопрос по этой карте:** "
+        "«Какие сферы лучше подходят моему столпу месяца?»"
     )
     p = parse_blocks(text)
     assert "Вы трудитесь" in p.block_7_in_work
-    assert "**Дальше можно спросить:**" in p.block_7_in_work
+    assert "**Чтобы узнать больше, задайте вопрос по этой карте:**" in p.block_7_in_work
     assert "«Какие сферы лучше подходят моему столпу месяца?»" in p.block_7_in_work
 
 
