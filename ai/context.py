@@ -47,6 +47,14 @@ def _pending_key(user_id: int) -> str:
     return f"{HISTORY_KEY_PREFIX}{user_id}:pending_question"
 
 
+def _suggested_followup_key(user_id: int) -> str:
+    """Redis ключ для последнего follow-up вопроса который Анастасия
+    предложила клиенту. Кнопка «⬆️ Задать предложенный вопрос» под
+    ответом достаёт его и отправляет в pipeline без повторного ввода.
+    """
+    return f"{HISTORY_KEY_PREFIX}{user_id}:suggested_followup"
+
+
 class HistoryStore:
     """Async Redis-backed history. Construct once per process; share
     across handlers via dependency injection (db_session-style middleware
@@ -128,6 +136,33 @@ class HistoryStore:
         при повторном нажатии «продолжить бесплатно»."""
         key = _pending_key(user_id)
         # GETDEL: атомарно прочитать и удалить. redis-py >= 4.5 поддерживает.
+        value = await self._r.getdel(key)
+        if value is None or not isinstance(value, str):
+            return None
+        return value.strip() or None
+
+    async def stash_suggested_followup(self, user_id: int, question: str) -> None:
+        """Сохранить последний follow-up вопрос («Чтобы узнать больше,
+        задайте вопрос по этой карте: …»), извлечённый из ответа
+        Анастасии. Используется кнопкой «⬆️ Задать предложенный
+        вопрос» под ответом — она достанет вопрос и отправит в
+        consultation pipeline без повторного ввода клиентом.
+
+        TTL 1 час: после этого клиент уже потерял контекст ответа.
+        """
+        if not question:
+            return
+        await self._r.set(
+            _suggested_followup_key(user_id),
+            question,
+            ex=PENDING_QUESTION_TTL_SECONDS,
+        )
+
+    async def pop_suggested_followup(self, user_id: int) -> str | None:
+        """Прочитать и удалить последний suggested follow-up вопрос.
+        Атомарно (GETDEL) чтобы случайный повторный клик не
+        дублировал запрос."""
+        key = _suggested_followup_key(user_id)
         value = await self._r.getdel(key)
         if value is None or not isinstance(value, str):
             return None

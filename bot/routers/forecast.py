@@ -19,6 +19,7 @@ chart_id живёт в FSM data под ключом ``_FSM_FORECAST_CHART`` — 
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import uuid
 from datetime import datetime
@@ -63,6 +64,11 @@ from db.repositories.journal_repo import ChartJournalSettingsRepository
 _FSM_FORECAST_CHART = "forecast_chart_id"
 
 logger = structlog.get_logger(__name__)
+
+# Module-global set of in-flight «kick» tasks. asyncio.create_task без
+# хранения ссылки рискует — GC может собрать задачу до её завершения,
+# и await-цепочка оборвётся (RUF006).
+_kick_tasks: set[asyncio.Task[None]] = set()
 
 forecast_router = Router(name="forecast")
 _chart_repo = ChartRepository()
@@ -275,6 +281,56 @@ async def handle_monthly_confirm(
     if isinstance(callback.message, Message):
         await callback.message.answer(msg)
     await callback.answer()
+
+    # Inline kick of the first delivery (Wave 7 hotfix 2026-05-26).
+    # Without this, the first forecast depended on APScheduler's
+    # rebuild_jobs_for_all_subs cycle (every 5 min). If the scheduler
+    # container had restarted after subscription was created — the
+    # «week=1 fire_at < now-1h» guard in _jobs_for_subscription would
+    # silently skip week=1 entirely, and the user never received the
+    # «первая часть через минуту» promised in the confirmation msg.
+    # Bulk and daily delivery use DateTrigger started_at+60s; weekly
+    # week=1 used to use started_at + 0d which is racy.
+    sub_id_for_kick = sub.id
+    period_start_for_kick = sub.started_at.date()
+    first_week = 1 if delivery == MonthlyDelivery.weekly else None
+
+    async def _kick_first_delivery() -> None:
+        # Imported locally to avoid forecast.py ↔ scheduler.jobs import
+        # cycles on bot startup.
+        from bot.scheduler.jobs import send_monthly_forecast_job
+
+        try:
+            # 60s delay matches the «через минуту» phrasing in the
+            # confirmation message and gives the user time to read it
+            # before the photo + text arrive.
+            await asyncio.sleep(60)
+            await send_monthly_forecast_job(
+                subscription_id=sub_id_for_kick,
+                period_start=period_start_for_kick,
+                week=first_week,
+            )
+            logger.info(
+                "forecast.monthly.inline_first_delivery_done",
+                subscription_id=str(sub_id_for_kick),
+                week=first_week,
+            )
+        except Exception as exc:
+            # Inline kick is a UX nicety, не контракт. APScheduler-based
+            # delivery всё ещё работает фоном — если он подхватит job,
+            # клиент получит прогноз с небольшим опозданием.
+            logger.exception(
+                "forecast.monthly.inline_kick_failed",
+                subscription_id=str(sub_id_for_kick),
+                week=first_week,
+                error=str(exc),
+            )
+
+    # Reference хранится в module-global _kick_tasks set, чтобы task
+    # не был сразу собран GC (RUF006). discard через add_done_callback.
+    task = asyncio.create_task(_kick_first_delivery())
+    _kick_tasks.add(task)
+    task.add_done_callback(_kick_tasks.discard)
 
 
 # ── Daily purchase flow ──────────────────────────────────────────────────

@@ -146,12 +146,76 @@ def _today() -> date:
 # ── Keyboards (local — small enough to colocate) ─────────────────────────
 
 
-def _after_answer_kb() -> InlineKeyboardMarkup:
+def _after_answer_kb(*, has_suggestion: bool = False) -> InlineKeyboardMarkup:
+    """Клавиатура под финальным ответом Анастасии.
+
+    Если в ответе LLM был follow-up вопрос — показываем кнопку
+    «⬆️ Задать предложенный вопрос», которая возьмёт его из Redis
+    и отправит в pipeline без повторного ввода. Иначе только кнопки
+    «🔄 Задать ещё вопрос» (свободный ввод) и «В меню».
+    """
     builder = InlineKeyboardBuilder()
-    builder.button(text="Ещё вопрос", callback_data="menu:ask")
+    if has_suggestion:
+        builder.button(text="⬆️ Задать предложенный вопрос", callback_data="suggest:ask")
+    builder.button(text="🔄 Задать ещё вопрос", callback_data="menu:ask")
     builder.button(text="В меню", callback_data="menu:back")
     builder.adjust(1)
     return builder.as_markup()
+
+
+# Wave 7 2026-05-26 — извлечение follow-up вопроса из ответа LLM.
+# Промпт диктует формат «<b><u>Чтобы узнать больше, задайте вопрос
+# по этой карте:</u></b> «<question>»». Регекс tolerant к тому,
+# что LLM иногда возвращает Markdown ** вместо HTML <b>, или забывает
+# подчёркивание. Капчуется только сам вопрос внутри ёлочек «...».
+_FOLLOWUP_CODE_RE = re.compile(
+    r"<code>(.+?)</code>",
+    re.IGNORECASE | re.DOTALL,
+)
+_FOLLOWUP_QUOTED_RE = re.compile(
+    r"(?:<b>\s*)?(?:<u>\s*)?\**\s*Чтобы\s+узнать\s+больше[^«»\n]*?:\s*"
+    r"\**\s*(?:</u>\s*)?(?:</b>\s*)?[«\"](.+?)[»\"]",
+    re.IGNORECASE | re.DOTALL,
+)
+_FOLLOWUP_HEADER_RE = re.compile(
+    r"Чтобы\s+узнать\s+больше[^:\n]*?:",
+    re.IGNORECASE,
+)
+
+
+def _extract_followup_question(text: str) -> str | None:
+    """Достать предложенный follow-up вопрос из ответа Анастасии.
+
+    Стратегия по приоритету:
+    1. `<code>...</code>` после фразы «Чтобы узнать больше...» — это
+       canonical новый формат (tap-to-copy в Telegram).
+    2. Текст в ёлочках/кавычках после фразы — legacy формат, если LLM
+       забыла HTML.
+    3. None если ничего не нашлось — кнопка «⬆️ Задать предложенный»
+       просто не покажется.
+    """
+    # Найдём позицию заголовка чтобы привязать <code>-захват к ней
+    # (вдруг в теле есть другие <code> блоки).
+    header = _FOLLOWUP_HEADER_RE.search(text)
+    if header is not None:
+        # Ищем <code> только после заголовка.
+        tail = text[header.end() :]
+        code_match = _FOLLOWUP_CODE_RE.search(tail)
+        if code_match is not None:
+            question = code_match.group(1).strip()
+            question = re.sub(r"<[^>]+>", "", question).strip()
+            if question and len(question) <= 500:
+                return question
+
+    # Fallback: ёлочки/кавычки сразу после заголовка.
+    quoted = _FOLLOWUP_QUOTED_RE.search(text)
+    if quoted is not None:
+        question = quoted.group(1).strip()
+        question = re.sub(r"<[^>]+>", "", question).strip()
+        if question and len(question) <= 500:
+            return question
+
+    return None
 
 
 def _no_chart_kb() -> InlineKeyboardMarkup:
@@ -702,6 +766,62 @@ async def handle_reset(
 
 
 # ── pricing:skip — продолжить бесплатно (пока ЮКасса не подключена) ──────
+
+
+@consultation_router.callback_query(F.data == "suggest:ask")
+async def handle_suggested_followup(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+    state: FSMContext,
+    history_store: HistoryStore,
+) -> None:
+    """Wave 7 2026-05-26 — кнопка «⬆️ Задать предложенный вопрос»
+    под ответом Анастасии. Достаёт follow-up вопрос из Redis (был
+    stash'нут после успешной генерации) и отправляет его в
+    consultation pipeline как обычное user-message, без повторного
+    ввода клиентом."""
+    await callback.answer()
+    if not isinstance(callback.message, Message):
+        return
+
+    suggested = await history_store.pop_suggested_followup(user.telegram_id)
+    if not suggested:
+        await callback.message.answer(
+            "Не нашла предложенный вопрос — задайте его текстом, и я отвечу.",
+            reply_markup=_after_answer_kb(),
+        )
+        await state.set_state(ConsultationState.waiting_question)
+        return
+
+    chart = await _resolve_active_chart(state, session, user)
+    if chart is None or callback.message.bot is None:
+        await callback.message.answer(
+            "Не нашла активную карту — откройте её через меню.",
+            reply_markup=_no_chart_kb(),
+        )
+        await state.set_state(None)
+        return
+
+    logger.info(
+        "consultation.suggested_followup_used",
+        user_id=str(user.id),
+        telegram_id=user.telegram_id,
+        question_preview=suggested[:80],
+    )
+    # Echo question как реплику клиента — чтобы в чате было видно
+    # что было задано (а не «волшебно вылез ответ»).
+    await callback.message.answer(f"❓ <i>{suggested}</i>")
+
+    await _process_question_after_guards(
+        callback.message,
+        state=state,
+        session=session,
+        user=user,
+        history_store=history_store,
+        question=suggested,
+        chart=chart,
+    )
 
 
 @consultation_router.callback_query(F.data == "pricing:skip")
@@ -1311,7 +1431,7 @@ async def _continue_consultation_with_skill(
         school=chosen_school,
     )
 
-    typing_task = asyncio.create_task(_keep_typing(message))
+    status_msg, ticker_task = await _show_thinking_animation(message)
     try:
         answer = await chat_with_fallback(
             messages=messages,
@@ -1320,15 +1440,14 @@ async def _continue_consultation_with_skill(
         )
     except OrchestratorError:
         logger.exception("consultation.llm_failed", question=original_question[:80])
+        await _stop_thinking_animation(message, status_msg, ticker_task)
         await message.answer(
             "Анастасия не смогла ответить — попробуйте задать вопрос ещё раз.",
             reply_markup=_after_answer_kb(),
         )
         return
     finally:
-        typing_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await typing_task
+        await _stop_thinking_animation(message, status_msg, ticker_task)
 
     text = answer.result.text.strip()
     # Bot ships with parse_mode=HTML globally, but the LLM almost
@@ -1342,10 +1461,27 @@ async def _continue_consultation_with_skill(
     # control. Without this split the whole turn raises
     # `TelegramBadRequest: message is too long` and the surrounding
     # session_scope rolls back any pending writes (e.g. set_partner).
+    # Extract follow-up question (если LLM добавила «Чтобы узнать
+    # больше, задайте вопрос по этой карте: «...»») и stash в Redis,
+    # чтобы кнопка «⬆️ Задать предложенный вопрос» могла его replay.
+    suggested_followup = _extract_followup_question(text)
+    if suggested_followup:
+        try:
+            await history_store.stash_suggested_followup(user.telegram_id, suggested_followup)
+        except Exception as exc:
+            # Stash — UX nicety, не контракт. Логируем и не блокируем.
+            logger.warning(
+                "consultation.followup_stash_failed",
+                error=str(exc),
+            )
+
     chunks = _split_for_telegram(text, _TG_MAX_CHARS)
     for chunk in chunks[:-1]:
         await message.answer(chunk)
-    await message.answer(chunks[-1], reply_markup=_after_answer_kb())
+    await message.answer(
+        chunks[-1],
+        reply_markup=_after_answer_kb(has_suggestion=suggested_followup is not None),
+    )
 
     # Wave 7 UX rework (2026-05-24): счётчик вместо bool. Возвращает
     # обновлённое значение — используем для footer «осталось N/3».
@@ -1400,7 +1536,11 @@ async def _keep_typing(message: Message) -> None:
     """Send ``ChatAction.TYPING`` every 4 seconds while the LLM is
     thinking. Telegram's typing indicator decays after ~5 sec, so
     we have to refresh it. K2.6 thinking averages 30-60 sec, so this
-    keeps the user reassured the bot is alive."""
+    keeps the user reassured the bot is alive.
+
+    Kept as a fallback for callers that don't use the new
+    ``_show_thinking_animation`` (e.g. forecast scheduler jobs).
+    """
     if message.bot is None:
         return
     while True:
@@ -1411,3 +1551,109 @@ async def _keep_typing(message: Message) -> None:
             # quietly rather than crashing the consultation handler.
             return
         await asyncio.sleep(4)
+
+
+# Wave 7 2026-05-26 — текстовая анимация ожидания пока LLM формирует
+# ответ (30-60 сек). Telegram-only `ChatAction.TYPING` показывает только
+# мелкую плашку «Анастасия печатает...», клиент не понимает идёт ли
+# процесс. Теперь параллельно шлём отдельное сообщение с тикающей
+# фразой, обновляя её каждые ~2 сек («Считаю звёзды.», «Считаю
+# звёзды..», и т.д., каждые 4 шага меняется фраза). После того как
+# ответ готов — сообщение удаляется.
+_THINKING_PHRASES: tuple[str, ...] = (
+    "🔮 Провожу анализ",
+    "🐱 Обсуждаю с котом",
+    "✨ Считаю звёзды",
+    "🐇 Один мао, два мао",
+    "🕯 Свечу разжигаю",
+    "🐉 Слушаю дракона",
+    "📜 Заглядываю в столпы",
+    "🌿 Перебираю стихии",
+    "🐅 Тигр потягивается",
+    "☯️ Сверяю иньское с янским",
+)
+
+
+async def _show_thinking_animation(
+    message: Message,
+) -> tuple[Message | None, asyncio.Task[None]]:
+    """Создаёт статус-сообщение «🔮 Провожу анализ.» и запускает фоновое
+    тиканье точек + смену фраз каждые 8 секунд. Возвращает кортеж
+    `(status_msg, ticker_task)`. Caller обязан в `finally` отменить
+    задачу и удалить статус-сообщение.
+
+    Если `message.bot is None` (тестовый MagicMock) — возвращается
+    `(None, noop_task)`, никакого UI не создаётся.
+    """
+    if message.bot is None:
+
+        async def _noop() -> None:
+            return None
+
+        return None, asyncio.create_task(_noop())
+
+    import random
+
+    phrases = list(_THINKING_PHRASES)
+    random.shuffle(phrases)
+    initial_text = f"{phrases[0]}."
+    try:
+        status_msg = await message.answer(initial_text)
+    except TelegramBadRequest as exc:
+        logger.warning("thinking.status_create_failed", error=str(exc))
+
+        async def _noop2() -> None:
+            return None
+
+        return None, asyncio.create_task(_noop2())
+
+    async def _ticker() -> None:
+        idx = 0
+        dots = 1
+        while True:
+            try:
+                await asyncio.sleep(2)
+                dots += 1
+                if dots > 4:
+                    dots = 1
+                    idx = (idx + 1) % len(phrases)
+                new_text = f"{phrases[idx]}{'.' * dots}"
+                try:
+                    if message.bot is not None:
+                        await message.bot.send_chat_action(
+                            chat_id=message.chat.id, action=ChatAction.TYPING
+                        )
+                        await message.bot.edit_message_text(
+                            chat_id=message.chat.id,
+                            message_id=status_msg.message_id,
+                            text=new_text,
+                        )
+                except TelegramBadRequest:
+                    # Сообщение удалено / чат закрыт — выходим.
+                    return
+            except asyncio.CancelledError:
+                return
+
+    ticker_task = asyncio.create_task(_ticker())
+    return status_msg, ticker_task
+
+
+async def _stop_thinking_animation(
+    message: Message,
+    status_msg: Message | None,
+    ticker_task: asyncio.Task[None],
+) -> None:
+    """Остановить тикер и удалить статус-сообщение. Вызывается в
+    `finally` блоке после chat_with_fallback."""
+    ticker_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await ticker_task
+    if status_msg is None or message.bot is None:
+        return
+    try:
+        await message.bot.delete_message(chat_id=message.chat.id, message_id=status_msg.message_id)
+    except (TelegramBadRequest, TypeError):
+        # TelegramBadRequest — клиент удалил чат; TypeError —
+        # MagicMock в тестах не coroutine-friendly. В обоих случаях
+        # не страшно: клиент видит финальный ответ ниже.
+        pass
