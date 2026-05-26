@@ -157,7 +157,7 @@ def _after_answer_kb(*, has_suggestion: bool = False) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     if has_suggestion:
         builder.button(text="⬆️ Задать предложенный вопрос", callback_data="suggest:ask")
-    builder.button(text="🔄 Задать ещё вопрос", callback_data="menu:ask")
+    builder.button(text="🔄 Задать другой вопрос", callback_data="menu:ask")
     builder.button(text="В меню", callback_data="menu:back")
     builder.adjust(1)
     return builder.as_markup()
