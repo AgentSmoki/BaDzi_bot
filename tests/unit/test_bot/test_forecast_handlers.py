@@ -223,6 +223,203 @@ async def test_monthly_confirm_creates_weekly_subscription(
 
 
 @pytest.mark.asyncio
+async def test_monthly_confirm_weekly_kicks_first_delivery_inline(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_session: MagicMock,
+    fake_user: MagicMock,
+    fake_state: MagicMock,
+) -> None:
+    """Wave 7 2026-05-26 — после создания weekly-подписки handler
+    запускает asyncio.create_task(_kick_first_delivery) который через
+    asyncio.sleep(60) вызывает send_monthly_forecast_job(week=1).
+
+    Этот тест защищает от регрессии бага: при scheduler restart > 1ч
+    после создания подписки rebuild_jobs пропускал week=1 через guard
+    «fire_at < now - 1h», и клиент никогда не получал первую часть.
+    Inline kick перекрывает гонку — задача стартует независимо от
+    APScheduler.
+
+    Тест мокает asyncio.sleep чтобы не ждать 60 сек, и проверяет
+    что после await на task'е send_monthly_forecast_job был вызван
+    с week=1 + правильным subscription_id + period_start.
+    """
+    import asyncio
+
+    chart = _fake_chart(user_id=fake_user.id)
+    await _stash_chart_in_state(fake_state, chart.id)
+    monkeypatch.setattr(forecast_module._chart_repo, "get_by_id", AsyncMock(return_value=chart))
+
+    sub_id = _uuid.uuid4()
+    sub_started_at = datetime.now()
+    created_sub = MagicMock(id=sub_id, started_at=sub_started_at)
+    monkeypatch.setattr(
+        forecast_module._sub_repo,
+        "create",
+        AsyncMock(return_value=created_sub),
+    )
+
+    # Мокаем send_monthly_forecast_job, чтобы не дёргать реальный
+    # KuzuDB/LLM. Сохраняем call_args чтобы проверить kwargs.
+    send_job_mock = AsyncMock()
+    monkeypatch.setattr("bot.scheduler.jobs.send_monthly_forecast_job", send_job_mock)
+
+    # Мокаем sleep(60) → immediate return, чтобы тест не висел.
+    real_sleep = asyncio.sleep
+
+    async def _fast_sleep(seconds: float) -> None:
+        # Sleep(0) пропустит event loop tick, но не подождёт реальные 60с.
+        await real_sleep(0)
+
+    monkeypatch.setattr(forecast_module.asyncio, "sleep", _fast_sleep)
+
+    # Track create_task так чтобы await'ить созданную задачу в тесте —
+    # иначе она исполнится после возврата из handler и тест увидит
+    # send_job_mock не вызванным.
+    created_tasks: list[asyncio.Task[Any]] = []
+    real_create_task = asyncio.create_task
+
+    def _track_create_task(coro: Any, **kw: Any) -> asyncio.Task[Any]:
+        task = real_create_task(coro, **kw)
+        created_tasks.append(task)
+        return task
+
+    monkeypatch.setattr(forecast_module.asyncio, "create_task", _track_create_task)
+
+    cb = _fake_callback("fc:mc:weekly")
+    await handle_monthly_confirm(
+        callback=cb, session=fake_session, user=fake_user, state=fake_state
+    )
+
+    # Подписка создана.
+    assert forecast_module._sub_repo.create.await_count == 1  # type: ignore[attr-defined]
+
+    # Подождём все созданные task'и (inline-kick coroutine).
+    assert len(created_tasks) >= 1, "handler должен был стартовать inline-kick task"
+    for task in created_tasks:
+        await task
+
+    # Inline kick вызвал send_monthly_forecast_job с week=1.
+    send_job_mock.assert_awaited_once()
+    kwargs = send_job_mock.call_args.kwargs
+    assert kwargs["subscription_id"] == sub_id
+    assert kwargs["week"] == 1
+    assert kwargs["period_start"] == sub_started_at.date()
+
+
+@pytest.mark.asyncio
+async def test_monthly_confirm_bulk_kicks_first_delivery_inline(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_session: MagicMock,
+    fake_user: MagicMock,
+    fake_state: MagicMock,
+) -> None:
+    """Для bulk-delivery inline kick запускается с week=None (полный
+    месячный прогноз одним сообщением)."""
+    import asyncio
+
+    chart = _fake_chart(user_id=fake_user.id)
+    await _stash_chart_in_state(fake_state, chart.id)
+    monkeypatch.setattr(forecast_module._chart_repo, "get_by_id", AsyncMock(return_value=chart))
+
+    sub_id = _uuid.uuid4()
+    sub_started_at = datetime.now()
+    created_sub = MagicMock(id=sub_id, started_at=sub_started_at)
+    monkeypatch.setattr(
+        forecast_module._sub_repo,
+        "create",
+        AsyncMock(return_value=created_sub),
+    )
+
+    send_job_mock = AsyncMock()
+    monkeypatch.setattr("bot.scheduler.jobs.send_monthly_forecast_job", send_job_mock)
+
+    real_sleep = asyncio.sleep
+
+    async def _fast_sleep(seconds: float) -> None:
+        await real_sleep(0)
+
+    monkeypatch.setattr(forecast_module.asyncio, "sleep", _fast_sleep)
+
+    created_tasks: list[asyncio.Task[Any]] = []
+    real_create_task = asyncio.create_task
+
+    def _track_create_task(coro: Any, **kw: Any) -> asyncio.Task[Any]:
+        task = real_create_task(coro, **kw)
+        created_tasks.append(task)
+        return task
+
+    monkeypatch.setattr(forecast_module.asyncio, "create_task", _track_create_task)
+
+    cb = _fake_callback("fc:mc:bulk")
+    await handle_monthly_confirm(
+        callback=cb, session=fake_session, user=fake_user, state=fake_state
+    )
+
+    for task in created_tasks:
+        await task
+
+    send_job_mock.assert_awaited_once()
+    assert send_job_mock.call_args.kwargs["week"] is None
+
+
+@pytest.mark.asyncio
+async def test_monthly_confirm_inline_kick_failure_does_not_break_handler(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_session: MagicMock,
+    fake_user: MagicMock,
+    fake_state: MagicMock,
+) -> None:
+    """Inline kick — UX nicety, не контракт. Если send_monthly_forecast_job
+    падает (LLM/KuzuDB down) — handler уже вернул успешный ответ клиенту,
+    исключение из background task должно быть залогировано но НЕ
+    propagate'нуто наружу."""
+    import asyncio
+
+    chart = _fake_chart(user_id=fake_user.id)
+    await _stash_chart_in_state(fake_state, chart.id)
+    monkeypatch.setattr(forecast_module._chart_repo, "get_by_id", AsyncMock(return_value=chart))
+
+    created_sub = MagicMock(id=_uuid.uuid4(), started_at=datetime.now())
+    monkeypatch.setattr(
+        forecast_module._sub_repo,
+        "create",
+        AsyncMock(return_value=created_sub),
+    )
+
+    boom = AsyncMock(side_effect=RuntimeError("LLM service down"))
+    monkeypatch.setattr("bot.scheduler.jobs.send_monthly_forecast_job", boom)
+
+    real_sleep = asyncio.sleep
+
+    async def _fast_sleep(seconds: float) -> None:
+        await real_sleep(0)
+
+    monkeypatch.setattr(forecast_module.asyncio, "sleep", _fast_sleep)
+
+    created_tasks: list[asyncio.Task[Any]] = []
+    real_create_task = asyncio.create_task
+
+    def _track_create_task(coro: Any, **kw: Any) -> asyncio.Task[Any]:
+        task = real_create_task(coro, **kw)
+        created_tasks.append(task)
+        return task
+
+    monkeypatch.setattr(forecast_module.asyncio, "create_task", _track_create_task)
+
+    cb = _fake_callback("fc:mc:weekly")
+    # Handler сам не должен упасть — отсутствие raise = успех.
+    await handle_monthly_confirm(
+        callback=cb, session=fake_session, user=fake_user, state=fake_state
+    )
+
+    # Background task словил исключение, но не утёк наружу.
+    for task in created_tasks:
+        await task  # дожидаемся — внутри try/except logger.exception
+
+    boom.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_monthly_confirm_creates_bulk_subscription(
     monkeypatch: pytest.MonkeyPatch,
     fake_session: MagicMock,
