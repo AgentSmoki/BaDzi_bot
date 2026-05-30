@@ -42,6 +42,7 @@ from bot.keyboards import (
     forecast_daily_hour_kb,
     forecast_menu_kb,
     forecast_monthly_delivery_kb,
+    school_selector_kb,
 )
 from db.models import (
     Chart as ChartModel,
@@ -227,6 +228,10 @@ async def handle_monthly_confirm(
     user: User,
     state: FSMContext,
 ) -> None:
+    """Шаг 2/3 покупки месячной подписки — выбран формат доставки
+    (weekly|bulk). Сохраняем в FSM и показываем выбор школы. Подписка
+    НЕ создаётся пока клиент не выберет школу в handle_monthly_school_confirm.
+    """
     if not callback.data:
         await callback.answer()
         return
@@ -235,6 +240,49 @@ async def handle_monthly_confirm(
     if delivery_raw not in ("weekly", "bulk"):
         await callback.answer("Неверный выбор", show_alert=True)
         return
+    chart = await _resolve_chart_from_state(state, session, user.id)
+    if chart is None:
+        await callback.answer(_SESSION_LOST, show_alert=True)
+        return
+
+    await state.update_data(forecast_monthly_delivery=delivery_raw)
+    if isinstance(callback.message, Message):
+        await callback.message.answer(
+            "В каком стиле прислать прогноз? Выберите школу — от этого "
+            "зависит методология и интонация:",
+            reply_markup=school_selector_kb(callback_prefix="fc:ms"),
+        )
+    await callback.answer()
+
+
+@forecast_router.callback_query(F.data.startswith("fc:ms:"))
+async def handle_monthly_school_confirm(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+    state: FSMContext,
+) -> None:
+    """Шаг 3/3 покупки месячной подписки — выбрана школа. Читаем
+    delivery из FSM, создаём подписку, запускаем inline kick первой
+    части (для weekly). Wave 7 Phase 2 ext (2026-05-26)."""
+    if not callback.data:
+        await callback.answer()
+        return
+    parts = callback.data.split(":")
+    school_raw = parts[2] if len(parts) > 2 else ""
+    if school_raw not in ("classic", "edoha", "modern"):
+        await callback.answer("Неверный выбор школы", show_alert=True)
+        return
+
+    data = await state.get_data()
+    delivery_raw = data.get("forecast_monthly_delivery", "")
+    if delivery_raw not in ("weekly", "bulk"):
+        await callback.answer(
+            "Сессия выбора прогноза потеряна. Откройте Прогнозы заново.",
+            show_alert=True,
+        )
+        return
+
     chart = await _resolve_chart_from_state(state, session, user.id)
     if chart is None:
         await callback.answer(_SESSION_LOST, show_alert=True)
@@ -251,28 +299,38 @@ async def handle_monthly_confirm(
         monthly_delivery=delivery,
         payment_provider="free_dev_bypass" if settings.forecast_free_bypass else None,
         period_days=settings.forecast_period_days,
+        chosen_school=school_raw,
     )
     # 2026-05-21 Bogdan — связка W3↔W4e: subscribing to forecasts
     # auto-enables «important dates» alerts for the same chart (user
     # can still turn them off via the chart-menu toggle).
     await _journal_settings_repo.toggle_important_dates(session, chart_id=chart.id, enabled=True)
     await session.commit()
+    # FSM-stash больше не нужен — подписка создана.
+    await state.update_data(forecast_monthly_delivery=None)
 
     note = (
         "Первую часть я пришлю через минуту, остальные — раз в неделю."
         if delivery == MonthlyDelivery.weekly
         else "Прогноз пришлю через минуту одним сообщением."
     )
+    school_label = {
+        "classic": "🎓 Классическая",
+        "edoha": "🌀 Мастер ЭдоХа",
+        "modern": "🧬 Современная",
+    }[school_raw]
     msg = (
         "<b>✓ Подписка активирована</b>\n\n"
         f"Месячный прогноз для этой карты — {settings.forecast_monthly_price_rub} ₽.\n"
-        f"Доставка: {'раз в неделю' if delivery == MonthlyDelivery.weekly else 'всё сразу'}.\n\n"
+        f"Доставка: {'раз в неделю' if delivery == MonthlyDelivery.weekly else 'всё сразу'}.\n"
+        f"Школа: {school_label}.\n\n"
         f"{note}"
     )
     logger.info(
         "forecast.subscription.created",
         kind="monthly",
         delivery=delivery.value,
+        chosen_school=school_raw,
         subscription_id=str(sub.id),
         user_id=str(user.id),
         chart_id=str(chart.id),
@@ -363,6 +421,9 @@ async def handle_daily_confirm(
     user: User,
     state: FSMContext,
 ) -> None:
+    """Шаг 2/3 покупки дневной подписки — выбран час доставки.
+    Сохраняем в FSM, показываем школу. Подписка создаётся позже
+    в handle_daily_school_confirm."""
     if not callback.data:
         await callback.answer()
         return
@@ -380,6 +441,49 @@ async def handle_daily_confirm(
         await callback.answer(_SESSION_LOST, show_alert=True)
         return
 
+    await state.update_data(forecast_daily_hour_local=hour_local)
+    if isinstance(callback.message, Message):
+        await callback.message.answer(
+            "В каком стиле присылать дневной прогноз? Выберите школу — "
+            "от этого зависит методология и интонация:",
+            reply_markup=school_selector_kb(callback_prefix="fc:ds"),
+        )
+    await callback.answer()
+
+
+@forecast_router.callback_query(F.data.startswith("fc:ds:"))
+async def handle_daily_school_confirm(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+    state: FSMContext,
+) -> None:
+    """Шаг 3/3 покупки дневной подписки — выбрана школа. Создаём
+    подписку. Wave 7 Phase 2 ext (2026-05-26)."""
+    if not callback.data:
+        await callback.answer()
+        return
+    parts = callback.data.split(":")
+    school_raw = parts[2] if len(parts) > 2 else ""
+    if school_raw not in ("classic", "edoha", "modern"):
+        await callback.answer("Неверный выбор школы", show_alert=True)
+        return
+
+    data = await state.get_data()
+    hour_local_raw = data.get("forecast_daily_hour_local")
+    if not isinstance(hour_local_raw, int) or not (0 <= hour_local_raw <= 23):
+        await callback.answer(
+            "Сессия выбора прогноза потеряна. Откройте Прогнозы заново.",
+            show_alert=True,
+        )
+        return
+    hour_local = hour_local_raw
+
+    chart = await _resolve_chart_from_state(state, session, user.id)
+    if chart is None:
+        await callback.answer(_SESSION_LOST, show_alert=True)
+        return
+
     settings = get_settings()
     hour_utc = _hour_local_to_utc(hour_local, chart.tz_offset)
 
@@ -392,18 +496,26 @@ async def handle_daily_confirm(
         daily_send_hour_utc=hour_utc,
         payment_provider="free_dev_bypass" if settings.forecast_free_bypass else None,
         period_days=settings.forecast_period_days,
+        chosen_school=school_raw,
     )
     # 2026-05-21 — same auto-enable as monthly: forecast purchase
     # turns on important-date alerts.
     await _journal_settings_repo.toggle_important_dates(session, chart_id=chart.id, enabled=True)
     await session.commit()
+    await state.update_data(forecast_daily_hour_local=None)
 
+    school_label = {
+        "classic": "🎓 Классическая",
+        "edoha": "🌀 Мастер ЭдоХа",
+        "modern": "🧬 Современная",
+    }[school_raw]
     msg = (
         "<b>✓ Подписка активирована</b>\n\n"
         f"Дневной прогноз для этой карты — {settings.forecast_daily_price_rub} ₽ "
         f"на 30 дней.\n"
         f"Я буду писать в {hour_local:02d}:00 вашего местного времени "
-        f"(UTC {hour_utc:02d}:00).\n\n"
+        f"(UTC {hour_utc:02d}:00).\n"
+        f"Школа: {school_label}.\n\n"
         "Первый прогноз пришлю в указанный час."
     )
     logger.info(
@@ -411,6 +523,7 @@ async def handle_daily_confirm(
         kind="daily",
         hour_local=hour_local,
         hour_utc=hour_utc,
+        chosen_school=school_raw,
         subscription_id=str(sub.id),
         user_id=str(user.id),
         chart_id=str(chart.id),

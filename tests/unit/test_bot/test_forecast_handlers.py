@@ -28,9 +28,11 @@ from bot.routers.forecast import (
     handle_buy_monthly,
     handle_cancel_confirm,
     handle_daily_confirm,
+    handle_daily_school_confirm,
     handle_forecast_list,
     handle_forecast_show,
     handle_monthly_confirm,
+    handle_monthly_school_confirm,
 )
 from db.models import ForecastKind, MonthlyDelivery, SubscriptionStatus
 
@@ -193,16 +195,20 @@ async def test_buy_monthly_shows_delivery_picker(
 
 
 @pytest.mark.asyncio
-async def test_monthly_confirm_creates_weekly_subscription(
+async def test_monthly_confirm_weekly_stashes_delivery_and_shows_school(
     monkeypatch: pytest.MonkeyPatch,
     fake_session: MagicMock,
     fake_user: MagicMock,
     fake_state: MagicMock,
 ) -> None:
+    """Wave 7 Phase 2 ext (2026-05-26) — fc:mc:weekly теперь это
+    промежуточный шаг: сохраняет delivery=weekly в FSM и показывает
+    school_selector_kb. Подписка НЕ создаётся пока клиент не нажмёт
+    fc:ms:<school>."""
     chart = _fake_chart(user_id=fake_user.id)
     await _stash_chart_in_state(fake_state, chart.id)
     monkeypatch.setattr(forecast_module._chart_repo, "get_by_id", AsyncMock(return_value=chart))
-    create_mock = AsyncMock(return_value=MagicMock(id=_uuid.uuid4()))
+    create_mock = AsyncMock()
     monkeypatch.setattr(forecast_module._sub_repo, "create", create_mock)
 
     cb = _fake_callback("fc:mc:weekly")
@@ -210,16 +216,17 @@ async def test_monthly_confirm_creates_weekly_subscription(
         callback=cb, session=fake_session, user=fake_user, state=fake_state
     )
 
-    create_mock.assert_awaited_once()
-    kwargs = create_mock.call_args.kwargs
-    assert kwargs["kind"] == ForecastKind.monthly
-    assert kwargs["monthly_delivery"] == MonthlyDelivery.weekly
-    assert kwargs["price_rub"] == 500
-    assert kwargs["payment_provider"] == "free_dev_bypass"
-    fake_session.commit.assert_awaited_once()
+    # На этом шаге подписка НЕ создаётся.
+    create_mock.assert_not_awaited()
+    fake_session.commit.assert_not_awaited()
+
+    # FSM stash содержит delivery.
+    data = await fake_state.get_data()
+    assert data["forecast_monthly_delivery"] == "weekly"
+
+    # Бот показал school_selector.
     answer_text = cb.message.answer.call_args.args[0]
-    assert "активирована" in answer_text.lower()
-    assert "раз в неделю" in answer_text
+    assert "школу" in answer_text.lower() or "школа" in answer_text.lower()
 
 
 @pytest.mark.asyncio
@@ -285,13 +292,19 @@ async def test_monthly_confirm_weekly_kicks_first_delivery_inline(
 
     monkeypatch.setattr(forecast_module.asyncio, "create_task", _track_create_task)
 
-    cb = _fake_callback("fc:mc:weekly")
-    await handle_monthly_confirm(
+    # Шаг 2: сохранить delivery в FSM.
+    await fake_state.update_data(forecast_monthly_delivery="weekly")
+
+    # Шаг 3: выбрать школу — это создаёт подписку + inline kick.
+    cb = _fake_callback("fc:ms:edoha")
+    await handle_monthly_school_confirm(
         callback=cb, session=fake_session, user=fake_user, state=fake_state
     )
 
-    # Подписка создана.
+    # Подписка создана со school=edoha.
     assert forecast_module._sub_repo.create.await_count == 1  # type: ignore[attr-defined]
+    create_kwargs = forecast_module._sub_repo.create.call_args.kwargs  # type: ignore[attr-defined]
+    assert create_kwargs["chosen_school"] == "edoha"
 
     # Подождём все созданные task'и (inline-kick coroutine).
     assert len(created_tasks) >= 1, "handler должен был стартовать inline-kick task"
@@ -350,8 +363,9 @@ async def test_monthly_confirm_bulk_kicks_first_delivery_inline(
 
     monkeypatch.setattr(forecast_module.asyncio, "create_task", _track_create_task)
 
-    cb = _fake_callback("fc:mc:bulk")
-    await handle_monthly_confirm(
+    await fake_state.update_data(forecast_monthly_delivery="bulk")
+    cb = _fake_callback("fc:ms:classic")
+    await handle_monthly_school_confirm(
         callback=cb, session=fake_session, user=fake_user, state=fake_state
     )
 
@@ -406,9 +420,10 @@ async def test_monthly_confirm_inline_kick_failure_does_not_break_handler(
 
     monkeypatch.setattr(forecast_module.asyncio, "create_task", _track_create_task)
 
-    cb = _fake_callback("fc:mc:weekly")
+    await fake_state.update_data(forecast_monthly_delivery="weekly")
+    cb = _fake_callback("fc:ms:modern")
     # Handler сам не должен упасть — отсутствие raise = успех.
-    await handle_monthly_confirm(
+    await handle_monthly_school_confirm(
         callback=cb, session=fake_session, user=fake_user, state=fake_state
     )
 
@@ -420,24 +435,38 @@ async def test_monthly_confirm_inline_kick_failure_does_not_break_handler(
 
 
 @pytest.mark.asyncio
-async def test_monthly_confirm_creates_bulk_subscription(
+async def test_monthly_school_confirm_creates_bulk_subscription(
     monkeypatch: pytest.MonkeyPatch,
     fake_session: MagicMock,
     fake_user: MagicMock,
     fake_state: MagicMock,
 ) -> None:
+    """Шаг 3/3 для bulk delivery — создаёт подписку с chosen_school."""
     chart = _fake_chart(user_id=fake_user.id)
     await _stash_chart_in_state(fake_state, chart.id)
     monkeypatch.setattr(forecast_module._chart_repo, "get_by_id", AsyncMock(return_value=chart))
-    create_mock = AsyncMock(return_value=MagicMock(id=_uuid.uuid4()))
+    create_mock = AsyncMock(return_value=MagicMock(id=_uuid.uuid4(), started_at=datetime.now()))
     monkeypatch.setattr(forecast_module._sub_repo, "create", create_mock)
+    # Чтобы избежать реального LLM-вызова inline kick'a, мокаем send_job + sleep.
+    monkeypatch.setattr("bot.scheduler.jobs.send_monthly_forecast_job", AsyncMock())
 
-    cb = _fake_callback("fc:mc:bulk")
-    await handle_monthly_confirm(
+    import asyncio
+
+    async def _fast_sleep(seconds: float) -> None:
+        await asyncio.sleep(0)
+
+    monkeypatch.setattr(forecast_module.asyncio, "sleep", _fast_sleep)
+
+    await fake_state.update_data(forecast_monthly_delivery="bulk")
+    cb = _fake_callback("fc:ms:classic")
+    await handle_monthly_school_confirm(
         callback=cb, session=fake_session, user=fake_user, state=fake_state
     )
 
-    assert create_mock.call_args.kwargs["monthly_delivery"] == MonthlyDelivery.bulk
+    create_mock.assert_awaited_once()
+    kwargs = create_mock.call_args.kwargs
+    assert kwargs["monthly_delivery"] == MonthlyDelivery.bulk
+    assert kwargs["chosen_school"] == "classic"
 
 
 @pytest.mark.asyncio
@@ -505,26 +534,58 @@ async def test_buy_daily_shows_hour_picker(
 
 
 @pytest.mark.asyncio
-async def test_daily_confirm_creates_subscription_with_utc_hour(
+async def test_daily_confirm_stashes_hour_and_shows_school(
     monkeypatch: pytest.MonkeyPatch,
     fake_session: MagicMock,
     fake_user: MagicMock,
     fake_state: MagicMock,
 ) -> None:
+    """Wave 7 Phase 2 ext — fc:dc:<hour> теперь промежуточный шаг:
+    сохраняет час в FSM и показывает school_selector_kb. Подписка
+    создаётся на handle_daily_school_confirm."""
+    chart = _fake_chart(user_id=fake_user.id, tz_offset=3.0)
+    await _stash_chart_in_state(fake_state, chart.id)
+    monkeypatch.setattr(forecast_module._chart_repo, "get_by_id", AsyncMock(return_value=chart))
+    create_mock = AsyncMock()
+    monkeypatch.setattr(forecast_module._sub_repo, "create", create_mock)
+
+    cb = _fake_callback("fc:dc:4")
+    await handle_daily_confirm(callback=cb, session=fake_session, user=fake_user, state=fake_state)
+
+    create_mock.assert_not_awaited()
+    data = await fake_state.get_data()
+    assert data["forecast_daily_hour_local"] == 4
+    answer_text = cb.message.answer.call_args.args[0]
+    assert "школу" in answer_text.lower() or "школа" in answer_text.lower()
+
+
+@pytest.mark.asyncio
+async def test_daily_school_confirm_creates_subscription_with_utc_hour_and_school(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_session: MagicMock,
+    fake_user: MagicMock,
+    fake_state: MagicMock,
+) -> None:
+    """Шаг 3/3 — выбрана школа. Подписка создаётся с правильным
+    daily_send_hour_utc + chosen_school."""
     chart = _fake_chart(user_id=fake_user.id, tz_offset=3.0)
     await _stash_chart_in_state(fake_state, chart.id)
     monkeypatch.setattr(forecast_module._chart_repo, "get_by_id", AsyncMock(return_value=chart))
     create_mock = AsyncMock(return_value=MagicMock(id=_uuid.uuid4()))
     monkeypatch.setattr(forecast_module._sub_repo, "create", create_mock)
 
-    cb = _fake_callback("fc:dc:4")
-    await handle_daily_confirm(callback=cb, session=fake_session, user=fake_user, state=fake_state)
+    await fake_state.update_data(forecast_daily_hour_local=4)
+    cb = _fake_callback("fc:ds:edoha")
+    await handle_daily_school_confirm(
+        callback=cb, session=fake_session, user=fake_user, state=fake_state
+    )
 
     create_mock.assert_awaited_once()
     kwargs = create_mock.call_args.kwargs
     assert kwargs["kind"] == ForecastKind.daily
     assert kwargs["daily_send_hour_utc"] == 1  # 4 local - 3 tz = 1 UTC
     assert kwargs["price_rub"] == 900
+    assert kwargs["chosen_school"] == "edoha"
 
 
 @pytest.mark.asyncio

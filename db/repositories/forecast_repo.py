@@ -41,12 +41,15 @@ class ChartForecastSubscriptionRepository:
         daily_send_hour_utc: int | None = None,
         payment_provider: str | None = None,
         period_days: int = 30,
+        chosen_school: str = "classic",
     ) -> ChartForecastSubscription:
         """Create a new subscription. Both ``monthly`` and ``daily`` are
         30-day periods by default — adjust ``period_days`` for promos.
 
         - ``monthly``: requires ``monthly_delivery`` (weekly|bulk).
         - ``daily``: requires ``daily_send_hour_utc`` (0-23).
+        - ``chosen_school``: ``"classic" | "edoha" | "modern"``. Forecast.py
+          подгружает base_<school>.md поверх base.md (Wave 7 Phase 2 ext).
         Caller validates these before invoking; we don't double-check
         here because the kind/delivery combo is set in the UI handler.
         """
@@ -62,6 +65,7 @@ class ChartForecastSubscriptionRepository:
             expires_at=now + timedelta(days=period_days),
             price_rub=price_rub,
             payment_provider=payment_provider,
+            chosen_school=chosen_school,
         )
         session.add(sub)
         await session.flush()

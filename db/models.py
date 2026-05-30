@@ -302,6 +302,12 @@ class ChartForecastSubscription(Base):
     # `free_dev_bypass` while ЮKassa isn't connected (Wave 3 launch);
     # `yookassa` after 1.12.3. NULL = unknown / migrated row.
     payment_provider: Mapped[str | None] = mapped_column(sa.String(32))
+    # Wave 7 Phase 2 ext (2026-05-26) — школа интерпретации
+    # ("classic" | "edoha" | "modern"). Forecast.py подгружает
+    # base_<school>.md поверх base.md, как и консультации.
+    chosen_school: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, server_default="classic"
+    )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     user: Mapped[User] = relationship(lazy="raise")

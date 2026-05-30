@@ -1191,6 +1191,55 @@ async def _process_question_after_guards(
     else:
         effective_skill = skill_sel.skill
 
+    # Smart history reset при смене темы (Wave 7 2026-05-26).
+    # Если предыдущий ответ был на другом skill — очистить чат-историю
+    # чтобы LLM не утянула имена/контекст из чужой темы. Реальный кейс:
+    # тест бизнес-партнёрства с «Сергеем» утёк в новый диалог про
+    # парня клиента — LLM подставила имя из старого turn'а.
+    last_skill = await history_store.get_last_skill(user.telegram_id)
+    if last_skill and last_skill != effective_skill:
+        await history_store.clear(user.telegram_id)
+        await history_store.clear_last_skill(user.telegram_id)
+        history = []
+        logger.info(
+            "consultation.history_cleared_on_skill_change",
+            user_id=str(user.id),
+            telegram_id=user.telegram_id,
+            old_skill=last_skill,
+            new_skill=effective_skill,
+        )
+
+    # Branch 0: relationships + нужна партнёр-карта + её ещё нет
+    # → сразу показываем UI partner_chart (Wave 7 2026-05-26).
+    # Скип clarifying loop: router для relationships часто
+    # генерирует «Дата, время и место рождения партнёра?» как
+    # clarifying-вопрос текстом, но у нас уже есть готовый
+    # inline-flow для выбора/добавления карты партнёра. Hostile
+    # UX → сразу показать кнопки.
+    # Для skill=work (бизнес-партнёрство) этот skip НЕ применяем:
+    # там clarifying вроде «на каком этапе переговоры» имеют смысл
+    # и не дублируют partner-card data.
+    if (
+        effective_skill == "relationships"
+        and skill_sel.needs_partner_chart
+        and chart.partner_chart_id is None
+    ):
+        await state.update_data(
+            pending_question=question,
+            pending_skill=effective_skill,
+            pending_concept_hints=list(skill_sel.concept_hints),
+            chart_id=str(chart.id),
+        )
+        partner_kb = await _partner_kb_for_user(session, user=user, exclude_chart_id=chart.id)
+        await message.answer(_PARTNER_REQUEST_MSG, reply_markup=partner_kb)
+        logger.info(
+            "consultation.partner_chart_requested_early_skip_clarifying",
+            skill=effective_skill,
+            confidence=skill_sel.confidence,
+            had_clarifying_count=len(skill_sel.clarifying_questions or []),
+        )
+        return
+
     # Branch 1: router wants clarifying questions before answering.
     if skill_sel.clarifying_questions:
         await state.set_state(ConsultationState.collecting_clarifications)
@@ -1501,6 +1550,11 @@ async def _continue_consultation_with_skill(
         user.telegram_id, ChatMessage(role="user", content=original_question)
     )
     await history_store.append(user.telegram_id, ChatMessage(role="assistant", content=text))
+    # Wave 7 2026-05-26 — запомнить skill чтобы при следующем вопросе
+    # на другую тему очистить историю (см. smart-reset block в
+    # _process_question_after_guards).
+    if skill_spec is not None:
+        await history_store.set_last_skill(user.telegram_id, skill_spec.name)
     await _consultation_repo.create(
         session,
         user_id=user.id,

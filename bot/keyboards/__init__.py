@@ -314,19 +314,22 @@ def partner_chart_selector_kb(
     return builder.as_markup()
 
 
-def school_selector_kb() -> InlineKeyboardMarkup:
+def school_selector_kb(callback_prefix: str = "school") -> InlineKeyboardMarkup:
     """Wave 7 Phase 2 — three coexisting interpretation schools.
 
     Shown after «Задать вопрос по карте» / before each new consultation
-    turn. The callback_data values are tight enums (``school:classic`` /
-    ``school:edoha`` / ``school:modern``) that the consultation router
-    persists in FSM data as ``chosen_school`` and threads through
-    ``load_base_prompt(school=...)`` on the system-prompt side.
+    turn. The callback_data values are tight enums (``<prefix>:classic`` /
+    ``<prefix>:edoha`` / ``<prefix>:modern``).
+
+    ``callback_prefix`` (Wave 7 Phase 2 ext, 2026-05-26):
+    - ``"school"`` (default) — для consultation router (handle_school_chosen).
+    - ``"fc:ms"`` — для месячного прогноза (handle_monthly_school_confirm).
+    - ``"fc:ds"`` — для дневного прогноза (handle_daily_school_confirm).
     """
     builder = InlineKeyboardBuilder()
-    builder.button(text="🎓 Классическая", callback_data="school:classic")
-    builder.button(text="🌀 Мастер ЭдоХа", callback_data="school:edoha")
-    builder.button(text="🧬 Современная", callback_data="school:modern")
+    builder.button(text="🎓 Классическая", callback_data=f"{callback_prefix}:classic")
+    builder.button(text="🌀 Мастер ЭдоХа", callback_data=f"{callback_prefix}:edoha")
+    builder.button(text="🧬 Современная", callback_data=f"{callback_prefix}:modern")
     builder.adjust(1)
     return builder.as_markup()
 

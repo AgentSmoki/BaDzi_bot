@@ -55,6 +55,16 @@ def _suggested_followup_key(user_id: int) -> str:
     return f"{HISTORY_KEY_PREFIX}{user_id}:suggested_followup"
 
 
+def _last_skill_key(user_id: int) -> str:
+    """Redis ключ для skill последнего успешного assistant-ответа.
+
+    Используется для smart-reset истории при смене темы — если новый
+    skill отличается от last_skill, очищаем chat-историю чтобы LLM
+    не утягивала контекст и имена из чужой темы (Wave 7 2026-05-26).
+    """
+    return f"{HISTORY_KEY_PREFIX}{user_id}:last_skill"
+
+
 class HistoryStore:
     """Async Redis-backed history. Construct once per process; share
     across handlers via dependency injection (db_session-style middleware
@@ -167,6 +177,37 @@ class HistoryStore:
         if value is None or not isinstance(value, str):
             return None
         return value.strip() or None
+
+    async def get_last_skill(self, user_id: int) -> str | None:
+        """Достать skill последнего успешного ответа Анастасии.
+
+        Используется в consultation-pipeline для smart-reset истории
+        при смене темы (Wave 7 2026-05-26). Если возвращает None —
+        либо это первый ответ, либо TTL истёк (= history тоже истёк).
+        """
+        value = await self._r.get(_last_skill_key(user_id))
+        if value is None or not isinstance(value, str):
+            return None
+        return value.strip() or None
+
+    async def set_last_skill(self, user_id: int, skill: str) -> None:
+        """Запомнить skill только что закрывшегося турна.
+
+        TTL = HISTORY_TTL_SECONDS чтобы ключ автоматически экспайрился
+        синхронно с историей и не оставался «висеть» во время
+        следующего диалога через сутки.
+        """
+        if not skill:
+            return
+        await self._r.set(
+            _last_skill_key(user_id),
+            skill,
+            ex=HISTORY_TTL_SECONDS,
+        )
+
+    async def clear_last_skill(self, user_id: int) -> None:
+        """Удалить last_skill ключ — обычно вместе с `clear`."""
+        await self._r.delete(_last_skill_key(user_id))
 
     async def aclose(self) -> None:
         """Idempotent shutdown — release the Redis connection pool."""

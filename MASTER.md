@@ -1,12 +1,94 @@
 # БаЦзы-Бот — Мастер-документ проекта
 
+## Известные методологические особенности
+
+### Hour pillar — True Solar Time vs local clock
+
+Часовой столп (時柱) рассчитывается по **True Solar Time** с поправками
+на долготу и Equation of Time (`calculator/true_solar_time.py` →
+`calculator/pillars.py::_hour_branch_idx`). Это **классически
+корректно**: китайская метафизика синхронизирует часовые ветви с
+истинным положением Солнца, а не с гражданскими часами.
+
+**Из этого следует расхождение** с популярными онлайн-калькуляторами
+вроде mingli.com, которые игнорируют longitude correction и берут
+ветвь часа напрямую из local clock time. Пример (25.07.1988 12:00
+Волжский, lon=44.7°E, MSK летнее UTC+4):
+
+| Метод | UTC | LMT | TST | Hour branch |
+|---|---|---|---|---|
+| Mingli (без TST) | — | — | local 12:00 | 午 Лошадь |
+| Наш бот (TST) | 08:00 | 10:58 | ≈11:00 | 巳 Змея |
+
+Разница — это **методологическая разница**, не баг. Если клиент
+спрашивает «почему у вас Змея, а на mingli Лошадь» — отвечаем что
+мы считаем по солнечному времени для точности, как делают
+классические школы Цзы Пин и Раймонд Ло.
+
+---
+
+
+
 > Telegram-бот для персональных AI-консультаций по системе Ба Цзы (四柱命理)
 > с консультантом Анастасией. Высокоточный расчёт + мульти-модельный AI.
 
 **Разработчик:** Богдан
 **Дата старта:** март 2026
 **Статус:** 🚧 Разделы 1.5, 1.6 и большая часть 1.7 закрыты (2026-05-07). End-to-end FSM собирает данные → Calculator → БД → SVG/CairoSVG-карта (PNG) → Telegram. ⚠️ **Открытые баги визуала после последнего деплоя** — см. секцию «Известные проблемы» ниже. 871/871 тестов ✓ покрытие 97.85%.
-**Версия документа:** 3.4
+**Версия документа:** 3.5
+
+---
+
+## Сессия 2026-05-25 — graphify update + актуализация
+
+**Что закрыто за эту и предыдущие сессии (между 2026-05-21 и 2026-05-25):**
+
+| Wave 7 фаза | Статус | Commit | Что |
+|---|---|---|---|
+| Phase 1 (формат ответа) | ✅ | `0ad9d29` + `09c02e8` | нарратив + inline-расшифровка иероглифов + HTML-bold + 4-5 эмодзи |
+| Phase 2 (3 школы) | ✅ | `aa3a4d6` + hotfix `dfb857e` | `base_classic/edoha/modern.md` + `school_selector_kb` + FSM `choosing_school` + `_safe_load_skill` через `get_args(SkillName)` |
+| Phase 4 (6 драфтов) | ✅ as docs | `aa3a4d6` | 6 алгоритмов в `ai/prompts/algorithms/*.md` — ждут ревью сенсея (см. [doc/algorithm_review_prompts.md](doc/algorithm_review_prompts.md)) |
+| Phase 5 (KB + RAG school-filter) | ✅ | `3034bc3` | `school` колонка в Node, 46 teacher-docs размечены, `_school_clause` в `retrieve.py` |
+| Phase 5 live-verify | ✅ | — | edoha vs classic выдают разные `[KNOWLEDGE]` блоки; подтверждено MCP @Bogman108 |
+| Phase 5.4 → EdoHa import | ✅ | `5b273d1` | 7742 узла Digital Twin Мастера импортированы (см. Сессия 2026-05-24 ниже) |
+| Phase E (Unsplash hero) | ✅ | `a3abadc` | `ai/day_image.py` + YC URI hotfix + force-recreate деплой |
+| Phase 3.5 (LLM concept extract) | ✅ | — | `ai/rag/llm_extract.py` + Redis `ConceptCache` + 15 тестов |
+| Option X (school-neutral risk) | ✅ | `03502bc` | `risk.md` → дисциплинатор, 3-vs-1 переехал в `base_edoha.md` |
+| UX 3 free questions | ✅ | `85269d1` | `free_questions_used: int` миграция + `_remaining_footer` + auto-resume + неактивные кнопки оплаты |
+| Phase 6 (docs) | ✅ | — | [doc/school_layered_flow.md](doc/school_layered_flow.md) + [doc/algorithm_review_prompts.md](doc/algorithm_review_prompts.md) |
+
+**graphify-out обновлён** (this session): 810 файлов изменено, 213 удалено,
+3558 nodes / 6210 edges / 249 communities в графе. Топ-30 communities
+человекоразмеченые. См. [graphify-out/GRAPH_REPORT.md](graphify-out/GRAPH_REPORT.md).
+
+**God nodes** (топ узлы по связности): `ChartInput` (116 edges),
+`ChatMessage` (106), `ChartOutput` (97), `OrchestratorError` (96),
+`User` (81), `ChartRepository` (80), `HistoryStore` (72) — это
+архитектурное ядро бота.
+
+**Surprising connections** в новом графе — `risk.md` skill ↔
+`algorithms/risk_assessment.md` draft помечены `semantically_similar_to`
+с confidence 0.85+ (правильное наблюдение: один runtime + один draft
+покрывают одну доменную область двумя слоями).
+
+**Что осталось в backlog'е (приоритизированный список):**
+
+1. **`1.18.8` Sensei review 6 драфтов** — отдать [doc/algorithm_review_prompts.md](doc/algorithm_review_prompts.md) Мастеру; после апрува выбрать integration option (A/B/C/D из [doc/school_layered_flow.md](doc/school_layered_flow.md)).
+2. **`1.18.14` «Запомнить выбор школы»** — `Chart.default_school` NULLABLE → если установлен, не спрашивать каждый раз.
+3. **`1.18.23` Self-improvement loop** — 👍/👎/✏️ под ответами → накопление feedback'ов в KB с `school` тегом.
+4. **Embeddings bge-m3** (Phase 2.5) — research-промпт уже написан; впервые ставит вопрос semantic vs keyword retrieve для 7742 edoha-узлов.
+5. **W5e-MVP master meetings per-chart binding** — открыто с Wave 5.
+6. **ЮKassa real integration** (1.12.3 backlog) — пока mock pricing.
+7. **Apache AGE migration from kuzu 0.10** (1.9.15 backlog) — снимает lock-in ADR-004.
+8. **Cleanup: 525 EdoHa highlights в `База/edoha/highlights/`** — дублируют KuzuDB, ценность только в git-visibility. Решение об удалении после стабилизации edoha-консультаций.
+
+**Архитектурные правила, закреплённые в memory (для будущих сессий):**
+
+- `rsync` — только абсолютный путь источника (не `./`), иначе залетают файлы Primary working directory другого проекта.
+- `.env` ключи на VM — вручную (`scp` + `cat >>`) + `docker compose up -d --force-recreate` (`restart` НЕ перечитывает `env_file`).
+- Не урезать функционал ради MVP — features (overlays / B-roll / multi-format) это product, а не оптимизация.
+- Каждый автор методологии — отдельный скилл, не агрегировать.
+- В голосе Мастера ЭдоХа НЕТ англицизмов (`pipeline`, `case`, `evidence`) и латиницы в опечатках — только русский + китайские иероглифы как часть жаргона.
 
 ---
 

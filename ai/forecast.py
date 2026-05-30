@@ -31,7 +31,7 @@ import structlog
 
 from ai.fallback import FallbackResult, chat_with_fallback
 from ai.orchestrator import ChatMessage
-from ai.prompts import load_base_prompt
+from ai.prompts import SchoolName, load_base_prompt
 from ai.skills import load_skill
 from calculator import calculate_chart
 from calculator.models import ChartInput, ChartOutput
@@ -199,11 +199,17 @@ base.md уместно. БЛОК 6 «Рекомендации» — 3-5 конк
 не общие фразы."""
 
 
-def _build_system_prompt() -> str:
-    """Forecast персона = base.md (universal Anastasia) + time skill
-    body (forecast-specific methodology). Cached because both loaders
-    are LRU-cached themselves; this is just a string concat."""
-    base = load_base_prompt()
+def _build_system_prompt(school: SchoolName | None = None) -> str:
+    """Forecast персона = base.md (universal Anastasia) + опциональная
+    школьная надстройка base_<school>.md + time skill body (forecast-
+    specific methodology). Wave 7 Phase 2 ext (2026-05-26) — school
+    parameter позволяет подписчику получать дневные/месячные прогнозы
+    в стиле выбранной школы (classic / edoha / modern). По умолчанию
+    None → grand-fathered подписки получают универсальный base.md.
+
+    Cached because both loaders are LRU-cached themselves; this is
+    just a string concat."""
+    base = load_base_prompt(school)
     time_skill = load_skill("time").body
     return f"{base}\n\n---\n\n# [SKILL: time]\n\n{time_skill}"
 
@@ -213,8 +219,15 @@ async def generate_daily_forecast(
     chart: ChartOutput,
     target_date: date,
     trace_id: str | None = None,
+    school: SchoolName | None = None,
 ) -> ForecastResult:
-    """One-day forecast for ``target_date``."""
+    """One-day forecast for ``target_date``.
+
+    ``school`` (Wave 7 Phase 2 ext) — interpretation school chosen by
+    the subscriber. Threaded down from ChartForecastSubscription
+    .chosen_school via scheduler/jobs.py. None = legacy неопределённая
+    школа → fall back to universal base.md.
+    """
     target_chart = _chart_at_noon(target_date)
 
     user_payload = (
@@ -227,7 +240,7 @@ async def generate_daily_forecast(
     )
 
     messages = [
-        ChatMessage(role="system", content=_build_system_prompt()),
+        ChatMessage(role="system", content=_build_system_prompt(school)),
         ChatMessage(role="user", content=user_payload),
     ]
 
@@ -263,8 +276,13 @@ async def generate_monthly_forecast(
     chart: ChartOutput,
     period_start: date,
     trace_id: str | None = None,
+    school: SchoolName | None = None,
 ) -> ForecastResult:
     """30-day forecast starting at ``period_start``.
+
+    ``school`` (Wave 7 Phase 2 ext) — interpretation school chosen by
+    the subscriber. Threaded down from ChartForecastSubscription
+    .chosen_school via scheduler/jobs.py.
 
     The LLM gets pillars for both the first day and the 15th — the
     half-month sample improves the «по неделям» block by anchoring
@@ -286,7 +304,7 @@ async def generate_monthly_forecast(
     )
 
     messages = [
-        ChatMessage(role="system", content=_build_system_prompt()),
+        ChatMessage(role="system", content=_build_system_prompt(school)),
         ChatMessage(role="user", content=user_payload),
     ]
 

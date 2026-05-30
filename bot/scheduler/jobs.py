@@ -28,12 +28,13 @@ from ai.forecast import (
     generate_daily_forecast,
     generate_monthly_forecast,
 )
+from ai.prompts import SchoolName
 from bot.config import get_settings
 from bot.services.telegram_split import split_for_telegram
 from calculator import calculate_chart
 from calculator.models import ChartInput, ChartOutput
 from db.engine import get_engine
-from db.models import ForecastKind
+from db.models import ChartForecastSubscription, ForecastKind
 from db.repositories.chart_repo import ChartRepository
 from db.repositories.forecast_repo import (
     ChartForecastSubscriptionRepository,
@@ -86,6 +87,21 @@ def build_monthly_slot_key(*, period_start: date, week: int | None) -> str:
     """
     suffix = "bulk" if week is None else f"week{week}"
     return f"monthly:{period_start.strftime('%Y-%m')}:{suffix}"
+
+
+def _school_from_sub(sub: ChartForecastSubscription | None) -> SchoolName | None:
+    """Достать ChartForecastSubscription.chosen_school как Literal-school.
+
+    Возвращает None если sub нет или значение не в SchoolName Literal
+    (например legacy-подписка с пустой строкой), чтобы forecast.py
+    fall back на универсальный base.md. Wave 7 Phase 2 ext 2026-05-26.
+    """  # noqa: RUF002
+    if sub is None:
+        return None
+    value = (sub.chosen_school or "").strip().lower()
+    if value in ("classic", "edoha", "modern"):
+        return value  # type: ignore[return-value]
+    return None
 
 
 async def _resolve_active_chart(
@@ -262,7 +278,9 @@ async def _send_daily_forecast_inner(
             )
         else:
             forecast: ForecastResult = await generate_daily_forecast(
-                chart=chart_output, target_date=target_date
+                chart=chart_output,
+                target_date=target_date,
+                school=_school_from_sub(sub),
             )
 
             # Render delivery body with header.
@@ -601,7 +619,9 @@ async def _send_monthly_forecast_inner(
             )
         else:
             forecast = await generate_monthly_forecast(
-                chart=chart_output, period_start=period_start
+                chart=chart_output,
+                period_start=period_start,
+                school=_school_from_sub(sub),
             )
             header_label = (
                 f"{_DELIVERY_HEADER[ForecastKind.monthly]} — неделя {week}"
