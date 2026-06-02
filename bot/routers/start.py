@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ai.base_interpretation import format_for_telegram, generate_base_interpretation
 from ai.card_renderer import RenderRequest, render_chart_png
 from ai.orchestrator import OrchestratorError
+from bot.config import get_settings
 from bot.keyboards import (
     chart_actions_kb,
     chart_actions_kb_post_interpret,
@@ -588,11 +589,16 @@ async def handle_menu_back(
 
 @start_router.callback_query(F.data == "menu:pricing")
 async def handle_menu_pricing(callback: CallbackQuery) -> None:
-    """Stub until 1.12 (ЮKassa). Shows the price-list keyboard so the
-    user can see what's coming, but `pay:*` itself just answers an alert.
+    """Show the price-list. When ЮKassa-платежи подключены — кнопки
+    активны (pay:buy:*); иначе помечены «(скоро)» + «Продолжить бесплатно».
     """
+    from bot.services.payments import payments_live
+
     if isinstance(callback.message, Message):
-        await callback.message.answer(PRICING_STUB_TEXT, reply_markup=pricing_kb())
+        await callback.message.answer(
+            PRICING_STUB_TEXT,
+            reply_markup=pricing_kb(payments_active=payments_live(get_settings())),
+        )
     await callback.answer()
 
 

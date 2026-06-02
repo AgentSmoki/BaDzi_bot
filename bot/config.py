@@ -132,6 +132,11 @@ class Settings(BaseSettings):
     # ── Payments (ЮKassa) ─────────────────────────────────────────────────────
     yukassa_shop_id: SecretStr
     yukassa_secret_key: SecretStr
+    # Telegram-native payments (ЮKassa as provider). Provider token issued
+    # via @BotFather → Payments → ЮKassa. Format: 381764678:TEST:... (test)
+    # or :LIVE:... (prod). Optional so the bot boots without it; payment
+    # flows are gated on this + ``forecast_free_bypass``.
+    telegram_payment_provider_token: SecretStr | None = None
 
     # ── Monitoring (Langfuse) ─────────────────────────────────────────────────
     langfuse_public_key: SecretStr

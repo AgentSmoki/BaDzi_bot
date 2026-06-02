@@ -69,6 +69,12 @@ from bot.keyboards import (
     school_selector_kb,
 )
 from bot.services.menu import format_chart_label
+from bot.services.payments import (
+    QUESTION_PLANS,
+    payments_live,
+    question_payload,
+    send_invoice,
+)
 from bot.services.telegram_split import (
     TG_MAX_CHARS as _TG_MAX_CHARS,
 )
@@ -946,6 +952,38 @@ async def handle_payment_disabled(callback: CallbackQuery) -> None:
     )
 
 
+# ── pay:buy:* — покупка безлимита вопросов через ЮKassa ──────────────────
+
+
+@consultation_router.callback_query(F.data.startswith("pay:buy:"))
+async def handle_pay_buy(callback: CallbackQuery) -> None:
+    """Wave 7 (2026-06-02) — отправить ЮKassa-инвойс на тариф безлимита
+    вопросов. Подписка активируется в successful_payment
+    (bot/routers/payments.py) после оплаты."""
+    if not callback.data or not isinstance(callback.message, Message):
+        await callback.answer()
+        return
+    plan = callback.data.split(":")[2] if len(callback.data.split(":")) > 2 else ""
+    spec = QUESTION_PLANS.get(plan)
+    settings = get_settings()
+    token = settings.telegram_payment_provider_token
+    if spec is None or not payments_live(settings) or token is None:
+        await callback.answer("Оплата временно недоступна.", show_alert=True)
+        return
+    price, _days, label = spec
+    if callback.message.bot is not None:
+        await send_invoice(
+            callback.message.bot,
+            callback.message.chat.id,
+            title=f"Безлимит вопросов — {label}",
+            description=f"Безлимитные вопросы Анастасии, тариф «{label}».",
+            amount_rub=price,
+            payload=question_payload(plan),
+            provider_token=token.get_secret_value(),
+        )
+    await callback.answer()
+
+
 # ── Question handler ─────────────────────────────────────────────────────
 
 
@@ -1017,7 +1055,7 @@ async def handle_voice_question(
         # ``allow_skip=False`` или удалить параметр совсем.
         await message.answer(
             _free_questions_used_msg(settings.free_questions_limit),
-            reply_markup=pricing_kb(),
+            reply_markup=pricing_kb(payments_active=payments_live(settings)),
         )
         logger.info(
             "consultation.blocked_by_free_question_guard",
@@ -1129,7 +1167,7 @@ async def handle_question(
         await history_store.stash_pending_question(user.telegram_id, question)
         await message.answer(
             _free_questions_used_msg(settings.free_questions_limit),
-            reply_markup=pricing_kb(),
+            reply_markup=pricing_kb(payments_active=payments_live(settings)),
         )
         # Keep FSM state as `waiting_question` so the pending data
         # survives until handle_pricing_skip clears it.

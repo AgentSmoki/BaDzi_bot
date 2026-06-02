@@ -84,11 +84,14 @@ def fake_state() -> MagicMock:
     return s
 
 
-def _fake_chart(*, user_id: _uuid.UUID, tz_offset: float = 3.0) -> MagicMock:
+def _fake_chart(
+    *, user_id: _uuid.UUID, tz_offset: float = 3.0, default_school: str | None = None
+) -> MagicMock:
     c = MagicMock()
     c.id = _uuid.uuid4()
     c.user_id = user_id
     c.tz_offset = tz_offset
+    c.default_school = default_school
     return c
 
 
@@ -97,6 +100,10 @@ def _fake_callback(data: str) -> MagicMock:
     cb.message = MagicMock(spec=Message)
     cb.message.answer = AsyncMock()
     cb.message.edit_text = AsyncMock()
+    # Finalize helpers confirm via message.bot.send_message + message.chat.id.
+    cb.message.chat = MagicMock()
+    cb.message.chat.id = 545371253
+    cb.message.bot = AsyncMock()
     cb.answer = AsyncMock()
     cb.data = data
     return cb

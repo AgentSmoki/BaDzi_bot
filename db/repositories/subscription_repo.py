@@ -35,6 +35,7 @@ class SubscriptionRepository:
         status: SubscriptionStatus = SubscriptionStatus.active,
         expires_at: datetime | None = None,
         payment_provider: str | None = None,
+        payment_id: str | None = None,
     ) -> Subscription:
         sub = await self.get_by_user_id(session, user_id)
         if sub is None:
@@ -44,6 +45,7 @@ class SubscriptionRepository:
         sub.plan = plan
         sub.status = status
         sub.payment_provider = payment_provider
+        sub.payment_id = payment_id
 
         if plan == SubscriptionPlan.monthly or plan == SubscriptionPlan.quarterly:
             sub.monthly_expires_at = expires_at

@@ -40,6 +40,7 @@ class ChartForecastSubscriptionRepository:
         monthly_delivery: MonthlyDelivery | None = None,
         daily_send_hour_utc: int | None = None,
         payment_provider: str | None = None,
+        payment_id: str | None = None,
         period_days: int = 30,
         chosen_school: str = "classic",
     ) -> ChartForecastSubscription:
@@ -65,6 +66,7 @@ class ChartForecastSubscriptionRepository:
             expires_at=now + timedelta(days=period_days),
             price_rub=price_rub,
             payment_provider=payment_provider,
+            payment_id=payment_id,
             chosen_school=chosen_school,
         )
         session.add(sub)

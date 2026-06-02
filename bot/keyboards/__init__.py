@@ -363,28 +363,28 @@ def default_school_kb(chart_id: uuid.UUID, current: str | None = None) -> Inline
     return builder.as_markup()
 
 
-def pricing_kb(*, allow_skip: bool = True) -> InlineKeyboardMarkup:
+def pricing_kb(*, allow_skip: bool = True, payments_active: bool = False) -> InlineKeyboardMarkup:
     """Pricing keyboard shown after the free quota is consumed.
 
-    Wave 7 UX rework (2026-05-24):
-    - Тарифные кнопки помечены «(скоро)» и шлют callback_data
-      ``pay:disabled:*`` → handler показывает alert «оплата
-      подключается». До запуска ЮКассы (1.12.3) кнопки нерабочие,
-      но видны клиенту как «обещание».
-    - «🔓 Продолжить бесплатно» (бывш. «🔧 Пропустить (тест)») —
-      теперь доступна **всем** (не только admin). Раньше gate был
-      нужен чтобы избежать абуза тестового флага в проде; сейчас
-      ЮКасса не работает в принципе, поэтому skip-режим = единственный
-      путь продолжить разговор. При подключении ЮКассы вернуть
-      ``allow_skip=False`` (или удалить параметр вместе с handler'ом
-      pricing:skip).
+    ``payments_active`` (Wave 7, 2026-06-02 — ЮKassa подключена):
+    - ``True`` → активные кнопки покупки ``pay:buy:<plan>`` (через
+      Telegram-платежи ЮKassa), без «(скоро)» и без «Продолжить
+      бесплатно» — оплата реальна.
+    - ``False`` (default, free-bypass) → кнопки помечены «(скоро)»,
+      шлют ``pay:disabled:*`` (alert «оплата подключается»), плюс
+      «🔓 Продолжить бесплатно» (``pricing:skip``).
     """
     builder = InlineKeyboardBuilder()
-    builder.button(text="💳 Месяц — 290 ₽ (скоро)", callback_data="pay:disabled:monthly")
-    builder.button(text="💳 3 месяца — 990 ₽ (скоро)", callback_data="pay:disabled:quarterly")
-    builder.button(text="💳 Год — 2 490 ₽ (скоро)", callback_data="pay:disabled:annual")
-    if allow_skip:
-        builder.button(text="🔓 Продолжить бесплатно", callback_data="pricing:skip")
+    if payments_active:
+        builder.button(text="💳 Месяц — 290 ₽", callback_data="pay:buy:monthly")
+        builder.button(text="💳 3 месяца — 990 ₽", callback_data="pay:buy:quarterly")
+        builder.button(text="💳 Год — 2 490 ₽", callback_data="pay:buy:annual")
+    else:
+        builder.button(text="💳 Месяц — 290 ₽ (скоро)", callback_data="pay:disabled:monthly")
+        builder.button(text="💳 3 месяца — 990 ₽ (скоро)", callback_data="pay:disabled:quarterly")
+        builder.button(text="💳 Год — 2 490 ₽ (скоро)", callback_data="pay:disabled:annual")
+        if allow_skip:
+            builder.button(text="🔓 Продолжить бесплатно", callback_data="pricing:skip")
     builder.button(text="Назад", callback_data="menu:back")
     builder.adjust(1)
     return builder.as_markup()
