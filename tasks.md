@@ -195,42 +195,122 @@
 
 > Сначала пишем 6 markdown-драфтов в `ai/prompts/algorithms/`, показываем Богдану, итерируем. Не интегрируем в код в этой фазе — это документы для согласования.
 
-- [x] **1.18.1 risk_assessment.md** — 3-vs-1 паттерн для опасных периодов (commit `0ad9d29`). Полный разбор на эталонной карте Богдана (март 2026 — реальная катастрофа, не май). Готов для ревью.
-- [ ] **1.18.2 opportunity_window.md** — благоприятные периоды через 三合 (триадные слияния), 桃花, благородные звёзды
-- [ ] **1.18.3 relationships_match.md** — алгоритм сравнения двух карт: столпы дня + Дворец Супруга + 六合 vs 六冲
-- [ ] **1.18.4 career_alignment.md** — какая работа подходит: 偏官/正官 на месяце + Полезное Божество + талант (食神/伤官)
-- [ ] **1.18.5 decision_chain.md** — вопросы «делать X или Y?»: шахматная аналогия, оценка позиций обеих сторон, расчёт ходов
-- [ ] **1.18.6 health_diagnostics.md** — баланс стихий → ТКМ-системы → ослабленный / гипер орган
-- [ ] **1.18.7 term_unpack.md** — мета-алгоритм: при появлении незнакомого термина остановись, расшифруй, потом продолжай
+- [x] **1.18.1 risk_assessment.md** — 3-vs-1 паттерн для опасных периодов (commit `0ad9d29`). Полный разбор на эталонной карте Богдана (март 2026 — реальная катастрофа, не май). После Option X (commit `03502bc`) живёт в [`ai/prompts/algorithms/risk_assessment.md`](ai/prompts/algorithms/risk_assessment.md) как драфт + конкретный алгоритм перенесён в [`ai/prompts/base_edoha.md`](ai/prompts/base_edoha.md). Skill [`ai/skills/risk.md`](ai/skills/risk.md) теперь школо-нейтральный дисциплинатор («ЧТО анализировать + КАК форматировать»).
+- [x] **1.18.2 opportunity_window.md** (драфт готов 2026-05-24, runtime-integration на ревью сенсея) — благоприятные периоды через 三合 + 桃花 + благородные звёзды → [`ai/prompts/algorithms/opportunity_window.md`](ai/prompts/algorithms/opportunity_window.md)
+- [x] **1.18.3 relationships_match.md** (драфт готов 2026-05-24, runtime-integration на ревью сенсея) — сравнение двух карт: столпы дня + Дворец Супруга + 六合 vs 六冲 → [`ai/prompts/algorithms/relationships_match.md`](ai/prompts/algorithms/relationships_match.md)
+- [x] **1.18.4 career_alignment.md** (драфт готов 2026-05-24, runtime-integration на ревью сенсея) — какая работа подходит: 偏官/正官 на месяце + Полезное Божество + талант (食神/伤官) → [`ai/prompts/algorithms/career_alignment.md`](ai/prompts/algorithms/career_alignment.md)
+- [x] **1.18.5 decision_chain.md** (драфт готов 2026-05-24, runtime-integration на ревью сенсея) — «делать X или Y?»: шахматная аналогия, оценка позиций обеих сторон, расчёт ходов → [`ai/prompts/algorithms/decision_chain.md`](ai/prompts/algorithms/decision_chain.md)
+- [x] **1.18.6 health_diagnostics.md** (драфт готов 2026-05-24, runtime-integration на ревью сенсея) — баланс стихий → ТКМ-системы → ослабленный / гипер орган → [`ai/prompts/algorithms/health_diagnostics.md`](ai/prompts/algorithms/health_diagnostics.md)
+- [x] **1.18.7 term_unpack.md** (драфт готов 2026-05-24, runtime-integration на ревью сенсея) — мета-алгоритм: при незнакомом термине остановись, расшифруй, потом продолжай → [`ai/prompts/algorithms/term_unpack.md`](ai/prompts/algorithms/term_unpack.md)
+- [ ] **1.18.8 Sensei review 6 драфтов** — отдать Мастеру [`doc/algorithm_review_prompts.md`](doc/algorithm_review_prompts.md) (6 review-промптов с критериями: терминология, последовательность шагов, эталонная карта, контр-примеры). После апрува — выбрать integration option: A (skill per algorithm) / B (одна `base_edoha.md` секция) / C (промптовая sub-routine) / D (оставить как документ). См. архитектурный разбор в [`doc/school_layered_flow.md`](doc/school_layered_flow.md).
 
 #### Phase 2 — Три версии base.md + UX выбор школы
 
-- [ ] **1.18.10 base_classic.md** (≈12 KB) — школа Yuan Hai Zi Ping / Раймонд Ло. Структурный анализ через 10 Богов, 25 格局, сила Дневного Мастера, Полезное Божество. БЕЗ алгоритмов школы ЭдоХа.
-- [ ] **1.18.11 base_edoha.md** (≈14 KB) — школа мастера ЭдоХа. Embedded алгоритмы мышления (Phase 4). Принцип «вначале человек, потом теория». Метафоры обязательны. В конце ответа: «Если хотите — могу дать классическую версию».
-- [ ] **1.18.12 base_modern.md** (≈12 KB) — синтез нескольких школ + язык психологии. Менее жёсткая в трактовках, больше про самопознание.
-- [ ] **1.18.13 UX выбор школы** — расширение FSM + клавиатур:
-  - Новый `ConsultationState.choosing_school` в [bot/states.py](bot/states.py)
-  - `school_selector_kb()` в [bot/keyboards/__init__.py](bot/keyboards/__init__.py) — три кнопки: `school:classic` / `school:edoha` / `school:modern`
-  - [handle_ask_pressed](bot/routers/consultation.py) — вместо сразу `waiting_question` показать school_selector + перейти в `choosing_school`
-  - Callback-handlers `F.data.startswith("school:")` → save `chosen_school` в FSM data → set_state(waiting_question)
-  - [_continue_consultation_with_skill](bot/routers/consultation.py) читает `chosen_school` из FSM и прокидывает в [compose_messages](ai/temporal_context.py)
-  - [load_base_prompt](ai/prompts/__init__.py) → `load_base_prompt(school: SchoolName)` с `lru_cache` per school
-- [ ] **1.18.14 Опция «запомнить выбор»** (отложить) — DB migration `Chart.default_school` NULLABLE. Если установлен → не спрашивать каждый раз.
-- [ ] **1.18.15 Phase 2 live-verify через MCP** — задать одинаковый вопрос «какой опасный месяц 2026?» на трёх школах → увидеть три разных ответа. edoha должен дать март (3-vs-1), classic — май (классическое 六冲), modern — психологический ответ.
+- [x] **1.18.10 base_classic.md** (закрыт 2026-05-23, commit `aa3a4d6`) — школа Yuan Hai Zi Ping / Раймонд Ло. Структурный анализ через 10 Богов, 25 格局, сила Дневного Мастера, Полезное Божество. После Option X добавлена секция «# Алгоритм оценки рисков» (六冲 + 三刑) → [`ai/prompts/base_classic.md`](ai/prompts/base_classic.md)
+- [x] **1.18.11 base_edoha.md** (закрыт 2026-05-23, commit `aa3a4d6`) — школа мастера ЭдоХа. Embedded 3-vs-1 алгоритм (после Option X). Метафоры обязательны. → [`ai/prompts/base_edoha.md`](ai/prompts/base_edoha.md)
+- [x] **1.18.12 base_modern.md** (закрыт 2026-05-23, commit `aa3a4d6`) — синтез нескольких школ + язык психологии. После Option X добавлена секция «# Алгоритм оценки рисков» (growth zones). → [`ai/prompts/base_modern.md`](ai/prompts/base_modern.md)
+- [x] **1.18.13 UX выбор школы** (закрыт 2026-05-23, commit `aa3a4d6` + hotfix `dfb857e` для `_safe_load_skill` whitelist):
+  - `ConsultationState.choosing_school` в [bot/states.py](bot/states.py) ✓
+  - `school_selector_kb()` в [bot/keyboards/__init__.py](bot/keyboards/__init__.py) ✓
+  - `handle_school_chosen` callback в [bot/routers/consultation.py](bot/routers/consultation.py) ✓
+  - `_continue_consultation_with_skill(chosen_school=...)` прокидывает school в [compose_messages](ai/temporal_context.py) ✓
+  - `load_base_prompt(school: SchoolName | None)` с `lru_cache` per school в [ai/prompts/__init__.py](ai/prompts/__init__.py) ✓
+  - **Hotfix `dfb857e`**: `_safe_load_skill` использовал hardcoded whitelist без `"risk"` → router выбирал risk (conf 0.95), а loader тихо downgrade'ил до default → все 3 школы давали одинаковые ответы. Исправлено через `valid = set(get_args(SkillName))`.
+- [x] **1.18.14 Опция «запомнить выбор»** (закрыт 2026-06-02) — `Chart.default_school` NULLABLE (migration `b2c3d4e5f6a7`). Кнопка «⚙️ Школа по умолчанию» в меню карты ([default_school_kb](bot/keyboards/__init__.py) + handlers `chart:defschool`/`defschool:set`/`defschool:clear` в [start.py](bot/routers/start.py)). Консультация и покупка прогноза пропускают селектор школы если дефолт задан. Тесты: repo set/clear + skip-селектора.
+- [x] **1.18.15 Phase 2 live-verify через MCP** (закрыт 2026-05-23) — через @Bogman108 → @EdoHa_Badzi_bot задан вопрос «какой опасный месяц 2026?» на трёх школах. После hotfix `dfb857e` все три школы дают разные ответы (edoha — март/3-vs-1, classic — структурный 六冲, modern — psychology overlay). Подтверждено в логах VM (`grep KNOWLEDGE` + structlog `rag.retrieve.*`).
 
 #### Phase 5 — Knowledge base разметка по школам + Edoha KB
 
-- [ ] **1.18.20 KB разметка** — frontmatter `school: classic | edoha | modern | universal` во всех 33 teacher-docs в [База/teacher/](База/teacher/). Большинство → `universal` (базовые правила), специфика → `classic` / `edoha`.
-- [ ] **1.18.21 RAG retrieve фильтрация** — [ai/rag/retrieve.py](ai/rag/retrieve.py) принимает `school: SchoolName | None`. Если задана → фильтрует nodes по `school IN (universal, <chosen>)`. [load_knowledge_for_question](ai/rag/public.py) прокидывает school из compose_messages.
+- [x] **1.18.20 KB разметка** (закрыт 2026-05-23) — frontmatter `school: classic | edoha | modern | universal` во всех 46 teacher-docs через [scripts/tag_teacher_school.py](scripts/tag_teacher_school.py). Распределение: 14 classic + 32 universal + 0 modern. Parser ([knowledge/ingest/parser.py](knowledge/ingest/parser.py)) читает `school:`, writer ([knowledge/ingest/writer.py](knowledge/ingest/writer.py)) пишет в `n.school`, schema ([knowledge/schema.py](knowledge/schema.py)) добавила колонку через `MIGRATION_DDL` + `ALTER TABLE Node ADD school STRING DEFAULT 'universal'`.
+- [x] **1.18.21 RAG retrieve фильтрация** (закрыт 2026-05-23) — [ai/rag/retrieve.py](ai/rag/retrieve.py) принимает `school: SchoolFilter | None`, фильтрует через `_school_clause()` → `WHERE n.school IS NULL OR n.school IN ['universal', $school]`. Прокинуто в `retrieve_nodes / concept_hits / title_hits / expand_neighbours`. [load_knowledge_for_question](ai/rag/public.py) и [compose_messages](ai/temporal_context.py) передают school из `_continue_consultation_with_skill`.
 - [x] **1.18.22 Edoha KB expansion (закрыт 2026-05-24)** — вместо single sensei-транскрипта импортирован ВЕСЬ Digital Twin Мастера из `/Users/admin/Documents/Razarabotka/EdoHa` (7742 узла из 298 YouTube-транскриптов + 4 PDF + 20 курсов). 2-фазный pipeline ([scripts/edoha_export_json.py](scripts/edoha_export_json.py) через EdoHa venv kuzu 0.11.3 → JSONL → [scripts/import_edoha_kuzu.py](scripts/import_edoha_kuzu.py) через BaDzi venv kuzu 0.10 → 7742 nodes + 7850 edges). Маппинг: Manifesto/Quote/Fact (212+112+788) → L8 auth 9-10, MentalModel/CausalBelief/Document (808+1595+537) → L7 auth 8-9, Relation/StyleMarker (539+3151) → L6 auth 7-8. Все с `school='edoha'`, id-префикс `edoha:<type>:<original_pk>`. Highlights ~524 .md в [`База/edoha/highlights/`](База/edoha/highlights/) для git-видимости через [scripts/export_edoha_to_md.py](scripts/export_edoha_to_md.py). RAG smoke: edoha-вопрос возвращает 11 KB цитат мастера (vs 0 раньше). Pytest 871/871 ✓. Полная сессия — в MASTER.md «Сессия 2026-05-24».
 - [ ] **1.18.23 Self-improvement loop** (отложить) — кнопки «👍 / 👎 / ✏️» под каждым ответом, накопление feedback'ов в KB с `school: <выбранная>`.
-- [ ] **1.18.24 Phase 5 live-verify** — edoha-вопрос про опасные периоды → `[KNOWLEDGE]` блок содержит цитаты сенсея про 3-vs-1. classic-вопрос на тот же запрос → `[KNOWLEDGE]` без edoha-материалов.
+- [x] **1.18.24 Phase 5 live-verify** (закрыт 2026-05-24) — edoha-вопрос про опасные периоды → `[KNOWLEDGE]` блок содержит цитаты сенсея про 3-vs-1 (≈11 KB цитат, фигурируют `edoha:fact:*` / `edoha:manifesto:*` IDs); classic-вопрос на тот же запрос → `[KNOWLEDGE]` без edoha-материалов (структурный 六冲 из teacher-KB). Подтверждено через MCP @Bogman108 + `grep KNOWLEDGE` в логах VM.
+
+#### Phase E — Unsplash hero image в прогнозе (закрыт 2026-05-24, commit `a3abadc`)
+
+- [x] **1.18.30 day_image hero** — [ai/day_image.py](ai/day_image.py): YC fast LLM генерирует Unsplash query из энергии дня → API `/photos/random` отдаёт фото 1080×1920 → URL в кэше + в первой части блок-сообщения forecast'а. `unsplash_application_id/access_key/secret_key` в `bot/config.py`. Hotfix YC URI 400 (короткое имя модели → нужен `gpt://{folder}/{model}/latest`). Деплой на VM: `scp` ключей фрагментом + `docker compose up -d --force-recreate` (restart не перечитывает env_file → новая запись в [feedback memory](.claude/projects/.../feedback_env_keys_to_vm.md)).
+
+#### Phase 3.5 — LLM concept extraction для RAG (закрыт 2026-05-24)
+
+- [x] **1.18.31 ai/rag/llm_extract** — [ai/rag/llm_extract.py](ai/rag/llm_extract.py) выделяет concept-hints из вопроса пользователя через fast LLM. `ConceptCache(Redis)` с sha256-ключом + 24h TTL для дедупликации. Graceful fallback на пустой список при ошибке LLM. 15 тестов в [tests/unit/test_ai/test_rag/test_llm_extract.py](tests/unit/test_ai/test_rag/test_llm_extract.py). `close_concept_cache` в `_shutdown` ([bot/main.py](bot/main.py)).
+
+#### Option X — Школо-нейтральный risk skill (закрыт 2026-05-24, commit `03502bc`)
+
+- [x] **1.18.32 risk skill neutralization** — [ai/skills/risk.md](ai/skills/risk.md) переписан как дисциплинатор («ЧТО анализировать (карта рождения / приходящие столпы / смягчающие факторы) + КАК форматировать ответ»). Конкретный 3-vs-1 алгоритм переехал в [`ai/prompts/base_edoha.md`](ai/prompts/base_edoha.md) как секция «# Алгоритм оценки рисков». Аналогичные секции в `base_classic.md` (六冲 + 三刑) и `base_modern.md` (growth zones). Архитектурный разбор в [`doc/school_layered_flow.md`](doc/school_layered_flow.md).
+- [x] **1.18.33 SkillName extension** — [ai/skills/models.py](ai/skills/models.py): `SkillName = Literal["work","relationships","health","time","risk","default"]`. [ai/skills/loader.py](ai/skills/loader.py) автоматически использует `get_args(SkillName)` вместо hardcoded списка.
+
+#### UX «3 бесплатных вопроса» (закрыт 2026-05-24, commit `85269d1`)
+
+- [x] **1.18.40 free_questions counter** — миграция [migrations/versions/20260524_4af483b51b7e_free_questions_used_as_counter_wave_7_ux.py](migrations/versions/20260524_4af483b51b7e_free_questions_used_as_counter_wave_7_ux.py): `free_question_used: bool` → `free_questions_used: int` с backfill (True→3, False→0). `free_questions_limit: int = 3` в [bot/config.py](bot/config.py).
+- [x] **1.18.41 footer + auto-resume** — [bot/routers/consultation.py](bot/routers/consultation.py) добавляет `_remaining_footer()` («осталось N/3 бесплатных запросов») после каждого ответа. `handle_pricing_skip` больше не admin-only. Кнопки оплаты неактивные (`pay:disabled:*` callback) после исчерпания лимита. `handle_payment_disabled` отвечает «оплата временно недоступна». Auto-resume сохраняет вопрос: после нажатия «Пропустить» бот отвечает на ранее заданный вопрос без повторного ввода.
+
+#### Phase 6 — Architecture documentation (закрыт 2026-05-24)
+
+- [x] **1.18.50 doc/school_layered_flow.md** — карта где каждый .md загружается, 2 touchpoints (base overlay + RAG school-filter), integration options A/B/C/D для 6 алгоритмов. [`doc/school_layered_flow.md`](doc/school_layered_flow.md).
+- [x] **1.18.51 doc/algorithm_review_prompts.md** — 6 review-промптов с критериями для сенсея. [`doc/algorithm_review_prompts.md`](doc/algorithm_review_prompts.md).
+
+#### Phase 7 — UX полировка покупок и follow-up (закрыт 2026-05-26)
+
+> Серия live-fix'ов по результатам прогона с реальным клиентом (@S_Kate2011) и тестов Богдана через @Bogman108. Главное: убрать слово «натал», поправить скип цен с потерей вопроса, доставить первый weekly-прогноз без ожидания scheduler-loop, сделать follow-up tap-to-copy с двумя кнопками.
+
+- [x] **1.18.60 6 UX правок** (commit `fee7710`):
+  - **Pricing-skip пропадал** — `handle_pricing_skip` иногда терял FSM-данные → Redis-fallback через `HistoryStore.stash_pending_question` / `pop_pending_question` (GETDEL, TTL 1ч). См. [ai/context.py:130-152](ai/context.py#L130-L152).
+  - **Даты в прошлом для @S_Kate2011** — добавлен `[TODAY: <iso>]` маркер в system-prompt + правило «не предлагай прошедшие даты» в [base.md](ai/prompts/base.md).
+  - **Месячный прогноз приходил фото-без-текста** — Telegram caption cap 4096. Размер блоков сокращён (daily 50-120 / monthly 60-130 слов) + `split_for_telegram` в `_send_or_record_error`.
+  - **Замена «натал» → «карта Ба Цзы»** во всех 8 источниках (анастасия, INSTRUCTION_PREFIX, base.md, journal.py, baihu_white_tiger.md, anastasia_v2.md, risk_assessment.md). Локальный re-ingest kuzu + `docker compose cp` на VM.
+  - **Образы животных в edoha** — анимал-метафоры с leading questions в [base_edoha.md](ai/prompts/base_edoha.md).
+  - **Follow-up подчёркнут** — формат «Чтобы узнать больше, задайте вопрос по этой карте: …» с `<u>…</u>` обёрткой в [INSTRUCTION_PREFIX](ai/prompts/__init__.py).
+
+- [x] **1.18.61 Абсолютный запрет «натал»** (commit `c42233f`):
+  - Усиленная формулировка в [base.md](ai/prompts/base.md) + INSTRUCTION_PREFIX с явной replacement-таблицей (`натал → карта Ба Цзы`, `в натале → в карте`, `натальный → карты Ба Цзы`).
+  - `partner_chart` UI добавлен для skill=`work` (бизнес-партнёрство, соучредители) — был только для relationships.
+
+- [x] **1.18.62 First-week inline kick + анимация + follow-up tap-to-copy** (commits `909e6ec` + `f1142c3` + `a544697`):
+  - **Первый месячный weekly не доходил** — APScheduler стартовал >1ч после `sub.create`, guard `fire_at < now-1h` тихо пропускал week=1. Inline kick через `asyncio.create_task(_kick_first_delivery)` + 60с sleep + `send_monthly_forecast_job(week=1)`. Модуль-global `_kick_tasks: set[asyncio.Task]` против GC-collection. 3 unit-теста в [tests/unit/test_bot/test_forecast_handlers.py](tests/unit/test_bot/test_forecast_handlers.py).
+  - **Анимация ожидания LLM** — placeholder-message со сменяющимся текстом «🕯 Зажигаю свечу… 🌌 Смотрю на небо… 📜 Читаю карту…» каждые ~3с пока LLM генерирует ответ. После доставки — `delete_message` placeholder'а с `except (TelegramBadRequest, TypeError)` для MagicMock в тестах.
+  - **Suggested follow-up UI** — Анастасия выдаёт follow-up в `<code>…</code>` (tap-to-copy на iOS/Android) + 2 кнопки: `⬆️ Задать предложенный вопрос` (Redis stash через `stash_suggested_followup`/`pop_suggested_followup`, TTL 1ч) и `🔄 Задать другой вопрос` (переименовано из «Задать ещё вопрос» по запросу Богдана). См. [ai/context.py:154-179](ai/context.py#L154-L179).
+
+#### Phase 8 — Forecast school selection + relationships UX + history-leak (закрыт 2026-05-30, commit `69e79a8`)
+
+> Три проблемы, выявленные в проде 2026-05-26: прогнозы (daily/monthly) шли в нейтральном голосе без выбора школы; skill-router для `relationships` спрашивал данные партнёра текстом вместо немедленного UI; HistoryStore карусель имён («Сергей» из предыдущего диалога утекал в новый). Полный план: [`~/.claude/plans/1-smooth-adleman.md`](../../../.claude/plans/1-smooth-adleman.md).
+
+- [x] **1.18.70 Выбор школы при покупке прогнозов** — каскад FSM-шагов `fc:bm → fc:mc:<delivery> → fc:ms:<school>` для месячного и `fc:bd → fc:dc:<hour> → fc:ds:<school>` для дневного. Migration `20260526_a1b2c3d4e5f6_add_chosen_school_to_forecast_sub.py` (колонка `chosen_school VARCHAR(16) NOT NULL DEFAULT 'classic'`). `ChartForecastSubscription.chosen_school` в [db/models.py](db/models.py); `chosen_school` kwarg в [forecast_repo.py::create](db/repositories/forecast_repo.py); `school_selector_kb(callback_prefix=...)` параметризован для reuse трёх контекстов (consultation / `fc:ms` / `fc:ds`); 2-шаговые handlers `handle_monthly_school_confirm` + `handle_daily_school_confirm` в [bot/routers/forecast.py](bot/routers/forecast.py) с inline kick первой недели. `_build_system_prompt(school)` + `generate_*_forecast(*, school=None)` в [ai/forecast.py](ai/forecast.py); `_school_from_sub` хелпер с whitelist валидацией в [bot/scheduler/jobs.py](bot/scheduler/jobs.py). 8 unit-тестов переписаны на новый 2-шаговый flow.
+
+- [x] **1.18.71 Relationships — ранний skip clarifying loop** — в [bot/routers/consultation.py::_process_question_after_guards](bot/routers/consultation.py) добавлена **Branch 0** ДО clarifying-loop:
+  ```python
+  if (effective_skill == "relationships"
+      and skill_sel.needs_partner_chart
+      and chart.partner_chart_id is None):
+      await state.update_data(pending_question=question, ...)
+      partner_kb = await _partner_kb_for_user(...)
+      await message.answer(_PARTNER_REQUEST_MSG, reply_markup=partner_kb)
+      return
+  ```
+  Применяется ТОЛЬКО к `relationships` — для `work` (бизнес-партнёрство) сохраняется clarifying loop, потому что вопросы типа «на каком этапе переговоры» НЕ дублируют partner card data. Live-verified MCP: `consultation.partner_chart_requested_early_skip_clarifying skill=relationships clarifying_count=0`.
+
+- [x] **1.18.72 Smart history-reset при смене skill** — устранена утечка имён между темами. Новые методы `get_last_skill`/`set_last_skill`/`clear_last_skill` в [ai/context.py::HistoryStore](ai/context.py#L181-L210) поверх Redis key `chat:{user_id}:last_skill` (TTL = `HISTORY_TTL_SECONDS`). В consultation pipeline ПОСЛЕ `select_skill`:
+  ```python
+  if last_skill and last_skill != effective_skill:
+      await history_store.clear(user.telegram_id)
+      await history_store.clear_last_skill(user.telegram_id)
+      history = []
+  ```
+  После успешного `append` — `set_last_skill(skill_spec.name)`. Live-verified MCP: `consultation.history_cleared_on_skill_change old_skill=relationships new_skill=health`.
+
+- [x] **1.18.73 Hour pillar TST vs mingli — методологическая заметка** — клиент обнаружил расхождение (наш `癸巳` Змея vs mingli `甲午` Лошадь для 25.07.1988 12:00 Волжский). Это **не баг**: наш расчёт классически корректный (True Solar Time с longitude + Equation of Time), mingli использует упрощённое локальное время. Решение Богдана — TST остаётся как сейчас. Добавлена секция «Известные методологические особенности → Hour pillar — TST vs local clock» в MASTER.md для будущих сессий.
+
+#### Phase 9 — алгоритмы мастера во все школы + default_school + ЮKassa (закрыт 2026-06-02)
+
+- [x] **1.18.80 Алгоритмы мастера → все школы** — ревью мастера ([doc/algorithm_review_prompts.md](doc/algorithm_review_prompts.md)) применено к 5 алгоритмам (opportunity/relationships/career/decision/health; #6 term_unpack пропущен). Нейтральное ядро → `ai/skills/*.md` (видят все школы через [SKILL]), голос/доктрина ЭдоХи → [base_edoha.md](ai/prompts/base_edoha.md). Новый skill `decision` + SkillName + router catalog. Драфты algorithms/*.md = canonical reference. Тесты: 7 skills, decision школо-нейтрален.
+- [x] **1.18.14 default_school** (см. выше).
+- [x] **1.18.81 ЮKassa оплата** — нативные Telegram-платежи (ЮKassa провайдер), без webhook. Прогнозы 500/900 ₽ + вопросы 290/990/2490 ₽. `payments_live` gate (токен + не bypass), [bot/services/payments.py](bot/services/payments.py) + [bot/routers/payments.py](bot/routers/payments.py) (pre_checkout + successful_payment), `payment_id` в обеих моделях подписок (migration `c3d4e5f6a7b8`). Forecast default-school pre-fill. Тесты: 11 payments + адаптированы 5 forecast. **Что нужно от Богдана:** provider-токен из @BotFather (ЮKassa) в `.env` на VM + `FORECAST_FREE_BYPASS=false`.
 
 #### Что НЕ в Wave 7
 
-- ЮKassa (W7 monetization, отложено отдельно)
 - 3D эмодзи в SVG-карте (L-1)
-- KuzuDB → Apache AGE migration (1.9.15)
+- KuzuDB → Apache AGE migration — **ОТМЕНЕНО** (остаёмся на 0.10, см. 1.9.15)
+- bge-m3 embeddings — готовое предложение [doc/proposals/bge_m3_embeddings.md](doc/proposals/bge_m3_embeddings.md), к запуску по решению
 - A/B тестирование школ — после стабилизации Phase 5
 
 ### 🌊 Wave 1 (closed 2026-05-19, commit `57c8973`, LIVE)
@@ -242,24 +322,17 @@
 
 - [x] **W2 Smart-entry** — `ai/text_extract.extract_birth_data` (fast LLM, JSON, graceful fallback), `BirthDataForm.waiting_full_text`, [handle_full_text](bot/routers/birth_data.py) → `_route_to_first_missing_step`. Кнопка «Ввести по шагам» для escape на классический FSM. 19 тестов.
 
-### 🌊 Wave 3 — платные прогнозы (in progress, ADR-011 будет в Phase 7)
+### 🌊 Wave 3 — платные прогнозы (closed 2026-05-26, LIVE; school selection добавлен в Wave 7 Phase 8)
 
-**Архитектурное решение (research 2026-05-19, Dev_Architect/research_tool):** APScheduler `AsyncIOScheduler` + `SQLAlchemyJobStore` на Postgres, отдельный Docker-сервис `scheduler`. См. `/tmp/scheduler_research.md` или зафиксируется в ADR-011.
+**Архитектурное решение (research 2026-05-19, Dev_Architect/research_tool):** APScheduler `AsyncIOScheduler` + `SQLAlchemyJobStore` на Postgres, отдельный Docker-сервис `scheduler`.
 
-- [x] **W3a DB + repo** — `ChartForecastSubscription` + `ForecastDelivery` модели, migration `776d382ae50d`, `ChartForecastSubscriptionRepository` + `ForecastDeliveryRepository`. Settings: `forecast_free_bypass=True`, `forecast_monthly_price_rub=500`, `forecast_daily_price_rub=900`, `forecast_daily_default_hour_local=4`, `forecast_period_days=30`.
-- [ ] **W3b Forecast generator** — `ai/forecast.py`: `generate_monthly_forecast(chart, period)` / `generate_daily_forecast(chart, date)`. Блочный LLM-текст (4-6 блоков: общая энергия, столпы дня, активации, риски, рекомендации). Использует main LLM (Qwen3.6 интерпретация-intent). Per-day идёт против [CURRENT_MOMENT] на ту дату.
-- [ ] **W3c Scheduler** — APScheduler с PG jobstore:
-  - Отдельный docker-compose сервис `scheduler` поверх того же образа что bot
-  - `rebuild_jobs_for_all_subs` периодически (5 мин) пересоздаёт cron-jobs
-  - Daily: `CronTrigger(hour=daily_send_hour_utc, minute=0, timezone=UTC)` per subscription
-  - Monthly weekly: `IntervalTrigger(days=7)` × 4 send'а
-  - Monthly bulk: одноразовая `DateTrigger` сразу после покупки
-  - `ForecastDelivery.slot_key` дедупит retry (`daily:YYYY-MM-DD`, `monthly:YYYY-MM:weekN`, `monthly:YYYY-MM:bulk`)
-- [ ] **W3d UI** — кнопки на карте: «📅 Прогноз на месяц 500₽» и «🌅 Прогноз дня + активации 900₽».
-  - Месяц → выбор delivery (раз в неделю / прислать всё сразу) → confirm → `subscription_repo.create(payment_provider="free_dev_bypass")` (пока bypass)
-  - День → выбор hour (default 4 утра локального времени по `chart.tz_offset`) → confirm → подписка + первый прогноз через ~1 мин после покупки
-  - `subscription_view_kb` показывает активные подписки на карте + кнопку «Отменить»
-- [ ] **W3e Live verify + deploy** — миграция → docker rebuild scheduler service → smoke в `@EdoHa_Badzi_bot`
+- [x] **W3a DB + repo** — `ChartForecastSubscription` + `ForecastDelivery` модели, migration `776d382ae50d`, `ChartForecastSubscriptionRepository` + `ForecastDeliveryRepository`. Settings: `forecast_free_bypass=True`, `forecast_monthly_price_rub=500`, `forecast_daily_price_rub=900`, `forecast_daily_default_hour_local=4`, `forecast_period_days=30`. Колонка `chosen_school` добавлена в `20260526_a1b2c3d4e5f6` (Wave 7 Phase 8).
+- [x] **W3b Forecast generator** — [ai/forecast.py](ai/forecast.py): `generate_monthly_forecast(*, chart, period_start, trace_id, school=None)` / `generate_daily_forecast(*, chart, target_date, trace_id, school=None)`. Блочный LLM-текст (4-6 блоков). Hotfix: размеры блоков уменьшены (daily 50-120, monthly 60-130 слов) из-за Telegram 4096 cap; используется `split_for_telegram` при доставке. Re-use existing content: `_send_*_forecast_inner` берёт `existing.content` если запись есть без `sent_at` (фикс scheduler-loop).
+- [x] **W3c Scheduler** — APScheduler с PG jobstore. Отдельный docker-compose сервис `scheduler`. `rebuild_jobs_for_all_subs` каждые 5 мин. Daily: `CronTrigger(hour=daily_send_hour_utc, minute=0, timezone=UTC)`. Monthly weekly: `IntervalTrigger(days=7)` × 4. Monthly bulk: `DateTrigger`. `ForecastDelivery.slot_key` дедупит retry. Inline first-week kick через `asyncio.create_task` (Wave 7 Phase 7).
+- [x] **W3d UI** — «📅 Прогноз на месяц 500₽» и «🌅 Прогноз дня + активации 900₽». Месяц → delivery (раз в неделю / сразу всё) → школа → confirm. День → hour (default 4 утра local через `chart.tz_offset`) → школа → confirm. `subscription_view_kb` с активными подписками + «Отменить».
+- [x] **W3e Live verify + deploy** — миграция накатана на managed PG (revision `20260526_a1b2c3d4e5f6 head`), docker images bot/worker/scheduler пересобраны, MCP smoke через @Bogman108: `forecast.subscription.created chosen_school=edoha` → `forecast.monthly.generated 23.7s` → `forecast.delivered chunk_count=2` → `forecast.monthly.inline_first_delivery_done week=1` ✓.
+
+> **Hero image в прогнозе** — закрыт отдельно в Wave 7 Phase E (Unsplash + YC AI Studio query gen).
 
 ### 🌊 Wave 4 — дневник рефлексии + важные даты (планирование)
 
@@ -411,14 +484,8 @@ Calculator-детектор уже есть ([calculator/important_dates.py](cal
   - Roadmap migration: Apache AGE на Yandex Managed Postgres (уже есть managed PG) — 0 new infra, OpenCypher, pgvector рядом для эмбеддингов.
   - Embeddings (Phase 2.5) → bge-m3 (unified dense+sparse+ColBERT, +500 MB image).
   - LLM concept extraction (Phase 3.5) → Qwen3-3B через YC (5× cheaper than Haiku, RU+ZH native).
-- [ ] 1.9.15 **KuzuDB → Apache AGE migration** (2026-Q3):
-  - Rewrite [knowledge/ingest/writer.py](knowledge/ingest/writer.py) Cypher → AGE-flavored OpenCypher (largely identical syntax)
-  - Rewrite [ai/rag/store.py](ai/rag/store.py) — SQLAlchemy + AGE extension вместо kuzu.Database
-  - Drop `kuzu_data` volume + `kuzu==0.10.0` из pyproject
-  - Update vision.mdc ADR-004
-  - Re-ingest via existing pipeline (no .md changes)
-  - **Effort:** ~6-8 часов. **Триггер:** kuzu 0.10 перестанет ставиться через pip ИЛИ CVE без патча
-- [ ] 1.9.16 **Phase 2.5 bge-m3 embeddings** — после миграции на AGE; pgvector рядом упрощает интеграцию
+- [~] 1.9.15 **KuzuDB → Apache AGE migration** — **ОТМЕНЕНО (2026-06-02, решение Богдана)**. Остаёмся на **KuzuDB 0.10**; lock-in ADR-004 принят сознательно. Триггер «kuzu перестанет ставиться / CVE» снят как блокер.
+- [ ] 1.9.16 **bge-m3 embeddings** — теперь **без зависимости от AGE**: работает на KuzuDB 0.10 (косинус в Python над школо-выборкой). Готовое предложение: [doc/proposals/bge_m3_embeddings.md](doc/proposals/bge_m3_embeddings.md). К запуску по решению Богдана.
 - [ ] 1.9.17 **Phase 3.5 Qwen3-3B concept extraction** — последняя оптимизация retrieval, async-фицирует compose_messages
 
 ### 1.12 Монетизация — полная реализация
