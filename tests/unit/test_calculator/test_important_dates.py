@@ -75,6 +75,29 @@ def test_format_message_contains_star_names_and_severity_note(reference_chart) -
     assert any(name in msg for name in ("白虎", "桃花", "天乙", "文昌", "将星", "飞刃"))
 
 
+def test_format_message_includes_star_interpretation(reference_chart) -> None:  # type: ignore[no-untyped-def]
+    """Bug C (2026-06-02): each star is rendered with a short meaning,
+    not just its name."""
+    from calculator.important_dates import ImportantDate, format_important_date_message
+
+    imp = ImportantDate(date_=date(2026, 6, 3), active_stars=("文昌贵人",), severity="low")
+    msg = format_important_date_message(reference_chart, imp, days_ahead=2)
+    assert "文昌贵人" in msg
+    assert "звезда учёбы" in msg  # interpretation present, not just the name
+
+
+def test_reflection_message_is_day_of_with_button_text(reference_chart) -> None:  # type: ignore[no-untyped-def]
+    """B2: day-of reflection invite says «Сегодня» and asks to record."""
+    from calculator.important_dates import ImportantDate, format_important_date_reflection
+
+    imp = ImportantDate(date_=date(2026, 6, 3), active_stars=("白虎",), severity="high")
+    msg = format_important_date_reflection(reference_chart, imp)
+    assert "Сегодня" in msg
+    assert "рефлекс" in msg.lower()
+    assert "白虎" in msg
+    assert "конфликт" in msg.lower()  # interpretation present
+
+
 def test_demo_shows_concrete_example_for_reference_chart(reference_chart) -> None:  # type: ignore[no-untyped-def]
     demo = render_demo_for_chart(reference_chart, date(2026, 5, 20))
     assert demo  # non-empty

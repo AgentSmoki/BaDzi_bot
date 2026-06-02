@@ -356,10 +356,14 @@ class ChartJournalSettings(Base):
     # Default ON so the user gets value without configuring; can be turned
     # off via /start «🌟 Важные даты: ON/OFF» button.
     important_dates_enabled: Mapped[bool] = mapped_column(default=True, server_default=sa.true())
-    # Rate limit: scheduler skips this chart if last alert was <7 days
-    # ago. NULL = never alerted; first scan will pick the earliest
-    # significant date.
+    # Rate limit for the ahead-of-time WARNING: scheduler skips warnings
+    # for this chart if the last one was <7 days ago. NULL = never warned.
     last_important_date_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # Per-date dedup (2026-06-02): the target date the last WARNING was
+    # about, and the day a day-of REFLECTION prompt was last sent. Prevent
+    # re-sending the same date even if scan timing shifts.
+    last_important_warning_date: Mapped[date | None] = mapped_column(sa.Date, nullable=True)
+    last_reflection_prompt_date: Mapped[date | None] = mapped_column(sa.Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 

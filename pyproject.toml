@@ -126,10 +126,10 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S", "ANN"]
-"migrations/**/*.py" = ["ANN", "N999"]
+"migrations/**/*.py" = ["ANN", "N999", "RUF001", "RUF002", "RUF003"]
 "calculator/symbolic_stars_tables.py" = ["E501", "RUF001"]
 "calculator/calendar_select.py" = ["RUF001", "RUF002", "RUF003"]
-"calculator/important_dates.py" = ["RUF001", "RUF002", "RUF003"]
+"calculator/important_dates.py" = ["E501", "RUF001", "RUF002", "RUF003"]
 "scripts/**/*.py" = ["E501", "RUF001", "RUF002", "RUF003", "S108", "ANN401", "ANN201", "ANN202"]
 "bot/routers/**/*.py" = ["RUF001", "RUF002", "RUF003"]
 "bot/keyboards/**/*.py" = ["RUF001", "RUF002", "RUF003"]

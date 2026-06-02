@@ -339,3 +339,14 @@ async def test_select_skill_history_tail_passed(
     # Tail should be msg6..msg9 (last 4)
     history_contents = [m.content for m in messages[1:5]]
     assert history_contents == ["msg6", "msg7", "msg8", "msg9"]
+
+
+def test_router_prompt_forbids_asking_chart_known_data() -> None:
+    """Bug A (2026-06-02): the router system prompt must explicitly forbid
+    clarifying questions that ask for data already in the chart (birth
+    date/year/time, gender, current luck pillar/такт)."""
+    from ai.prompts import load_skill_router_prompt
+
+    prompt = load_skill_router_prompt()
+    assert "ТЕКУЩИЙ АКТИВНЫЙ ТАКТ" in prompt
+    assert "Уточните ваш год рождения и текущий активный такт?" in prompt

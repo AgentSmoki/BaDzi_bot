@@ -389,6 +389,7 @@ async def scan_important_dates_job() -> None:
     from calculator.important_dates import (
         find_important_dates_in_range,
         format_important_date_message,
+        format_important_date_reflection,
     )
     from db.models import User
     from db.repositories.journal_repo import ChartJournalSettingsRepository
@@ -409,12 +410,14 @@ async def scan_important_dates_job() -> None:
             week_ago = now - timedelta(days=7)
 
             for js in enabled:
-                # Rate-limit ≤1/week so we don't spam on consecutive
-                # activations (e.g. a stretch of 七杀 days back to back).
-                if js.last_important_date_at and js.last_important_date_at > week_ago:
-                    continue
+                # Capture fields up-front: we commit per-chart below, which
+                # expires ORM attributes — read what we need first.
+                chart_id = js.chart_id
+                last_warning_at = js.last_important_date_at
+                last_warning_date = js.last_important_warning_date
+                last_reflection_date = js.last_reflection_prompt_date
 
-                chart = await chart_repo.get_by_id(session, js.chart_id)
+                chart = await chart_repo.get_by_id(session, chart_id)
                 if chart is None:
                     continue
                 user = await session.get(User, chart.user_id)
@@ -427,51 +430,95 @@ async def scan_important_dates_job() -> None:
                 if not hits:
                     continue
 
-                # Send only the soonest hit per scan to avoid burying
-                # the user in a wall of forecasts. Subsequent hits get
-                # picked up by next week's scan (or the day-of cron).
-                hit = hits[0]
-                days_ahead = (hit.date_ - today).days
-                text = format_important_date_message(chart_data, hit, days_ahead=days_ahead)
-                kb = InlineKeyboardMarkup(
-                    inline_keyboard=[
-                        [
-                            InlineKeyboardButton(
-                                text="📝 Записать рефлексию",
-                                callback_data=f"journal:write:{chart.id}",
+                # ── Block 1: day-of REFLECTION prompt (days_ahead == 0) ──
+                # Sent ON the important date itself, deduped per day.
+                today_hits = [h for h in hits if h.date_ == today]
+                if today_hits and last_reflection_date != today:
+                    hit = today_hits[0]
+                    text = format_important_date_reflection(chart_data, hit)
+                    kb = InlineKeyboardMarkup(
+                        inline_keyboard=[
+                            [
+                                InlineKeyboardButton(
+                                    text="📝 Записать рефлексию",
+                                    callback_data=f"journal:write:{chart_id}",
+                                )
+                            ],
+                            [
+                                InlineKeyboardButton(
+                                    text="◀ К карте",  # noqa: RUF001
+                                    callback_data=f"chart:open:{chart_id}",
+                                )
+                            ],
+                        ]
+                    )
+                    try:
+                        await bot.send_message(
+                            chat_id=telegram_id, text=text, parse_mode="HTML", reply_markup=kb
+                        )
+                        await journal_settings_repo.mark_reflection_prompt_sent(
+                            session, chart_id, day=today
+                        )
+                        await session.commit()
+                        logger.info(
+                            "important_dates.reflection_sent",
+                            chart_id=str(chart_id),
+                            telegram_id=telegram_id,
+                            target_date=today.isoformat(),
+                            severity=hit.severity,
+                        )
+                    except (TelegramBadRequest, TelegramForbiddenError) as exc:
+                        logger.warning(
+                            "important_dates.reflection_failed",
+                            chart_id=str(chart_id),
+                            error=str(exc),
+                            exc_type=type(exc).__name__,
+                        )
+
+                # ── Block 2: ahead-of-time WARNING (days_ahead 1..2) ──
+                # Heads-up, no reflection button, ≤1/week + per-date dedup.
+                ahead = [h for h in hits if h.date_ > today]
+                warned_recently = bool(last_warning_at and last_warning_at > week_ago)
+                if ahead and not warned_recently:
+                    hit = ahead[0]
+                    if last_warning_date != hit.date_:
+                        days_ahead = (hit.date_ - today).days
+                        text = format_important_date_message(chart_data, hit, days_ahead=days_ahead)
+                        kb = InlineKeyboardMarkup(
+                            inline_keyboard=[
+                                [
+                                    InlineKeyboardButton(
+                                        text="◀ К карте",  # noqa: RUF001
+                                        callback_data=f"chart:open:{chart_id}",
+                                    )
+                                ]
+                            ]
+                        )
+                        try:
+                            await bot.send_message(
+                                chat_id=telegram_id,
+                                text=text,
+                                parse_mode="HTML",
+                                reply_markup=kb,
                             )
-                        ],
-                        [
-                            InlineKeyboardButton(
-                                text="◀ К карте",  # noqa: RUF001
-                                callback_data=f"chart:open:{chart.id}",
+                            await journal_settings_repo.mark_warning_sent(
+                                session, chart_id, target_date=hit.date_, now=now
                             )
-                        ],
-                    ]
-                )
-                try:
-                    await bot.send_message(
-                        chat_id=telegram_id,
-                        text=text,
-                        parse_mode="HTML",
-                        reply_markup=kb,
-                    )
-                    await journal_settings_repo.mark_important_date_sent(session, chart.id)
-                    logger.info(
-                        "important_dates.notification_sent",
-                        chart_id=str(chart.id),
-                        telegram_id=telegram_id,
-                        target_date=hit.date_.isoformat(),
-                        severity=hit.severity,
-                    )
-                except (TelegramBadRequest, TelegramForbiddenError) as exc:
-                    logger.warning(
-                        "important_dates.notification_failed",
-                        chart_id=str(chart.id),
-                        error=str(exc),
-                        exc_type=type(exc).__name__,
-                    )
-            await session.commit()
+                            await session.commit()
+                            logger.info(
+                                "important_dates.warning_sent",
+                                chart_id=str(chart_id),
+                                telegram_id=telegram_id,
+                                target_date=hit.date_.isoformat(),
+                                severity=hit.severity,
+                            )
+                        except (TelegramBadRequest, TelegramForbiddenError) as exc:
+                            logger.warning(
+                                "important_dates.warning_failed",
+                                chart_id=str(chart_id),
+                                error=str(exc),
+                                exc_type=type(exc).__name__,
+                            )
     finally:
         await bot.session.close()
 

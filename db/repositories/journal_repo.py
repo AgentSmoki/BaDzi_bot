@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -72,14 +72,35 @@ class ChartJournalSettingsRepository:
         )
         return list(result.scalars().all())
 
-    async def mark_important_date_sent(self, session: AsyncSession, chart_id: uuid.UUID) -> None:
-        """Record that an important-date alert was just delivered, so
-        the rate-limit (no more than once per 7 days) holds."""
-        from datetime import datetime
+    async def mark_warning_sent(
+        self,
+        session: AsyncSession,
+        chart_id: uuid.UUID,
+        *,
+        target_date: date,
+        now: datetime,
+    ) -> None:
+        """Record that an ahead-of-time WARNING for ``target_date`` was
+        delivered. Atomic UPDATE (not flush) so the mark is durable the
+        moment it runs — the scheduler commits per-chart right after.
+        ``last_important_date_at`` drives the ≤1/week anti-spam;
+        ``last_important_warning_date`` dedups the specific date."""
+        await session.execute(
+            sa.update(ChartJournalSettings)
+            .where(ChartJournalSettings.chart_id == chart_id)
+            .values(last_important_date_at=now, last_important_warning_date=target_date)
+        )
 
-        settings = await self.get_or_create(session, chart_id=chart_id)
-        settings.last_important_date_at = datetime.now()
-        await session.flush()
+    async def mark_reflection_prompt_sent(
+        self, session: AsyncSession, chart_id: uuid.UUID, *, day: date
+    ) -> None:
+        """Record that the day-of REFLECTION prompt was sent on ``day`` —
+        dedups so we don't re-prompt the same day."""
+        await session.execute(
+            sa.update(ChartJournalSettings)
+            .where(ChartJournalSettings.chart_id == chart_id)
+            .values(last_reflection_prompt_date=day)
+        )
 
 
 class JournalEntryRepository:
