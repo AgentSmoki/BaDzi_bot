@@ -17,13 +17,18 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-SkillName = Literal["work", "relationships", "health", "time", "risk", "default"]
+SkillName = Literal["work", "relationships", "health", "time", "risk", "decision", "default"]
 """The fixed enum of skill identifiers. Adding a new skill = add to
 this Literal + create ``ai/skills/<name>.md``.
 
 ``risk`` (Wave 7) handles dangerous-period questions via the 3-vs-1
 chain-of-thought from the Мастер ЭдоХа school — accumulated branches
-beat lone 六冲 clashes in danger ranking."""
+beat lone 六冲 clashes in danger ranking.
+
+``decision`` (Wave 7, ревью мастера 2026-05-31) handles binary /
+multi-option choices ("делать X или Y") via accumulated-branch position
+scoring + 3-5-year look-ahead — the master's school-neutral methodology
+that all three schools share through the [SKILL] injection."""
 
 
 class SkillSpec(BaseModel):

@@ -31,9 +31,25 @@ def test_load_skill_happy_path(name: SkillName) -> None:
 
 def test_list_skills_returns_all_builtin() -> None:
     skills = list_skills()
-    assert len(skills) == 6
+    assert len(skills) == 7
     names = {s.name for s in skills}
-    assert names == {"work", "relationships", "health", "time", "risk", "default"}
+    assert names == {"work", "relationships", "health", "time", "risk", "decision", "default"}
+
+
+def test_decision_skill_loads_and_is_school_neutral() -> None:
+    """Wave 7 (ревью мастера 2026-05-31) — decision_chain методология
+    подключена как школо-нейтральный skill ``decision``: бинарный выбор
+    через позиционную оценку сил сторон. Голос/метафоры ЭдоХи (дерево с
+    корнями, Эльмира) живут в base_edoha.md, не здесь."""
+    spec = load_skill("decision")
+    assert spec.name == "decision"
+    body = spec.body
+    # Covers the master's school-neutral decision methodology
+    assert "развилк" in body.lower() or "силе позиций" in body.lower()
+    assert any(kw in spec.trigger_keywords for kw in ("выбор", "решить", "X или Y"))
+    # No edoha-only metaphor leaked into the shared skill
+    assert "шахмат" not in body.lower()
+    assert "Эльмир" not in body
 
 
 def test_risk_skill_body_is_school_neutral_disciplinator() -> None:
