@@ -231,6 +231,39 @@ async def test_ask_pressed_with_chart_sets_waiting_state(
     # FSMContext.set_state stores the state under "__state" in our fake
     assert "__state" in state_data
     fake_callback.message.answer.assert_awaited()
+    # No default school → the selector keyboard must be offered.
+    _, kwargs = fake_callback.message.answer.call_args
+    assert kwargs.get("reply_markup") is not None
+
+
+@pytest.mark.asyncio
+async def test_ask_pressed_with_default_school_skips_selector(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_callback: MagicMock,
+    fake_state: MagicMock,
+    fake_session: MagicMock,
+    fake_user: MagicMock,
+    fake_chart: MagicMock,
+) -> None:
+    """Wave 7 / 1.18.14 — a chart with default_school set must skip the
+    school selector: chosen_school is pre-filled in FSM and the user is
+    sent straight to waiting_question with a plain prompt (no keyboard)."""
+    fake_chart.default_school = "edoha"
+    monkeypatch.setattr(
+        consultation_module._chart_repo,
+        "get_latest_by_user",
+        AsyncMock(return_value=fake_chart),
+    )
+    await handle_ask_pressed(
+        callback=fake_callback, state=fake_state, session=fake_session, user=fake_user
+    )
+    state_data = await fake_state.get_data()
+    assert state_data["chosen_school"] == "edoha"
+    fake_callback.message.answer.assert_awaited()
+    args, kwargs = fake_callback.message.answer.call_args
+    assert "Школа по умолчанию" in args[0]
+    # Skip path is a plain prompt — no school-selector keyboard.
+    assert kwargs.get("reply_markup") is None
 
 
 # ── handle_reset ─────────────────────────────────────────────────────────

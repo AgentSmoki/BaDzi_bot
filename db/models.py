@@ -161,6 +161,11 @@ class Chart(Base):
         nullable=True,
         index=True,
     )
+    # Wave 7 / ADR-011 (1.18.14): default interpretation school for this
+    # chart. NULL = ask every consultation (current behaviour); set =
+    # skip the school selector and use this value. One of
+    # classic|edoha|modern (validated by the bot handler, not the DB).
+    default_school: Mapped[str | None] = mapped_column(sa.String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     user: Mapped[User] = relationship(back_populates="charts", lazy="raise")

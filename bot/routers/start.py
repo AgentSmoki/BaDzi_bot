@@ -20,6 +20,7 @@ from bot.keyboards import (
     chart_actions_kb,
     chart_actions_kb_post_interpret,
     chart_delete_confirm_kb,
+    default_school_kb,
     new_user_kb,
     pricing_kb,
     returning_user_kb,
@@ -344,6 +345,121 @@ async def handle_chart_important_dates_toggle(
         new_state=new_state,
         user_id=str(user.id),
     )
+
+
+_VALID_SCHOOLS = frozenset({"classic", "edoha", "modern"})
+_SCHOOL_LABELS = {
+    "classic": "🎓 Классическая",
+    "edoha": "🌀 Мастер ЭдоХа",
+    "modern": "🧬 Современная",
+}
+
+
+@start_router.callback_query(F.data.startswith("chart:defschool:"))
+async def handle_chart_default_school_open(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+) -> None:
+    """Wave 7 / 1.18.14 — open the per-chart default-school picker.
+
+    When a default is set, the consultation flow skips the school
+    selector and the forecast purchase flow pre-selects it.
+    """
+    if not callback.data:
+        await callback.answer()
+        return
+    try:
+        chart_id = uuid.UUID(callback.data.split(":")[2])
+    except (ValueError, IndexError):
+        await callback.answer("Неверная карта", show_alert=True)
+        return
+
+    chart = await _chart_repo.get_by_id(session, chart_id)
+    if chart is None or chart.user_id != user.id:
+        await callback.answer("Карта не найдена", show_alert=True)
+        return
+
+    if isinstance(callback.message, Message):
+        await callback.message.answer(
+            "Школа по умолчанию для этой карты. Если выбрать — при «Задать "
+            "вопрос» и оформлении прогноза школу больше не спрашиваю.",
+            reply_markup=default_school_kb(chart_id, current=chart.default_school),
+        )
+    await callback.answer()
+
+
+@start_router.callback_query(F.data.startswith("defschool:set:"))
+async def handle_chart_default_school_set(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+) -> None:
+    """Persist the chart's default school (defschool:set:<school>:<id>)."""
+    if not callback.data:
+        await callback.answer()
+        return
+    parts = callback.data.split(":")
+    school = parts[2] if len(parts) > 2 else ""
+    if school not in _VALID_SCHOOLS:
+        await callback.answer("Неверная школа", show_alert=True)
+        return
+    try:
+        chart_id = uuid.UUID(parts[3])
+    except (ValueError, IndexError):
+        await callback.answer("Неверная карта", show_alert=True)
+        return
+
+    chart = await _chart_repo.get_by_id(session, chart_id)
+    if chart is None or chart.user_id != user.id:
+        await callback.answer("Карта не найдена", show_alert=True)
+        return
+
+    await _chart_repo.set_default_school(session, chart_id, school)
+    await session.commit()
+    await callback.answer(
+        f"Школа по умолчанию: {_SCHOOL_LABELS[school]}. Спрашивать больше не буду.",
+        show_alert=True,
+    )
+    if isinstance(callback.message, Message):
+        with contextlib.suppress(TelegramBadRequest):
+            await callback.message.edit_reply_markup(
+                reply_markup=default_school_kb(chart_id, current=school)
+            )
+    logger.info("chart.default_school_set", chart_id=str(chart_id), school=school)
+
+
+@start_router.callback_query(F.data.startswith("defschool:clear:"))
+async def handle_chart_default_school_clear(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    user: User,
+) -> None:
+    """Clear the chart's default school (defschool:clear:<id>) — back to
+    asking each consultation."""
+    if not callback.data:
+        await callback.answer()
+        return
+    try:
+        chart_id = uuid.UUID(callback.data.split(":")[2])
+    except (ValueError, IndexError):
+        await callback.answer("Неверная карта", show_alert=True)
+        return
+
+    chart = await _chart_repo.get_by_id(session, chart_id)
+    if chart is None or chart.user_id != user.id:
+        await callback.answer("Карта не найдена", show_alert=True)
+        return
+
+    await _chart_repo.set_default_school(session, chart_id, None)
+    await session.commit()
+    await callback.answer("Буду спрашивать школу каждый раз.", show_alert=True)
+    if isinstance(callback.message, Message):
+        with contextlib.suppress(TelegramBadRequest):
+            await callback.message.edit_reply_markup(
+                reply_markup=default_school_kb(chart_id, current=None)
+            )
+    logger.info("chart.default_school_cleared", chart_id=str(chart_id))
 
 
 @start_router.callback_query(F.data.startswith("chart:rename:"))

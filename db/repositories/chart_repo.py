@@ -128,6 +128,20 @@ class ChartRepository:
             .values(partner_chart_id=partner_chart_id)
         )
 
+    async def set_default_school(
+        self,
+        session: AsyncSession,
+        chart_id: uuid.UUID,
+        school: str | None,
+    ) -> None:
+        """Set (or clear) the chart's default interpretation school
+        (Wave 7 / 1.18.14). ``school`` must be one of classic|edoha|modern
+        or ``None`` to clear (ask every time). Whitelist validation is the
+        caller's responsibility. Caller commits/flushes."""
+        await session.execute(
+            sa.update(Chart).where(Chart.id == chart_id).values(default_school=school)
+        )
+
 
 def _coarse_key(chart: Chart) -> tuple[Any, ...]:
     """Group key that ignores birth time but keeps everything that

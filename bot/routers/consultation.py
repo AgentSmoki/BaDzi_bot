@@ -121,6 +121,13 @@ _SKILL_ROUTER_CONFIDENCE_FLOOR: float = 0.4
 # Kept in sync with ai/prompts.SchoolName via a small parser below.
 _VALID_SCHOOLS: frozenset[str] = frozenset({"classic", "edoha", "modern"})
 
+# Short labels for confirming a default-school skip (Wave 7 / 1.18.14).
+_SCHOOL_CONFIRM_LABEL: dict[str, str] = {
+    "classic": "🎓 Классическая",
+    "edoha": "🌀 Мастер ЭдоХа",
+    "modern": "🧬 Современная",
+}
+
 
 def _parse_school(raw: str | None) -> SchoolName | None:
     """Narrow FSM-data ``chosen_school`` (Any) to ``SchoolName | None``.
@@ -258,6 +265,21 @@ async def handle_ask_pressed(
         return
 
     await state.update_data(chart_id=str(chart.id))
+
+    # Wave 7 / 1.18.14 — if the chart has a default school, skip the
+    # selector entirely and go straight to the question. Set via the
+    # chart menu «⚙️ Школа по умолчанию»; cleared = ask every time.
+    default_school = _parse_school(chart.default_school)
+    if default_school is not None:
+        await state.update_data(chosen_school=default_school)
+        await state.set_state(ConsultationState.waiting_question)
+        await callback.message.answer(
+            f"Школа по умолчанию: {_SCHOOL_CONFIRM_LABEL[default_school]}. "
+            "Напишите вопрос (сменить школу — в меню карты «⚙️ Школа по умолчанию»):"
+        )
+        await callback.answer()
+        return
+
     # Wave 7 Phase 2 (ADR-011) — before each question the user picks
     # an interpretation school. handle_school_chosen then advances to
     # waiting_question and persists chosen_school in FSM data so every

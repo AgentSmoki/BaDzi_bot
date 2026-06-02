@@ -133,6 +133,7 @@ def chart_actions_kb(chart_id: uuid.UUID | None = None) -> InlineKeyboardMarkup:
             callback_data=f"meeting:show:{chart_id}",
         )
         builder.button(text="🌟 Важные даты", callback_data=f"chart:impdates:{chart_id}")
+        builder.button(text="⚙️ Школа по умолчанию", callback_data=f"chart:defschool:{chart_id}")
         builder.button(text="✏️ Переименовать", callback_data=f"chart:rename:{chart_id}")
         builder.button(text="🗑 Удалить карту", callback_data=f"chart:delete:{chart_id}")
     builder.button(text="В меню", callback_data="menu:back")
@@ -161,6 +162,7 @@ def chart_actions_kb_post_interpret(
             callback_data=f"meeting:show:{chart_id}",
         )
         builder.button(text="🌟 Важные даты", callback_data=f"chart:impdates:{chart_id}")
+        builder.button(text="⚙️ Школа по умолчанию", callback_data=f"chart:defschool:{chart_id}")
         builder.button(text="✏️ Переименовать", callback_data=f"chart:rename:{chart_id}")
         builder.button(text="🗑 Удалить карту", callback_data=f"chart:delete:{chart_id}")
     builder.button(text="В меню", callback_data="menu:back")
@@ -330,6 +332,33 @@ def school_selector_kb(callback_prefix: str = "school") -> InlineKeyboardMarkup:
     builder.button(text="🎓 Классическая", callback_data=f"{callback_prefix}:classic")
     builder.button(text="🌀 Мастер ЭдоХа", callback_data=f"{callback_prefix}:edoha")
     builder.button(text="🧬 Современная", callback_data=f"{callback_prefix}:modern")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def default_school_kb(chart_id: uuid.UUID, current: str | None = None) -> InlineKeyboardMarkup:
+    """Wave 7 / 1.18.14 — per-chart default school picker (chart menu).
+
+    Three schools + «Спрашивать каждый раз» (clears the default) + back.
+    The currently-selected option is marked with ✓. Callbacks:
+    - ``defschool:set:<school>:<chart_id>`` — persist default
+    - ``defschool:clear:<chart_id>`` — clear (ask every consultation)
+    """
+    labels = {
+        "classic": "🎓 Классическая",
+        "edoha": "🌀 Мастер ЭдоХа",
+        "modern": "🧬 Современная",
+    }
+    builder = InlineKeyboardBuilder()
+    for school, label in labels.items():
+        mark = " ✓" if current == school else ""
+        builder.button(text=f"{label}{mark}", callback_data=f"defschool:set:{school}:{chart_id}")
+    ask_mark = " ✓" if current is None else ""
+    builder.button(
+        text=f"❓ Спрашивать каждый раз{ask_mark}",
+        callback_data=f"defschool:clear:{chart_id}",
+    )
+    builder.button(text="« Назад к карте", callback_data=f"chart:open:{chart_id}")
     builder.adjust(1)
     return builder.as_markup()
 
