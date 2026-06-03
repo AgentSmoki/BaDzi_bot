@@ -1237,6 +1237,12 @@ async def _process_question_after_guards(
         return
 
     # ── Skill-router path (Wave 6 / ADR-010) ─────────────────────────
+    # Start the waiting animation NOW, before select_skill — the router
+    # (Qwen3.6) takes ~5-8 sec, and без этого клиент видит «тишину»
+    # после отправки вопроса (фикс 2026-06-03). Анимация протягивается
+    # в _continue_consultation_with_skill; в clarifying/partner ветках
+    # останавливаем её перед показом своего сообщения.
+    thinking = await _show_thinking_animation(message)
     history = await history_store.get(user.telegram_id)
     skill_sel = await select_skill(question=question, chart=chart_data, history=history)
 
@@ -1290,6 +1296,7 @@ async def _process_question_after_guards(
             pending_concept_hints=list(skill_sel.concept_hints),
             chart_id=str(chart.id),
         )
+        await _stop_thinking_animation(message, *thinking)
         partner_kb = await _partner_kb_for_user(session, user=user, exclude_chart_id=chart.id)
         await message.answer(_PARTNER_REQUEST_MSG, reply_markup=partner_kb)
         logger.info(
@@ -1315,6 +1322,7 @@ async def _process_question_after_guards(
             # are collected (1.17.9a regression fix 2026-05-20).
             needs_partner_chart=bool(skill_sel.needs_partner_chart),
         )
+        await _stop_thinking_animation(message, *thinking)
         await message.answer(skill_sel.clarifying_questions[0])
         logger.info(
             "consultation.clarifications_requested",
@@ -1332,6 +1340,7 @@ async def _process_question_after_guards(
             pending_concept_hints=list(skill_sel.concept_hints),
             chart_id=str(chart.id),
         )
+        await _stop_thinking_animation(message, *thinking)
         partner_kb = await _partner_kb_for_user(session, user=user, exclude_chart_id=chart.id)
         await message.answer(_PARTNER_REQUEST_MSG, reply_markup=partner_kb)
         logger.info(
@@ -1358,6 +1367,7 @@ async def _process_question_after_guards(
         clarifications=None,
         concept_hints=list(skill_sel.concept_hints),
         chosen_school=chosen_school,
+        thinking=thinking,
     )
 
 
@@ -1433,6 +1443,7 @@ async def _continue_consultation_with_skill(
     clarifications: list[tuple[str, str]] | None,
     concept_hints: list[str] | None,
     chosen_school: SchoolName | None = None,
+    thinking: tuple[Message | None, asyncio.Task[None]] | None = None,
 ) -> None:
     """Compose the prompt, call the main LLM, persist, reply.
 
@@ -1440,11 +1451,25 @@ async def _continue_consultation_with_skill(
     completion path, the partner-skip path, and the legacy path.
     ``skill_spec is None`` → legacy system prompt (anastasia_system.md);
     non-None → base prompt + injected [SKILL] section.
+
+    ``thinking`` — a waiting-animation handle already started upstream
+    (so the user sees feedback during the skill-router call, which runs
+    before this function). When ``None`` we start our own here.
     """
     if message.bot is None:
         # Defensive — every aiogram Message has .bot in production, but
         # tests sometimes hand us a bare MagicMock.
+        if thinking is not None:
+            await _stop_thinking_animation(message, *thinking)
         return
+
+    # Start (or adopt) the waiting animation BEFORE any slow prep
+    # (route → calendar → master notes → LLM concept extract → compose →
+    # main LLM). Without this the user stares at silence for 8-15 sec.
+    if thinking is not None:
+        status_msg, ticker_task = thinking
+    else:
+        status_msg, ticker_task = await _show_thinking_animation(message)
 
     decision = route(original_question)
 
@@ -1540,7 +1565,6 @@ async def _continue_consultation_with_skill(
         school=chosen_school,
     )
 
-    status_msg, ticker_task = await _show_thinking_animation(message)
     try:
         answer = await chat_with_fallback(
             messages=messages,

@@ -33,6 +33,23 @@ from calculator.models import ChartInput
 # ── Fixtures (parallel to test_consultation.py but no autouse stub) ──────
 
 
+@pytest.fixture(autouse=True)
+def _stub_thinking_animation(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fix 2026-06-03: the waiting animation now starts before select_skill
+    and is stopped in the clarifying/partner branches. These routing tests
+    assert exact ``message.answer`` calls, so stub the animation to a no-op
+    (its own UI behavior is covered in test_consultation.py)."""
+
+    async def fake_show(_message: Any) -> Any:
+        return (None, MagicMock())
+
+    async def fake_stop(*_a: Any, **_k: Any) -> None:
+        return None
+
+    monkeypatch.setattr(consultation_module, "_show_thinking_animation", fake_show)
+    monkeypatch.setattr(consultation_module, "_stop_thinking_animation", fake_stop)
+
+
 @pytest_asyncio.fixture
 async def history_store() -> AsyncIterator[HistoryStore]:
     client = fakeredis.aioredis.FakeRedis(decode_responses=True)

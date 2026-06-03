@@ -581,3 +581,59 @@ async def test_question_with_no_chart_falls_back_to_calc_prompt(
     fake_message.answer.assert_awaited()
     # No history written
     assert await history_store.get(fake_user.telegram_id) == []
+
+
+@pytest.mark.asyncio
+async def test_thinking_animation_starts_before_skill_router(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_message: MagicMock,
+    fake_state: MagicMock,
+    fake_session: MagicMock,
+    fake_user: MagicMock,
+    fake_chart: MagicMock,
+    history_store: HistoryStore,
+) -> None:
+    """Fix 2026-06-03: the waiting animation must start BEFORE select_skill
+    (which costs ~5-8s on Qwen3.6) and be threaded into the answer step,
+    so the user never sees a silent gap after sending a question."""
+    order: list[str] = []
+    sentinel = (None, MagicMock())
+
+    async def fake_show(_message: Any) -> Any:
+        order.append("show")
+        return sentinel
+
+    async def fake_select(**_kw: Any) -> SkillSelection:
+        order.append("select_skill")
+        return SkillSelection(
+            skill="default",
+            confidence=0.9,
+            clarifying_questions=[],
+            needs_partner_chart=False,
+            concept_hints=[],
+            reason="x",
+        )
+
+    captured: dict[str, Any] = {}
+
+    async def fake_continue(_message: Any, **kw: Any) -> None:
+        order.append("continue")
+        captured["thinking"] = kw.get("thinking")
+
+    monkeypatch.setattr(consultation_module, "_show_thinking_animation", fake_show)
+    monkeypatch.setattr(consultation_module, "select_skill", fake_select)
+    monkeypatch.setattr(consultation_module, "_continue_consultation_with_skill", fake_continue)
+
+    await consultation_module._process_question_after_guards(
+        fake_message,
+        state=fake_state,
+        session=fake_session,
+        user=fake_user,
+        history_store=history_store,
+        question="какие дни для встреч?",
+        chart=fake_chart,
+    )
+
+    assert order == ["show", "select_skill", "continue"]
+    # The same animation handle is threaded into the answer step (not restarted).
+    assert captured["thinking"] is sentinel
