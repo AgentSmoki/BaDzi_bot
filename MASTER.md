@@ -34,8 +34,36 @@
 
 **Разработчик:** Богдан
 **Дата старта:** март 2026
-**Статус:** 🚧 Разделы 1.5, 1.6 и большая часть 1.7 закрыты (2026-05-07). End-to-end FSM собирает данные → Calculator → БД → SVG/CairoSVG-карта (PNG) → Telegram. ⚠️ **Открытые баги визуала после последнего деплоя** — см. секцию «Известные проблемы» ниже. 871/871 тестов ✓ покрытие 97.85%.
-**Версия документа:** 3.5
+**Статус:** 🚀 **Live в проде** — `@EdoHa_Badzi_bot` на YC VM 130.193.51.15 (bot + worker + scheduler healthy). Wave 7 закрыт по Phase 9 включительно: 3 школы Анастасии (ADR-011), skill-router (ADR-010), алгоритмы мастера во всех школах через skills, ЮKassa через нативные TG-платежи, `Chart.default_school`, EdoHa Digital Twin 7742 узла в KuzuDB, платные прогнозы со школой, дневник + важные даты (рефлексия в 18:00 local с 2026-06-10), возрастные метафоры по школам. 924/924 тестов ✓ покрытие 97.82%, mypy strict ✓.
+**Ветка:** `feat/wave7-master-algorithms-yookassa-default-school` (PR #1)
+**Версия документа:** 3.6 (2026-06-10)
+
+---
+
+## Сессия 2026-06-10 — рефлексия 18:00 local + возрастные метафоры + ревизия бэклога
+
+**Реализовано и задеплоено** (commit `5301613`, миграция `e5f6a7b8c9d0` накатана, контейнеры healthy, `reflection:hourly_scan` в jobstore):
+
+1. **Рефлексия о важной дате — в 18:00 местного времени карты** (была в 12:00 MSK):
+   - `ChartJournalSettings.reflection_hour_utc` + backfill из `charts.tz_offset`
+   - Новый почасовой [scan_reflection_prompts_job](bot/scheduler/jobs.py): SQL-фильтр `reflection_hour_utc == текущий UTC-час`, локальная «сегодня» через tz_offset (UTC-7 не промахивается на день), per-day dedup
+   - `scan_important_dates_job` (09:00 UTC) теперь шлёт только warning за 1-2 дня
+   - `toggle_important_dates(tz_offset=...)` пересчитывает час; прокинуто из start.py и forecast.py (×2)
+2. **Возрастные метафоры по школам** (фидбэк ученицы мастера Ирины):
+   - [calculator/age_utils.py](calculator/age_utils.py): `client_age_years` (по календарю) + 5 бэндов (до 25 / 25-35 / 35-45 / 45-60 / 60+)
+   - `compose_messages(client_age=...)` → секция `[AUDIENCE]` сразу после `[BAZI_DATA]`; consultation.py передаёт возраст из `chart_data.input.birth_datetime`
+   - [base.md](ai/prompts/base.md) §6.4: при расшифровке звёзд и ЛЮБЫХ пересечений (六冲/刑/害/合/三合/桃花/貴人/将星/10 богов) — 2-3 метафоры-цитаты `> «Представь, что …»` под возраст и стиль школы
+   - Базы примеров бэнд×школа: [base_classic.md](ai/prompts/base_classic.md) §9 (природа/ремесло), [base_edoha.md](ai/prompts/base_edoha.md) §13 (привязка 8 семей к бэндам), [base_modern.md](ai/prompts/base_modern.md) §9 (психология)
+
+**Ревизия бэклога (решения Богдана 2026-06-10):**
+
+- **1.18.8 закрыт** — ревью сенсея 5 алгоритмов состоялось 2026-05-31 и применено в `f43d3dd` (Phase 9); #6 term_unpack закрыт без ревью: это UX-правило подачи, его суть уже live в base.md + INSTRUCTION_PREFIX + base_modern §8.
+- **L-1 (3D-эмодзи в SVG) — отменён**, делать не будем.
+- **W4e актуализирован** — джоб/toggle/live-verify давно закрыты; единственный пробел спеки — **W4e-4 auto-запись `JournalEntry(source=auto)`** (план ≤1.5ч в tasks.md).
+- **W5e** — MVP live (`[PERSONAL_MASTER_NOTES]`, cap 3 summary); full-версия (KuzuDB L8_personal_master per-chart) — после bge-m3.
+- **1.9.16 bge-m3 ОДОБРЕН** — план: [doc/proposals/bge_m3_embeddings_plan.md](doc/proposals/bge_m3_embeddings_plan.md). Ключевое: на VM 2.3 GB available → ONNX int8 (~700 MB) для query-инференса, индексация 7788 узлов локально на Mac. ~2 дня, отдельная сессия.
+
+**Pending после сессии:** live-smoke метафор через MCP @Bogman108 (MCP telegram был отключён в сессии) — вопрос про столкновение на 3 школах, проверить 2-3 метафоры-цитаты под бэнд 35-45; вечерний prompt рефлексии подтвердится по логам `important_dates.reflection_sent` в 18:00 local.
 
 ---
 

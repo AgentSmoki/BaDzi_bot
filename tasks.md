@@ -121,7 +121,7 @@
 ## 🔴 Текущая итерация (live-fix wave + минимальная защита перед релизом)
 
 ### 🟡 L. После live-теста на проде
-- [ ] **L-1 Эмодзи в SVG-карте.** На проде эмодзи 🌳🔥⛰⚙💧 не рендерятся (видны белые SVG-плейсхолдеры). Twemoji не подходит (тусклый). Нужен другой 3D-emoji-шрифт. План: рекомендация Gemini по open-source 3D-эмодзи (Microsoft Fluent Emoji 3D / JoyPixels / Apple Color Emoji extracted) → установка в Dockerfile через `apt`/`curl` + fontconfig alias → проверка через `BAZI_DEBUG_DUMP_SVG=1` → деплой.
+- [~] **L-1 Эмодзи в SVG-карте** — **ОТМЕНЕНО (2026-06-10, решение Богдана)**: 3D-emoji-шрифт делать не будем. Белые SVG-иконки элементов остаются как штатный визуал.
 - [ ] **L-2 Live-валидация Claude Sonnet.** После коммита `ff21ef2` проверить в Telegram: latency ~10с (вместо 55), баланс стихий цитируется дословно (15% Огня, не 40%), стиль Анастасии сохранился (тёплый, без `!`).
 
 ### 🟢 1.12.0 Минимальный free-question guard (защита от безлимитного жжения токенов)
@@ -202,7 +202,8 @@
 - [x] **1.18.5 decision_chain.md** (драфт готов 2026-05-24, runtime-integration на ревью сенсея) — «делать X или Y?»: шахматная аналогия, оценка позиций обеих сторон, расчёт ходов → [`ai/prompts/algorithms/decision_chain.md`](ai/prompts/algorithms/decision_chain.md)
 - [x] **1.18.6 health_diagnostics.md** (драфт готов 2026-05-24, runtime-integration на ревью сенсея) — баланс стихий → ТКМ-системы → ослабленный / гипер орган → [`ai/prompts/algorithms/health_diagnostics.md`](ai/prompts/algorithms/health_diagnostics.md)
 - [x] **1.18.7 term_unpack.md** (драфт готов 2026-05-24, runtime-integration на ревью сенсея) — мета-алгоритм: при незнакомом термине остановись, расшифруй, потом продолжай → [`ai/prompts/algorithms/term_unpack.md`](ai/prompts/algorithms/term_unpack.md)
-- [ ] **1.18.8 Sensei review 6 драфтов** — отдать Мастеру [`doc/algorithm_review_prompts.md`](doc/algorithm_review_prompts.md) (6 review-промптов с критериями: терминология, последовательность шагов, эталонная карта, контр-примеры). После апрува — выбрать integration option: A (skill per algorithm) / B (одна `base_edoha.md` секция) / C (промптовая sub-routine) / D (оставить как документ). См. архитектурный разбор в [`doc/school_layered_flow.md`](doc/school_layered_flow.md).
+- [x] **1.18.8 Sensei review 6 драфтов** — **ЗАКРЫТ 2026-06-10 (5 из 6 + решение по #6).** Ревью мастера состоялось 2026-05-31, правки применены к 5 алгоритмам (opportunity/relationships/career/decision/health) в commit `f43d3dd` (Phase 9 / 1.18.80). Integration option выбран: гибрид A+B — нейтральное аналитическое ядро → `ai/skills/*.md` (видят все школы через [SKILL]), голос/доктрина ЭдоХи → `base_edoha.md`. Драфты `algorithms/*.md` остаются canonical reference.
+  - **#6 term_unpack — закрыт БЕЗ ревью сенсея (решение 2026-06-10):** это UX-правило подачи (источник — фидбэк Богдана, не доктрина школы), и его суть уже live в трёх местах: правило inline-расшифровки в [base.md](ai/prompts/base.md) («Голый иероглиф без расшифровки — критическая ошибка»), INSTRUCTION_PREFIX в [ai/prompts/__init__.py](ai/prompts/__init__.py), «Алгоритм расшифровки термина (4 шага)» в [base_modern.md](ai/prompts/base_modern.md). Ревьюить мастеру там нечего — астрологического содержания нет. Если Богдан захочет формальное ревью — написать 6-й промпт в `doc/algorithm_review_prompts.md` по шаблону (сейчас там только 5).
 
 #### Phase 2 — Три версии base.md + UX выбор школы
 
@@ -353,7 +354,7 @@
 - [x] **W5b Кнопка «🎓 Загрузить Встречу с Мастером»** на карте → объяснение flow + FSM `waiting_url` → user paste URL.
 - [x] **W5c URL downloader** — детектор source_type по hostname в `bot/services/teletranscribe.py::detect_source_type`, потом TT API endpoint `/v1/transcribe-url` (он сам умеет YouTube, Yandex Disk, GDrive).
 - [x] **W5d Summary generator** — LLM-вызов из transcript в `tasks/master_meeting.py::_generate_summary` → структурированная выжимка с разделами `## Темы`, `## Рекомендации мастера`, `## Глубинные аспекты карты`. Хранится в `summary`.
-- [ ] **W5e KuzuDB integration** — пересмотр Богдана 2026-05-20: НЕ инжектить транскрипты напрямую в `[MASTER_MEETING_NOTES]` промпт-секцию (встреч может быть много, контекст переполняется). Вместо этого:
+- [~] **W5e KuzuDB integration** — **MVP live** (актуализировано 2026-06-10): `_load_master_meeting_summaries` в [consultation.py](bot/routers/consultation.py) инжектит до 3 последних summary в `[PERSONAL_MASTER_NOTES]` (контекст не переполняется — cap 3, старые вытесняются). **Full-версия (KuzuDB per-chart) остаётся backlog'ом**, имеет смысл делать ПОСЛЕ bge-m3 (1.9.16) — semantic retrieval сразу покроет и meeting-ноды. Пересмотр Богдана 2026-05-20: НЕ инжектить транскрипты напрямую в промпт-секцию. Вместо этого:
   - Парсить `summary` встречи на triplets (extract concepts через subagent или fast LLM)
   - Записывать в **KuzuDB** как новый Node-type `MasterMeetingNote` с `level=L8_personal_master` и `source_authority=10` (выше учителей)
   - В `ai/rag/retrieve.py`: при матчинге концептов вопроса — поднимать релевантные MasterMeetingNotes per chart, отдавать через `[KNOWLEDGE]` блок наравне с teacher KB
@@ -365,20 +366,14 @@
 
 ## 🔮 Backlog для следующей сессии (зафиксировано 2026-05-20)
 
-### W4e-scheduler — Важные даты, доставка
+### W4e-scheduler — Важные даты, доставка (актуализировано 2026-06-10)
 
-Calculator-детектор уже есть ([calculator/important_dates.py](calculator/important_dates.py)) и тестируется на эталонной карте 12.09.1999 (находит 25.05.2026 как 白虎+飞刃+天乙贵人 severity=high). DB-поля `important_dates_enabled` + `last_important_date_at` уже в migration `fd6512684d2f`. Не хватает scheduler job + UI toggle.
+Calculator-детектор есть ([calculator/important_dates.py](calculator/important_dates.py)). Большая часть W4e уже live — секция ниже была устаревшей:
 
-- [ ] **W4e-1 Scheduler job** `scan_important_dates_job` в [bot/scheduler/jobs.py](bot/scheduler/jobs.py):
-  - Cron: ежедневно 09:00 UTC
-  - Walk `journal_settings_repo.list_important_dates_enabled()`
-  - Для каждого chart: `find_important_dates_in_range(chart, today, today+2)` (2 дня вперёд + сегодня)
-  - Rate-limit: skip если `last_important_date_at` < 7 дней назад
-  - Сообщения: за 2 дня + в день (severity-dependent)
-  - В конце дня: `JournalEntry.upsert(source=auto)` если user не ответил
-  - `journal_settings_repo.mark_important_date_sent(chart_id)` после успешной отправки
-- [ ] **W4e-2 `/start` toggle** — inline кнопка «🌟 Важные даты: ON/OFF» в reply-keyboard или main_menu_kb. Handler → `journal_settings_repo.toggle_important_dates(chart_id, enabled=bool)`.
-- [ ] **W4e-3 Live verify** — sub_test_chart Богдана → подождать 24h → проверить что прислалось.
+- [x] **W4e-1 Scheduler job** — `scan_important_dates_job` live (cron 09:00 UTC, warning за 1-2 дня, ≤1/неделю + per-date dedup `d4e5f6a7b8c9`). **2026-06-10 v2:** day-of рефлексия вынесена в почасовой `scan_reflection_prompts_job` — приходит в 18:00 локального времени карты (`reflection_hour_utc`, migration `e5f6a7b8c9d0`, commit `5301613`).
+- [x] **W4e-2 toggle** — кнопка «🌟 Важные даты ON/OFF» в меню карты, handler `handle_chart_important_dates_toggle` в [bot/routers/start.py](bot/routers/start.py); подписка на прогнозы авто-включает (forecast.py). Toggle теперь пересчитывает `reflection_hour_utc` из `chart.tz_offset`.
+- [x] **W4e-3 Live verify** — работает в проде (баг «дубли важных дат» найден и пофикшен 2026-06-02 `dbaaa1a` — доказательство боевой эксплуатации).
+- [ ] **W4e-4 Auto-запись дневника (единственный оставшийся пробел спеки)** — `JournalEntry.upsert(source=auto)` если пользователь не ответил на рефлексию. Enum `JournalEntrySource.auto` и рендер в journal.py уже есть, writer отсутствует. **План (≤1.5ч):** в `scan_reflection_prompts_job` сразу при отправке prompt'а делать `JournalEntryRepository.upsert(chart_id, entry_date=local_today, energies_summary=<выжимка hit.active_stars>, user_reflection=None, source=auto)` — upsert по (chart_id, entry_date) уже перезапишется на text/voice, если клиент потом ответит. Отдельный «конец дня»-джоб не нужен. + 2 unit-теста.
 
 ### W5e — KuzuDB integration master meetings
 
@@ -485,7 +480,8 @@ Calculator-детектор уже есть ([calculator/important_dates.py](cal
   - Embeddings (Phase 2.5) → bge-m3 (unified dense+sparse+ColBERT, +500 MB image).
   - LLM concept extraction (Phase 3.5) → Qwen3-3B через YC (5× cheaper than Haiku, RU+ZH native).
 - [~] 1.9.15 **KuzuDB → Apache AGE migration** — **ОТМЕНЕНО (2026-06-02, решение Богдана)**. Остаёмся на **KuzuDB 0.10**; lock-in ADR-004 принят сознательно. Триггер «kuzu перестанет ставиться / CVE» снят как блокер.
-- [ ] 1.9.16 **bge-m3 embeddings** — теперь **без зависимости от AGE**: работает на KuzuDB 0.10 (косинус в Python над школо-выборкой). Готовое предложение: [doc/proposals/bge_m3_embeddings.md](doc/proposals/bge_m3_embeddings.md). К запуску по решению Богдана.
+- [ ] 1.9.16 **bge-m3 embeddings** — **ОДОБРЕН Богданом 2026-06-10, в работу.** Без зависимости от AGE: KuzuDB 0.10 + косинус в Python над школо-выборкой. Предложение: [doc/proposals/bge_m3_embeddings.md](doc/proposals/bge_m3_embeddings.md). План реализации: [doc/proposals/bge_m3_embeddings_plan.md](doc/proposals/bge_m3_embeddings_plan.md).
+  ⚠️ **Инфра-ограничение (замер 2026-06-10):** на VM 3.9 GB RAM / 2.3 GB available / swap 0 — полный bge-m3 fp32 (~2.3 GB) в query-time не влезает. Решение: **ONNX int8 квантование (~700 MB RAM)** для query-инференса в bot-контейнере; индексация 7788 узлов — один прогон локально на Mac, на VM едет готовый kuzu_db через `docker compose cp`. Fallback при пустых embedding — текущий sparse (как сейчас).
 - [ ] 1.9.17 **Phase 3.5 Qwen3-3B concept extraction** — последняя оптимизация retrieval, async-фицирует compose_messages
 
 ### 1.12 Монетизация — полная реализация
