@@ -117,3 +117,33 @@
 
 ## Деплой (после approve)
 local edit → ruff+mypy+pytest → commit → rsync → `docker compose build bot worker scheduler` → `up -d` → `alembic upgrade head` (миграция `reflection_hour_utc`). Затронуты bot (consultation/prompts) + scheduler (jobs/runner) → пересобрать оба.
+
+---
+
+# Следующие задачи в работу (поставлены Богданом 2026-06-10)
+
+## A. Semantic embeddings для RAG (1.9.16) — одобрено
+
+План: [doc/proposals/bge_m3_embeddings_plan.md](doc/proposals/bge_m3_embeddings_plan.md). Оценка ~1.5 дня.
+
+Ключевое решение (live-probe 2026-06-10): **гоним через Yandex Cloud Embeddings API**, не через макбук и не через модель в Docker:
+- модели `text-search-doc` (индексация) + `text-search-query` (вопрос), 256-dim, работают с текущим ключом `YC_AI_API_KEY` — проверено живым вызовом;
+- индексация 7788 узлов KuzuDB = HTTP-вызовы (~15-30 мин), query-эмбеддинг ~100-300 мс с Redis-кэшем;
+- ноль RAM на VM, образ не растёт; fallback на текущий sparse сохраняется;
+- quality-gate на эталонных вопросах; если 256-dim модель провалит китайскую терминологию — Вариант 2: bge-m3 ONNX int8 (~700 MB, влезает в VM).
+
+Порядок: Phase 0 (`ai/embeddings.py` + Settings) → Phase 1 (`knowledge/ingest/embed.py`) → Phase 2 (гибрид в `ai/rag/retrieve.py`) → Phase 3 (quality-gate + деплой) → Phase 4 (тесты).
+
+## B. Админ-аналитика (1.15) — новый функционал для Богдана
+
+План: [doc/proposals/admin_analytics_plan.md](doc/proposals/admin_analytics_plan.md). Оценка: Phase 1 ≈ 1 день, Phase 2 ≈ 1 день, Phase 3 (опц.) ≈ 1 день.
+
+Что получит Богдан в `/admin` (доступ по `settings.admin_telegram_id`):
+1. **Сводка** — всего юзеров, новые за 1/7/30 дней, DAU/WAU/MAU, консультации, активные подписки, выручка ЮKassa.
+2. **Динамика** — любая метрика по дням / неделям / месяцам: таблица + PNG-спарклайн (рендер через существующий CairoSVG-pipeline).
+3. **Сколько людей задают вопросы** — уникальные авторы вопросов за период + среднее вопросов на человека.
+4. **Воронка и отток** — /start → карта → 1-й вопрос → 2+ → лимит 3 бесплатных → оплата; группировка ушедших по последнему событию + распределение skill/школы последнего вопроса («на каких вопросах уходят»).
+
+Требуемая мини-миграция: `consultations.chosen_school` (сейчас школа консультации не сохраняется — без неё нет аналитики по школам). Phase 3 (точная воронка по UI-событиям: pricing показан / клик «Купить» / брошенный ввод даты) — отдельная таблица `bot_events`, делаем после прогона Phase 1-2.
+
+**Рекомендуемый порядок:** B-Phase 1 (быстрая ценность — цифры уже завтра) → A целиком → B-Phase 2 → B-Phase 3 по необходимости.

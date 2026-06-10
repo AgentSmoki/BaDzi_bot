@@ -481,7 +481,7 @@ Calculator-детектор есть ([calculator/important_dates.py](calculator
   - LLM concept extraction (Phase 3.5) → Qwen3-3B через YC (5× cheaper than Haiku, RU+ZH native).
 - [~] 1.9.15 **KuzuDB → Apache AGE migration** — **ОТМЕНЕНО (2026-06-02, решение Богдана)**. Остаёмся на **KuzuDB 0.10**; lock-in ADR-004 принят сознательно. Триггер «kuzu перестанет ставиться / CVE» снят как блокер.
 - [ ] 1.9.16 **bge-m3 embeddings** — **ОДОБРЕН Богданом 2026-06-10, в работу.** Без зависимости от AGE: KuzuDB 0.10 + косинус в Python над школо-выборкой. Предложение: [doc/proposals/bge_m3_embeddings.md](doc/proposals/bge_m3_embeddings.md). План реализации: [doc/proposals/bge_m3_embeddings_plan.md](doc/proposals/bge_m3_embeddings_plan.md).
-  ⚠️ **Инфра-ограничение (замер 2026-06-10):** на VM 3.9 GB RAM / 2.3 GB available / swap 0 — полный bge-m3 fp32 (~2.3 GB) в query-time не влезает. Решение: **ONNX int8 квантование (~700 MB RAM)** для query-инференса в bot-контейнере; индексация 7788 узлов — один прогон локально на Mac, на VM едет готовый kuzu_db через `docker compose cp`. Fallback при пустых embedding — текущий sparse (как сейчас).
+  **Решение по движку (обновлено 2026-06-10 после live-probe):** Вариант 1 — **Yandex Cloud Embeddings API** (`text-search-doc`/`text-search-query`, 256-dim, работают с текущим `YC_AI_API_KEY` — проверено живым вызовом). Индексация 7788 узлов = HTTP-вызовы (~15-30 мин), без макбука и без модели в Docker; query-эмбеддинг ~100-300 мс + Redis-кэш; ноль RAM на VM. Quality-gate на эталонных вопросах; провал → Вариант 2: bge-m3 ONNX int8 (~700 MB, по замеру VM 2.3 GB available влезает; fp32 — нет). Fallback при пустых embedding — текущий sparse (как сейчас).
 - [ ] 1.9.17 **Phase 3.5 Qwen3-3B concept extraction** — последняя оптимизация retrieval, async-фицирует compose_messages
 
 ### 1.12 Монетизация — полная реализация
@@ -498,11 +498,14 @@ Calculator-детектор есть ([calculator/important_dates.py](calculator
 - [ ] 1.14.3 Алерты в приватный Telegram-канал (timeout, 5xx, budget)
 
 ### 1.15 Админ-панель
-- [ ] 1.15.1 [bot/routers/admin.py](bot/routers/admin.py) — `/admin stats`, `/admin export`, `/admin model`
-- [ ] 1.15.2 `/admin stats` — DAU, вопросы/день, выручка, конверсия
+
+> **2026-06-10 — запрошено Богданом, готов план:** [doc/proposals/admin_analytics_plan.md](doc/proposals/admin_analytics_plan.md). Phase 1 — `/admin` сводка + динамика по дням/неделям/месяцам (миграция `consultations.chosen_school`); Phase 2 — воронка /start→карта→вопрос→лимит→оплата + отток с группировкой по последнему событию и skill последнего вопроса; Phase 3 (опц.) — `bot_events` для точной воронки UI. Реализует 1.15.1-1.15.2 ниже.
+
+- [ ] 1.15.1 [bot/routers/admin.py](bot/routers/admin.py) — `/admin stats`, `/admin export`, `/admin model` → **stats по плану admin_analytics_plan.md (Phase 1-2)**
+- [ ] 1.15.2 `/admin stats` — DAU, вопросы/день, выручка, конверсия → **входит в Phase 1-2 плана**
 - [ ] 1.15.3 `/admin export` — CSV диалогов в YC Object Storage → ссылка
 - [ ] 1.15.4 `/admin model` — смена модели LLM без деплоя (Redis feature flag)
-- [ ] 1.15.5 FastAPI admin page (Basic Auth) — дашборд
+- [ ] 1.15.5 FastAPI admin page (Basic Auth) — дашборд (после TG-версии, если станет тесно)
 
 ### 1.16 Деплой MVP — оставшийся хвост
 - [ ] **1.16.2** YC Container Registry — *отложено*. Текущий пайплайн `rsync → docker compose build на VM` работает, переход на YCR + GitHub Actions откладывается до отдельной итерации.
