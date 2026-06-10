@@ -356,6 +356,11 @@ class ChartJournalSettings(Base):
     # Default ON so the user gets value without configuring; can be turned
     # off via /start «🌟 Важные даты: ON/OFF» button.
     important_dates_enabled: Mapped[bool] = mapped_column(default=True, server_default=sa.true())
+    # Wave 4e v2 (2026-06-10): UTC hour at which the day-of REFLECTION
+    # prompt fires — 18:00 chart-local converted via charts.tz_offset.
+    # Default 15 = 18:00 при UTC+3 (MSK). Recomputed in
+    # toggle_important_dates whenever the caller passes tz_offset.
+    reflection_hour_utc: Mapped[int] = mapped_column(sa.Integer, default=15, server_default="15")
     # Rate limit for the ahead-of-time WARNING: scheduler skips warnings
     # for this chart if the last one was <7 days ago. NULL = never warned.
     last_important_date_at: Mapped[datetime | None] = mapped_column(nullable=True)

@@ -4,12 +4,25 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from typing import Final
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import ChartJournalSettings, JournalEntry, JournalEntrySource
+
+# Wave 4e v2 — day-of reflection prompt fires at 18:00 chart-local:
+# день прожит, есть что рефлексировать (vs прежние 12:00 MSK).
+REFLECTION_HOUR_LOCAL: Final = 18
+
+
+def reflection_hour_utc_for(tz_offset_hours: float) -> int:
+    """UTC hour at which 18:00 chart-local occurs.
+
+    Same conversion as bot.routers.forecast._hour_local_to_utc, defined
+    locally — db/ слой живёт без импортов из bot/."""
+    return int(REFLECTION_HOUR_LOCAL - tz_offset_hours) % 24
 
 
 class ChartJournalSettingsRepository:
@@ -53,11 +66,23 @@ class ChartJournalSettingsRepository:
         return list(result.scalars().all())
 
     async def toggle_important_dates(
-        self, session: AsyncSession, *, chart_id: uuid.UUID, enabled: bool
+        self,
+        session: AsyncSession,
+        *,
+        chart_id: uuid.UUID,
+        enabled: bool,
+        tz_offset: float | None = None,
     ) -> ChartJournalSettings:
-        """Wave 4e — turn important-date alerts on/off for one chart."""
+        """Wave 4e — turn important-date alerts on/off for one chart.
+
+        ``tz_offset`` (chart's offset from UTC) — when given, recompute
+        ``reflection_hour_utc`` so the day-of reflection prompt lands at
+        18:00 chart-local. Callers that know the chart should pass it;
+        ``None`` keeps the stored value (default 15 = 18:00 MSK)."""
         settings = await self.get_or_create(session, chart_id=chart_id)
         settings.important_dates_enabled = enabled
+        if tz_offset is not None:
+            settings.reflection_hour_utc = reflection_hour_utc_for(tz_offset)
         await session.flush()
         return settings
 
@@ -68,6 +93,20 @@ class ChartJournalSettingsRepository:
         result = await session.execute(
             sa.select(ChartJournalSettings).where(
                 ChartJournalSettings.important_dates_enabled.is_(True)
+            )
+        )
+        return list(result.scalars().all())
+
+    async def list_reflection_due_at(
+        self, session: AsyncSession, *, hour_utc: int
+    ) -> list[ChartJournalSettings]:
+        """Wave 4e v2 — charts whose day-of reflection prompt is due at
+        this UTC hour. Filter в SQL, не в Python: почасовой глобальный
+        скан остаётся дешёвым на тысячах карт."""
+        result = await session.execute(
+            sa.select(ChartJournalSettings).where(
+                ChartJournalSettings.important_dates_enabled.is_(True),
+                ChartJournalSettings.reflection_hour_utc == hour_utc,
             )
         )
         return list(result.scalars().all())

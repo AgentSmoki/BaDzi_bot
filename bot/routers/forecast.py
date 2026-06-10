@@ -393,7 +393,9 @@ async def finalize_monthly_subscription(
     )
     # 2026-05-21 Bogdan — связка W3↔W4e: subscribing to forecasts
     # auto-enables «important dates» alerts for the same chart.
-    await _journal_settings_repo.toggle_important_dates(session, chart_id=chart.id, enabled=True)
+    await _journal_settings_repo.toggle_important_dates(
+        session, chart_id=chart.id, enabled=True, tz_offset=chart.tz_offset
+    )
     await session.commit()
 
     note = (
@@ -647,7 +649,9 @@ async def finalize_daily_subscription(
         period_days=settings.forecast_period_days,
         chosen_school=school,
     )
-    await _journal_settings_repo.toggle_important_dates(session, chart_id=chart.id, enabled=True)
+    await _journal_settings_repo.toggle_important_dates(
+        session, chart_id=chart.id, enabled=True, tz_offset=chart.tz_offset
+    )
     await session.commit()
 
     msg = (

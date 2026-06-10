@@ -31,6 +31,7 @@ from ai.rag import load_knowledge_for_question
 from ai.rag.retrieve import SchoolFilter
 from ai.skills import SkillSpec
 from calculator import calculate_chart
+from calculator.age_utils import age_band_label
 from calculator.calendar_select import ScoredDay
 from calculator.models import ChartInput, ChartOutput
 
@@ -301,13 +302,18 @@ def compose_messages(
     # falls through with no filter, preserving the legacy behaviour
     # for callers that don't yet thread school (forecast.py).
     school: str | None = None,
+    # Wave 7 возрастные метафоры (2026-06-10) — полных лет клиента.
+    # ``None`` (legacy callers) → секция [AUDIENCE] опускается.
+    client_age: int | None = None,
 ) -> list[ChatMessage]:
     """Build the final ``messages`` list for the orchestrator.
 
     Section order in the user-message body:
 
     1. ``[BAZI_DATA]``         — natal chart, stars, luck pillars
-    2. ``[PARTNER_CHART]``     — Wave 6, when relationships skill linked
+    2. ``[AUDIENCE]``          — Wave 7, возраст клиента + бэнд для
+       возрастных метафор (когда передан ``client_age``)
+    3. ``[PARTNER_CHART]``     — Wave 6, when relationships skill linked
        a partner chart via ``charts.partner_chart_id``
     3. ``[CURRENT_MOMENT]``    — today's pillars + resonances (temporal Qs)
     4. ``[CALENDAR_SELECTION]``— pre-scored top/bottom dates (date Qs)
@@ -347,6 +353,16 @@ def compose_messages(
     )
     chart_block = render_chart_block(chart)
     sections = [today_block, f"[BAZI_DATA]\n{chart_block}\n[/BAZI_DATA]"]
+    if client_age is not None:
+        band = age_band_label(client_age)
+        sections.append(
+            "[AUDIENCE]\n"
+            f"Возраст клиента: {client_age} лет (бэнд {band}).\n"
+            "При расшифровке звёзд и пересечений в карте подбирай метафоры\n"
+            "под этот возраст и в стиле своей школы (см. «Возрастные метафоры»\n"
+            "в системном промпте).\n"
+            "[/AUDIENCE]"
+        )
     if partner_chart is not None:
         partner_block = render_chart_block(partner_chart)
         sections.append(f"[PARTNER_CHART]\n{partner_block}\n[/PARTNER_CHART]")

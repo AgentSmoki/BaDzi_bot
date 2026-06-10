@@ -95,7 +95,7 @@ def _school_from_sub(sub: ChartForecastSubscription | None) -> SchoolName | None
     Возвращает None если sub нет или значение не в SchoolName Literal
     (например legacy-подписка с пустой строкой), чтобы forecast.py
     fall back на универсальный base.md. Wave 7 Phase 2 ext 2026-05-26.
-    """  # noqa: RUF002
+    """
     if sub is None:
         return None
     value = (sub.chosen_school or "").strip().lower()
@@ -374,11 +374,16 @@ async def scan_important_dates_job() -> None:
     that have ``important_dates_enabled=True``.
 
     Triggered by a single cron at 09:00 UTC. For each enabled chart:
-    - look forward 0..2 days (today + 2 ahead)
+    - look forward 1..2 days ahead
     - if any ImportantDate falls in that window and the chart hasn't
-      been notified within the last 7 days, send a notification
+      been notified within the last 7 days, send a WARNING
     - mark `last_important_date_at = now()` so we honour the
       ≤1/week rate limit
+
+    Wave 4e v2 (2026-06-10): этот скан шлёт ТОЛЬКО предупреждение
+    (за 1-2 дня, утром — ок). Day-of приглашение записать рефлексию
+    переехало в почасовой ``scan_reflection_prompts_job`` — оно
+    приходит в 18:00 местного времени карты, когда день прожит.
 
     No per-chart APScheduler jobs needed — one global cron walks the
     DB and decides who needs a ping. Cheap, idempotent (rate-limit
@@ -389,7 +394,6 @@ async def scan_important_dates_job() -> None:
     from calculator.important_dates import (
         find_important_dates_in_range,
         format_important_date_message,
-        format_important_date_reflection,
     )
     from db.models import User
     from db.repositories.journal_repo import ChartJournalSettingsRepository
@@ -415,7 +419,6 @@ async def scan_important_dates_job() -> None:
                 chart_id = js.chart_id
                 last_warning_at = js.last_important_date_at
                 last_warning_date = js.last_important_warning_date
-                last_reflection_date = js.last_reflection_prompt_date
 
                 chart = await chart_repo.get_by_id(session, chart_id)
                 if chart is None:
@@ -430,52 +433,7 @@ async def scan_important_dates_job() -> None:
                 if not hits:
                     continue
 
-                # ── Block 1: day-of REFLECTION prompt (days_ahead == 0) ──
-                # Sent ON the important date itself, deduped per day.
-                today_hits = [h for h in hits if h.date_ == today]
-                if today_hits and last_reflection_date != today:
-                    hit = today_hits[0]
-                    text = format_important_date_reflection(chart_data, hit)
-                    kb = InlineKeyboardMarkup(
-                        inline_keyboard=[
-                            [
-                                InlineKeyboardButton(
-                                    text="📝 Записать рефлексию",
-                                    callback_data=f"journal:write:{chart_id}",
-                                )
-                            ],
-                            [
-                                InlineKeyboardButton(
-                                    text="◀ К карте",  # noqa: RUF001
-                                    callback_data=f"chart:open:{chart_id}",
-                                )
-                            ],
-                        ]
-                    )
-                    try:
-                        await bot.send_message(
-                            chat_id=telegram_id, text=text, parse_mode="HTML", reply_markup=kb
-                        )
-                        await journal_settings_repo.mark_reflection_prompt_sent(
-                            session, chart_id, day=today
-                        )
-                        await session.commit()
-                        logger.info(
-                            "important_dates.reflection_sent",
-                            chart_id=str(chart_id),
-                            telegram_id=telegram_id,
-                            target_date=today.isoformat(),
-                            severity=hit.severity,
-                        )
-                    except (TelegramBadRequest, TelegramForbiddenError) as exc:
-                        logger.warning(
-                            "important_dates.reflection_failed",
-                            chart_id=str(chart_id),
-                            error=str(exc),
-                            exc_type=type(exc).__name__,
-                        )
-
-                # ── Block 2: ahead-of-time WARNING (days_ahead 1..2) ──
+                # ── ahead-of-time WARNING (days_ahead 1..2) ──
                 # Heads-up, no reflection button, ≤1/week + per-date dedup.
                 ahead = [h for h in hits if h.date_ > today]
                 warned_recently = bool(last_warning_at and last_warning_at > week_ago)
@@ -488,7 +446,7 @@ async def scan_important_dates_job() -> None:
                             inline_keyboard=[
                                 [
                                     InlineKeyboardButton(
-                                        text="◀ К карте",  # noqa: RUF001
+                                        text="◀ К карте",
                                         callback_data=f"chart:open:{chart_id}",
                                     )
                                 ]
@@ -519,6 +477,117 @@ async def scan_important_dates_job() -> None:
                                 error=str(exc),
                                 exc_type=type(exc).__name__,
                             )
+    finally:
+        await bot.session.close()
+
+
+async def scan_reflection_prompts_job() -> None:
+    """Wave 4e v2 (2026-06-10) — hourly scan delivering the day-of
+    REFLECTION prompt at ~18:00 chart-local time.
+
+    Каждый час: берём карты с ``reflection_hour_utc == текущий UTC-час``
+    (фильтр в SQL — see ``list_reflection_due_at``), для каждой считаем
+    локальную «сегодняшнюю» дату через chart.tz_offset и, если она
+    важная и приглашение ещё не уходило сегодня, шлём prompt с кнопкой
+    «Записать рефлексию». Commit per-chart, дедуп через
+    ``last_reflection_prompt_date``.
+
+    Почасовой глобальный скан вместо per-chart cron: important-dates
+    включены по умолчанию у ВСЕХ карт, per-chart регистрация дала бы
+    тысячи джобов в APScheduler.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from calculator.important_dates import (
+        find_important_dates_in_range,
+        format_important_date_reflection,
+    )
+    from db.models import User
+    from db.repositories.journal_repo import ChartJournalSettingsRepository
+
+    session_factory = _make_session_factory()
+    bot = _make_bot()
+    chart_repo = ChartRepository()
+    journal_settings_repo = ChartJournalSettingsRepository()
+
+    try:
+        async with session_factory() as session:
+            now_utc = datetime.now(UTC)
+            due = await journal_settings_repo.list_reflection_due_at(session, hour_utc=now_utc.hour)
+            logger.info(
+                "important_dates.reflection_scan_start",
+                hour_utc=now_utc.hour,
+                due_charts=len(due),
+            )
+
+            for js in due:
+                # Capture fields up-front: commit per-chart below expires
+                # ORM attributes.
+                chart_id = js.chart_id
+                last_reflection_date = js.last_reflection_prompt_date
+
+                chart = await chart_repo.get_by_id(session, chart_id)
+                if chart is None:
+                    continue
+                user = await session.get(User, chart.user_id)
+                telegram_id = getattr(user, "telegram_id", None) if user is not None else None
+                if telegram_id is None:
+                    continue
+
+                # «Сегодня» в часовом поясе карты: в 18:00 local для
+                # UTC-7 уже наступила следующая UTC-дата — наивный
+                # date.today() промахнулся бы на день.
+                tz_offset = float(getattr(chart, "tz_offset", 0.0) or 0.0)
+                local_today = (now_utc + timedelta(hours=tz_offset)).date()
+                if last_reflection_date == local_today:
+                    continue
+
+                chart_data = ChartOutput.model_validate(chart.chart_data)
+                hits = find_important_dates_in_range(chart_data, local_today, local_today)
+                today_hits = [h for h in hits if h.date_ == local_today]
+                if not today_hits:
+                    continue
+
+                hit = today_hits[0]
+                text = format_important_date_reflection(chart_data, hit)
+                kb = InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [
+                            InlineKeyboardButton(
+                                text="📝 Записать рефлексию",
+                                callback_data=f"journal:write:{chart_id}",
+                            )
+                        ],
+                        [
+                            InlineKeyboardButton(
+                                text="◀ К карте",
+                                callback_data=f"chart:open:{chart_id}",
+                            )
+                        ],
+                    ]
+                )
+                try:
+                    await bot.send_message(
+                        chat_id=telegram_id, text=text, parse_mode="HTML", reply_markup=kb
+                    )
+                    await journal_settings_repo.mark_reflection_prompt_sent(
+                        session, chart_id, day=local_today
+                    )
+                    await session.commit()
+                    logger.info(
+                        "important_dates.reflection_sent",
+                        chart_id=str(chart_id),
+                        telegram_id=telegram_id,
+                        target_date=local_today.isoformat(),
+                        severity=hit.severity,
+                    )
+                except (TelegramBadRequest, TelegramForbiddenError) as exc:
+                    logger.warning(
+                        "important_dates.reflection_failed",
+                        chart_id=str(chart_id),
+                        error=str(exc),
+                        exc_type=type(exc).__name__,
+                    )
     finally:
         await bot.session.close()
 

@@ -356,3 +356,39 @@ def test_compose_messages_v3_section_order(  # type: ignore[no-untyped-def]
     idx_instr = body.index("[INSTRUCTIONS]")
     idx_q = body.index("[QUESTION]")
     assert idx_bazi < idx_cm < idx_instr < idx_q
+
+
+def test_compose_messages_client_age_injects_audience_section(  # type: ignore[no-untyped-def]
+    reference_chart,
+) -> None:
+    """Wave 7 возрастные метафоры: client_age → [AUDIENCE] с возрастом
+    и бэндом, сразу после [BAZI_DATA] (метафоры подбираются под возраст)."""
+    msgs = compose_messages(
+        system_prompt="Ты Анастасия.",
+        chart=reference_chart,
+        question="Что значит моё столкновение?",
+        client_age=35,
+    )
+    body = msgs[-1].content
+    assert "[AUDIENCE]" in body
+    assert "[/AUDIENCE]" in body
+    aud_start = body.index("[AUDIENCE]")
+    aud_end = body.index("[/AUDIENCE]")
+    audience = body[aud_start:aud_end]
+    assert "35 лет" in audience
+    assert "бэнд 35-45" in audience
+    # Сразу после натальной карты, до инструкций
+    assert body.index("[BAZI_DATA]") < aud_start < body.index("[INSTRUCTIONS]")
+
+
+def test_compose_messages_without_client_age_omits_audience(  # type: ignore[no-untyped-def]
+    reference_chart,
+) -> None:
+    """Legacy callers (forecast, base_interpretation) не передают возраст —
+    секция [AUDIENCE] отсутствует, протокол не меняется."""
+    msgs = compose_messages(
+        system_prompt="Ты Анастасия.",
+        chart=reference_chart,
+        question="Расскажи про карту.",
+    )
+    assert "[AUDIENCE]" not in msgs[-1].content

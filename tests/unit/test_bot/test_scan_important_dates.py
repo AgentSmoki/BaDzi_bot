@@ -1,9 +1,11 @@
-"""Tests for scan_important_dates_job (Wave 4e fix, 2026-06-02).
+"""Tests for important-dates scheduler jobs (Wave 4e fix + v2).
 
-Verifies the two-block redesign:
-- day-of REFLECTION prompt (days_ahead==0) with per-day dedup,
-- ahead-of-time WARNING (days_ahead 1..2) with ≤1/week + per-date dedup,
-- per-chart commit.
+Wave 4e v2 (2026-06-10) split:
+- ``scan_important_dates_job`` (daily 09:00 UTC) шлёт ТОЛЬКО
+  ahead-of-time WARNING (за 1-2 дня) с ≤1/week + per-date dedup;
+- ``scan_reflection_prompts_job`` (hourly) шлёт day-of REFLECTION prompt
+  в 18:00 локального времени карты (reflection_hour_utc == текущий час),
+  per-day dedup.
 
 Repos/bot/session all mocked; find_important_dates_in_range monkeypatched
 so we control which dates "fire".
@@ -12,7 +14,7 @@ so we control which dates "fire".
 from __future__ import annotations
 
 import uuid as _uuid
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -23,6 +25,14 @@ import calculator.important_dates as important_dates
 from calculator.important_dates import ImportantDate
 from db.repositories.chart_repo import ChartRepository
 from db.repositories.journal_repo import ChartJournalSettingsRepository
+
+_TZ_OFFSET = 3.0  # chart fixture timezone (MSK)
+
+
+def _chart_local_today() -> date:
+    """Same formula the reflection job uses — keeps tests stable when
+    the suite runs around UTC midnight."""
+    return (datetime.now(UTC) + timedelta(hours=_TZ_OFFSET)).date()
 
 
 class _FakeSessionCM:
@@ -41,8 +51,10 @@ def _setup(
     *,
     js: SimpleNamespace,
     hits: list[ImportantDate],
-) -> tuple[MagicMock, AsyncMock, AsyncMock]:
-    """Wire all the mocks. Returns (bot, mark_reflection, mark_warning)."""
+) -> tuple[MagicMock, AsyncMock, AsyncMock, AsyncMock]:
+    """Wire all the mocks.
+
+    Returns (bot, mark_reflection, mark_warning, list_reflection_due_at)."""
     session = MagicMock()
     session.commit = AsyncMock()
     session.get = AsyncMock(return_value=SimpleNamespace(telegram_id=12345))
@@ -55,7 +67,9 @@ def _setup(
     bot.session.close = AsyncMock()
     monkeypatch.setattr(jobs, "_make_bot", lambda: bot)
 
-    chart = SimpleNamespace(id=js.chart_id, user_id=_uuid.uuid4(), chart_data={})
+    chart = SimpleNamespace(
+        id=js.chart_id, user_id=_uuid.uuid4(), chart_data={}, tz_offset=_TZ_OFFSET
+    )
     monkeypatch.setattr(ChartRepository, "get_by_id", AsyncMock(return_value=chart))
     monkeypatch.setattr(jobs.ChartOutput, "model_validate", lambda _data: MagicMock())
 
@@ -64,6 +78,8 @@ def _setup(
         "list_important_dates_enabled",
         AsyncMock(return_value=[js]),
     )
+    list_due = AsyncMock(return_value=[js])
+    monkeypatch.setattr(ChartJournalSettingsRepository, "list_reflection_due_at", list_due)
     mark_reflection = AsyncMock()
     mark_warning = AsyncMock()
     monkeypatch.setattr(
@@ -72,7 +88,7 @@ def _setup(
     monkeypatch.setattr(ChartJournalSettingsRepository, "mark_warning_sent", mark_warning)
 
     monkeypatch.setattr(important_dates, "find_important_dates_in_range", lambda *a, **k: hits)
-    return bot, mark_reflection, mark_warning
+    return bot, mark_reflection, mark_warning, list_due
 
 
 def _js(**over: object) -> SimpleNamespace:
@@ -81,38 +97,29 @@ def _js(**over: object) -> SimpleNamespace:
         "last_important_date_at": None,
         "last_important_warning_date": None,
         "last_reflection_prompt_date": None,
+        "reflection_hour_utc": 15,
     }
     base.update(over)
     return SimpleNamespace(**base)
 
 
+# ── scan_important_dates_job: WARNING only ─────────────────────────────
+
+
 @pytest.mark.asyncio
-async def test_day_of_sends_reflection_and_marks(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_daily_scan_skips_day_of_hit_entirely(monkeypatch: pytest.MonkeyPatch) -> None:
+    """v2: рефлексия больше НЕ уходит из дневного скана — day-of hit
+    игнорируется, им занимается почасовой scan_reflection_prompts_job."""
     today = date.today()
     hit = ImportantDate(date_=today, active_stars=("文昌贵人",), severity="low")
     js = _js()
-    bot, mark_reflection, mark_warning = _setup(monkeypatch, js=js, hits=[hit])
-
-    await jobs.scan_important_dates_job()
-
-    bot.send_message.assert_awaited_once()
-    text = bot.send_message.await_args.kwargs["text"]
-    assert "Сегодня" in text
-    mark_reflection.assert_awaited_once()
-    mark_warning.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_day_of_dedup_skips_when_already_prompted(monkeypatch: pytest.MonkeyPatch) -> None:
-    today = date.today()
-    hit = ImportantDate(date_=today, active_stars=("文昌贵人",), severity="low")
-    js = _js(last_reflection_prompt_date=today)  # already prompted today
-    bot, mark_reflection, _ = _setup(monkeypatch, js=js, hits=[hit])
+    bot, mark_reflection, mark_warning, _ = _setup(monkeypatch, js=js, hits=[hit])
 
     await jobs.scan_important_dates_job()
 
     bot.send_message.assert_not_awaited()
     mark_reflection.assert_not_awaited()
+    mark_warning.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -123,7 +130,7 @@ async def test_ahead_sends_warning_without_reflection_button(
     target = today + timedelta(days=2)
     hit = ImportantDate(date_=target, active_stars=("白虎",), severity="high")
     js = _js()
-    bot, _, mark_warning = _setup(monkeypatch, js=js, hits=[hit])
+    bot, _, mark_warning, _ = _setup(monkeypatch, js=js, hits=[hit])
 
     await jobs.scan_important_dates_job()
 
@@ -143,7 +150,7 @@ async def test_warning_dedup_same_date_not_resent(monkeypatch: pytest.MonkeyPatc
     target = today + timedelta(days=2)
     hit = ImportantDate(date_=target, active_stars=("白虎",), severity="high")
     js = _js(last_important_warning_date=target)  # already warned for this date
-    bot, _, mark_warning = _setup(monkeypatch, js=js, hits=[hit])
+    bot, _, mark_warning, _ = _setup(monkeypatch, js=js, hits=[hit])
 
     await jobs.scan_important_dates_job()
 
@@ -157,9 +164,75 @@ async def test_warning_rate_limited_within_week(monkeypatch: pytest.MonkeyPatch)
     target = today + timedelta(days=1)
     hit = ImportantDate(date_=target, active_stars=("桃花",), severity="medium")
     js = _js(last_important_date_at=datetime.now() - timedelta(days=2))  # warned 2 days ago
-    bot, _, mark_warning = _setup(monkeypatch, js=js, hits=[hit])
+    bot, _, mark_warning, _ = _setup(monkeypatch, js=js, hits=[hit])
 
     await jobs.scan_important_dates_job()
 
     bot.send_message.assert_not_awaited()
     mark_warning.assert_not_awaited()
+
+
+# ── scan_reflection_prompts_job: day-of REFLECTION at 18:00 local ──────
+
+
+@pytest.mark.asyncio
+async def test_reflection_scan_sends_prompt_and_marks(monkeypatch: pytest.MonkeyPatch) -> None:
+    local_today = _chart_local_today()
+    hit = ImportantDate(date_=local_today, active_stars=("文昌贵人",), severity="low")
+    js = _js()
+    bot, mark_reflection, mark_warning, _ = _setup(monkeypatch, js=js, hits=[hit])
+
+    await jobs.scan_reflection_prompts_job()
+
+    bot.send_message.assert_awaited_once()
+    text = bot.send_message.await_args.kwargs["text"]
+    assert "Сегодня" in text
+    kb = bot.send_message.await_args.kwargs["reply_markup"]
+    callbacks = {b.callback_data for row in kb.inline_keyboard for b in row}
+    assert any(c.startswith("journal:write:") for c in callbacks)
+    mark_reflection.assert_awaited_once()
+    assert mark_reflection.await_args.kwargs["day"] == local_today
+    mark_warning.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_reflection_scan_queries_current_utc_hour(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SQL-фильтр по часу — единственный механизм «18:00 local»: job
+    обязан спрашивать репозиторий именно про текущий UTC-час."""
+    js = _js()
+    _, _, _, list_due = _setup(monkeypatch, js=js, hits=[])
+
+    await jobs.scan_reflection_prompts_job()
+
+    list_due.assert_awaited_once()
+    assert list_due.await_args.kwargs["hour_utc"] == datetime.now(UTC).hour
+
+
+@pytest.mark.asyncio
+async def test_reflection_scan_dedup_skips_when_already_prompted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local_today = _chart_local_today()
+    hit = ImportantDate(date_=local_today, active_stars=("文昌贵人",), severity="low")
+    js = _js(last_reflection_prompt_date=local_today)  # already prompted today
+    bot, mark_reflection, _, _ = _setup(monkeypatch, js=js, hits=[hit])
+
+    await jobs.scan_reflection_prompts_job()
+
+    bot.send_message.assert_not_awaited()
+    mark_reflection.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_reflection_scan_silent_when_today_not_important(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    js = _js()
+    bot, mark_reflection, _, _ = _setup(monkeypatch, js=js, hits=[])
+
+    await jobs.scan_reflection_prompts_job()
+
+    bot.send_message.assert_not_awaited()
+    mark_reflection.assert_not_awaited()

@@ -330,7 +330,9 @@ async def handle_chart_important_dates_toggle(
     repo = ChartJournalSettingsRepository()
     current = await repo.get_or_create(session, chart_id=chart_id)
     new_state = not bool(current.important_dates_enabled)
-    await repo.toggle_important_dates(session, chart_id=chart_id, enabled=new_state)
+    await repo.toggle_important_dates(
+        session, chart_id=chart_id, enabled=new_state, tz_offset=chart.tz_offset
+    )
 
     if new_state:
         msg = (

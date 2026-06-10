@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from bot.config import get_settings
 from bot.scheduler.jobs import (
     scan_important_dates_job,
+    scan_reflection_prompts_job,
     send_daily_forecast_job,
     send_journal_reminder_job,
     send_monthly_forecast_job,
@@ -166,6 +167,18 @@ async def rebuild_jobs_for_all_subs(
         scan_important_dates_job,
         trigger=CronTrigger(hour=9, minute=0, timezone="UTC"),
         id="important_dates:daily_scan",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+    count += 1
+
+    # Wave 4e v2 — hourly global scan delivers the day-of reflection
+    # prompt at 18:00 chart-local time (reflection_hour_utc == current
+    # UTC hour, filtered in SQL inside the job).
+    scheduler.add_job(
+        scan_reflection_prompts_job,
+        trigger=CronTrigger(minute=0, timezone="UTC"),
+        id="reflection:hourly_scan",
         replace_existing=True,
         misfire_grace_time=3600,
     )

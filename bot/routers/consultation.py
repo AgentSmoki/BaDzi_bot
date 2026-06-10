@@ -83,6 +83,7 @@ from bot.services.telegram_split import (
 )
 from bot.services.teletranscribe import TeleTranscribeError, transcribe_voice
 from bot.states import ConsultationState
+from calculator.age_utils import client_age_years
 from calculator.calendar_select import EVENT_TYPE_RU, pick_best_dates
 from calculator.models import ChartOutput
 from db.models import Chart, User
@@ -1563,6 +1564,9 @@ async def _continue_consultation_with_skill(
         # Wave 7 Phase 5 — propagate the user's chosen school so RAG
         # only surfaces docs tagged ``universal`` + ``<school>``.
         school=chosen_school,
+        # Wave 7 возрастные метафоры — [AUDIENCE] секция: школа подбирает
+        # примеры под возрастной бэнд клиента.
+        client_age=client_age_years(chart_data.input.birth_datetime),
     )
 
     try:
