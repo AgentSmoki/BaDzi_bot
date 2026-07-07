@@ -1,0 +1,106 @@
+services:
+  bot:
+    build: .
+    command: python -m bot.main
+    env_file: .env
+    mem_limit: 384m
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./assets:/app/assets:ro
+      - kuzu_data:/app/knowledge/kuzu_db
+    restart: unless-stopped
+
+  web:
+    build: .
+    command: uvicorn web.main:app --host 0.0.0.0 --port 8000
+    # Хост-порт 8092 (8000/8090/8091 заняты TeleTranscribe/Архивариусом).
+    # Биндим на 127.0.0.1 — наружу не публикуется (Mini App/admin ещё не
+    # готовы). Cloudflared на хосте при необходимости дотянется до
+    # localhost:8092 для будущего ingress badzi.neuroimpuls.ru.
+    ports:
+      - "127.0.0.1:8092:8000"
+    env_file: .env
+    mem_limit: 384m
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: python -m taskiq worker tasks.broker:broker
+    env_file: .env
+    mem_limit: 384m
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - kuzu_data:/app/knowledge/kuzu_db
+    restart: unless-stopped
+
+  # Wave 3c — APScheduler service for paid forecast delivery (daily 04:00,
+  # monthly weekly/bulk). Standalone container so the bot stays polling-only
+  # and forecast cron jobs survive its restarts via the SQLAlchemyJobStore.
+  scheduler:
+    build: .
+    command: python -m bot.scheduler
+    env_file: .env
+    mem_limit: 256m
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - kuzu_data:/app/knowledge/kuzu_db
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: badzi
+      POSTGRES_USER: badzi
+      # Прод-пароль задаётся в .env (POSTGRES_PASSWORD) и должен совпадать
+      # с паролем в DATABASE_URL. Дефолтный badzi_dev_password убран.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    # Хост-порт НЕ публикуется: контейнеры badzi ходят к `db` по имени
+    # внутри своей compose-сети. На сервере 5432 занят pg TeleTranscribe —
+    # своя БД у badzi изолирована, наружу не нужна.
+    mem_limit: 256m
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U badzi -d badzi"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    # Без этой политики после reboot хоста db не поднимается, а app-сервисы
+    # (unless-stopped) стартуют в сеть без БД → бот молча не отвечает.
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    # Хост-порт НЕ публикуется (на сервере 6379 занят redis TeleTranscribe).
+    mem_limit: 128m
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    # См. комментарий у db: переживать reboot хоста без ручного вмешательства.
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  kuzu_data:

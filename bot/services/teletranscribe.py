@@ -1,0 +1,150 @@
+"""HTTP client for the TeleTranscribe service (Wave 4c).
+
+Bot uses TeleTranscribe to transcribe voice messages dropped into the
+journal flow. The MCP server (referenced in Bogdan's roadmap) is a
+Claude-Code-side convenience; the bot needs a regular HTTP path, which
+is what this module provides.
+
+API contract (inferred from MCP env vars and tt_api_base_url):
+    POST /v1/transcribe
+    Headers: Authorization: Bearer <api_key>
+    Body: multipart-file ``audio`` + optional ``language=ru``
+    Response: {"text": "...", ...}
+
+If the deployment's API shape differs, the request builder is the
+only place to adjust.
+"""
+
+from __future__ import annotations
+
+import structlog
+from aiohttp import ClientSession, ClientTimeout, FormData
+
+from bot.config import get_settings
+
+logger = structlog.get_logger(__name__)
+
+
+class TeleTranscribeError(Exception):
+    """Raised on any non-200 / network / parse failure. Caller decides
+    whether to surface a Telegram «не получилось расшифровать» message
+    or to retry."""
+
+
+def detect_source_type(url: str) -> str:
+    """Heuristic source-type from URL hostname for `MasterMeetingSource`.
+
+    Returns the enum-value as a string; caller wraps in the enum. We
+    keep this as a free function (no enum import) so it stays testable
+    without the SQLAlchemy stack."""
+    u = url.lower()
+    if "youtube.com" in u or "youtu.be" in u:
+        return "youtube"
+    if "drive.google.com" in u:
+        return "gdrive"
+    if "disk.yandex.ru" in u or "yadi.sk" in u:
+        return "ydisk"
+    if "cloud.mail.ru" in u:
+        return "cloud_mail"
+    if "zoom.us" in u:
+        return "zoom"
+    return "other"
+
+
+async def transcribe_url(*, url: str, language: str = "ru") -> dict[str, object]:
+    """Transcribe a recording fetched by URL — used for master-meeting
+    uploads (Wave 5). TeleTranscribe service handles the download for
+    YouTube / Yandex Disk / Google Drive / Zoom / direct media URLs.
+
+    Returns ``{"text": <transcript>, "duration_seconds": <int|None>}``.
+    Raises ``TeleTranscribeError`` on any failure."""
+    settings = get_settings()
+    if settings.tt_api_key is None:
+        raise TeleTranscribeError("TT_API_KEY not configured")
+
+    endpoint = settings.tt_api_base_url.rstrip("/") + "/v1/transcribe-url"
+    headers = {
+        "Authorization": f"Bearer {settings.tt_api_key.get_secret_value()}",
+        "Content-Type": "application/json",
+    }
+    timeout = ClientTimeout(total=max(settings.tt_timeout_seconds, 1800))  # up to 30 min
+    payload = {"url": url, "language": language}
+
+    try:
+        async with (
+            ClientSession(timeout=timeout) as http,
+            http.post(endpoint, headers=headers, json=payload) as resp,
+        ):
+            if resp.status != 200:
+                body = await resp.text()
+                raise TeleTranscribeError(f"TT returned {resp.status}: {body[:300]}")
+            data = await resp.json()
+    except TeleTranscribeError:
+        raise
+    except Exception as exc:
+        raise TeleTranscribeError(f"TT network error: {exc}") from exc
+
+    text = data.get("text")
+    if not isinstance(text, str) or not text.strip():
+        raise TeleTranscribeError(f"TT returned empty/invalid text: {data!r}")
+    duration_raw = data.get("duration_seconds") or data.get("duration")
+    duration: int | None
+    try:
+        duration = int(duration_raw) if duration_raw is not None else None
+    except (TypeError, ValueError):
+        duration = None
+    logger.info(
+        "teletranscribe.url_success",
+        text_len=len(text),
+        duration_seconds=duration,
+        url_prefix=url[:60],
+    )
+    return {"text": text.strip(), "duration_seconds": duration}
+
+
+async def transcribe_voice(
+    *,
+    audio_bytes: bytes,
+    filename: str = "voice.oga",
+    language: str = "ru",
+) -> str:
+    """Transcribe a Telegram voice message.
+
+    ``audio_bytes`` is the raw .oga/.ogg/.mp3 content the bot downloads
+    via ``bot.download(file_id)``. Returns the recognised text. Raises
+    ``TeleTranscribeError`` on failure (caller falls back to «please
+    type instead»).
+    """
+    settings = get_settings()
+    if settings.tt_api_key is None:
+        raise TeleTranscribeError("TT_API_KEY not configured")
+
+    url = settings.tt_api_base_url.rstrip("/") + "/v1/transcribe"
+    headers = {"Authorization": f"Bearer {settings.tt_api_key.get_secret_value()}"}
+    timeout = ClientTimeout(total=settings.tt_timeout_seconds)
+
+    data = FormData()
+    data.add_field("audio", audio_bytes, filename=filename, content_type="audio/ogg")
+    data.add_field("language", language)
+
+    try:
+        async with ClientSession(timeout=timeout) as http:
+            async with http.post(url, headers=headers, data=data) as resp:
+                if resp.status != 200:
+                    body = await resp.text()
+                    raise TeleTranscribeError(f"TT returned {resp.status}: {body[:300]}")
+                payload = await resp.json()
+    except TeleTranscribeError:
+        raise
+    except Exception as exc:
+        raise TeleTranscribeError(f"TT network error: {exc}") from exc
+
+    text = payload.get("text")
+    if not isinstance(text, str) or not text.strip():
+        raise TeleTranscribeError(f"TT returned empty/invalid text: {payload!r}")
+    logger.info(
+        "teletranscribe.success",
+        text_len=len(text),
+        audio_bytes=len(audio_bytes),
+    )
+    return text.strip()

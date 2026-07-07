@@ -1,0 +1,56 @@
+# VCS
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.egg-info
+.eggs
+.venv
+venv
+env
+
+# Tests / coverage
+tests
+.coverage
+.pytest_cache
+htmlcov
+.tox
+
+# Linters / type checkers
+.ruff_cache
+.mypy_cache
+
+# IDE
+.idea
+.vscode
+.cursor
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project metadata / docs not needed at runtime
+graphify-out
+doc
+docs
+*.md
+!README.md
+
+# Environment
+.env
+.env.local
+.env.*.local
+.secrets.baseline
+
+# CI
+.github
+.pre-commit-config.yaml
+
+# Misc
+*.log
+*.sqlite3

@@ -1,0 +1,184 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "badzi-bot"
+version = "0.1.0"
+description = "BaDzi AI-consultant Telegram bot"
+requires-python = ">=3.11"
+dependencies = [
+    # --- Telegram bot ---
+    "aiogram==3.17.0",
+
+    # --- Web ---
+    "fastapi==0.115.12",
+    "uvicorn[standard]==0.34.2",
+    "jinja2==3.1.6",
+    "python-multipart==0.0.20",
+
+    # --- Database ---
+    "sqlalchemy[asyncio]==2.0.40",
+    "asyncpg==0.30.0",
+    "alembic==1.15.2",
+
+    # --- Redis ---
+    "redis[hiredis]==5.2.1",
+
+    # --- Config / Validation ---
+    "pydantic==2.10.6",
+    "pydantic-settings==2.8.1",
+    "python-dotenv==1.1.0",
+
+    # --- HTTP client (OpenRouter) ---
+    "httpx==0.28.1",
+    "tenacity==9.1.2",
+
+    # --- AI / LLM monitoring ---
+    "langfuse==4.5.1",
+
+    # --- Graph database ---
+    "kuzu==0.10.0",
+
+    # --- Astronomy ---
+    "pyswisseph==2.10.3.2",
+    "timezonefinder==6.5.9",
+    "pytz==2025.2",
+
+    # --- Geocoding ---
+    "geopy==2.4.1",
+    "aiohttp==3.11.18",
+
+    # --- Image rendering ---
+    # CairoSVG + Pillow are the only renderers. ProcessPoolExecutor in
+    # ai/_render_pool.py provides the concurrency. Playwright was retired
+    # in 1.7.10 (see ADR-007 in vision.mdc).
+    "cairosvg==2.9.0",
+    "pillow==11.2.1",
+
+    # --- Date parsing ---
+    "dateparser==1.2.1",
+
+    # --- S3 / Object Storage ---
+    "aioboto3==15.5.0",
+
+    # --- Task queue ---
+    "taskiq[asyncio]==0.11.14",
+    "taskiq-redis==1.0.2",
+
+    # --- Scheduler (Wave 3c — paid forecast cron jobs) ---
+    # APScheduler with SQLAlchemyJobStore on Postgres so jobs survive
+    # scheduler-container restarts. Lives in its own service in
+    # docker-compose so the bot stays a polling-only process.
+    "apscheduler==3.11.0",
+    # SQLAlchemyJobStore uses sync psycopg2 (apscheduler 3.x doesn't
+    # bind to async drivers). Separate from asyncpg used by the bot.
+    "psycopg2-binary==2.9.10",
+
+    # --- Logging ---
+    "structlog==25.3.0",
+
+    # --- Knowledge base frontmatter (teacher's KB, Plan 4 lite) ---
+    "PyYAML==6.0.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff==0.11.9",
+    "mypy==1.15.0",
+    "pytest==8.3.5",
+    "pytest-asyncio==0.25.3",
+    "pytest-cov==6.1.0",
+    "fakeredis==2.35.1",
+    "types-redis",
+    "types-pytz",
+    "types-dateparser",
+    "types-pillow",
+    # Knowledge graph builder for the project — used by pre-commit hook
+    # (scripts/graphify_update.py) and `/graphify` skill.
+    "graphifyy",
+]
+
+# ── Ruff ──────────────────────────────────────────────────────────────────────
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "N",   # pep8-naming
+    "S",   # flake8-bandit (security)
+    "ANN", # flake8-annotations
+    "RUF", # ruff-specific
+]
+ignore = [
+    "S101",   # assert OK in tests
+    "B008",   # fastapi Depends() in defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S", "ANN"]
+"bot/config.py" = ["RUF001", "RUF002", "RUF003"]
+"migrations/**/*.py" = ["ANN", "N999", "RUF001", "RUF002", "RUF003"]
+"calculator/symbolic_stars_tables.py" = ["E501", "RUF001"]
+"calculator/calendar_select.py" = ["RUF001", "RUF002", "RUF003"]
+"calculator/important_dates.py" = ["E501", "RUF001", "RUF002", "RUF003"]
+"scripts/**/*.py" = ["E501", "RUF001", "RUF002", "RUF003", "S108", "ANN401", "ANN201", "ANN202"]
+"bot/routers/**/*.py" = ["RUF001", "RUF002", "RUF003"]
+"bot/scheduler/**/*.py" = ["RUF001", "RUF002", "RUF003"]
+"calculator/age_utils.py" = ["RUF002"]
+"bot/keyboards/**/*.py" = ["RUF001", "RUF002", "RUF003"]
+"bot/services/**/*.py" = ["RUF001", "RUF002", "RUF003"]
+"ai/**/*.py" = ["RUF001", "RUF002", "RUF003"]
+"knowledge/**/*.py" = ["RUF001", "RUF002", "RUF003"]
+"tasks/**/*.py" = ["RUF001", "RUF002", "RUF003"]
+"tests/unit/test_ai/**/*.py" = ["RUF001", "RUF002", "RUF003"]
+"tests/unit/test_bot/**/*.py" = ["RUF001", "RUF002", "RUF003"]
+"tests/unit/test_knowledge/**/*.py" = ["RUF001", "RUF002", "RUF003", "E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["bot", "calculator", "ai", "db", "web", "tasks", "monitoring", "knowledge"]
+
+# ── Mypy ──────────────────────────────────────────────────────────────────────
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+exclude = ["migrations/", "tests/"]
+
+[[tool.mypy.overrides]]
+module = ["kuzu.*", "swisseph.*", "geopy.*", "timezonefinder.*", "dateparser.*", "langfuse.*", "taskiq.*", "aioboto3.*"]
+ignore_missing_imports = true
+
+# ── Pytest ────────────────────────────────────────────────────────────────────
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--cov=calculator --cov-report=term-missing -v"
+
+# ── Coverage ──────────────────────────────────────────────────────────────────
+
+[tool.coverage.run]
+source = ["calculator"]
+omit = ["tests/*", "migrations/*"]
+
+[tool.coverage.report]
+fail_under = 80
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]

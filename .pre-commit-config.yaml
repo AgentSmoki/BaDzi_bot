@@ -1,0 +1,37 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.15.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - aiogram==3.17.0
+          - pydantic==2.10.6
+          - pydantic-settings==2.8.1
+          - sqlalchemy[asyncio]==2.0.40
+          - redis==5.2.1
+          - structlog==25.3.0
+          - taskiq==0.11.14
+          - taskiq-redis==1.0.2
+          - kuzu==0.10.0
+          - types-pytz
+          - types-pillow
+          - types-PyYAML
+        args: [--ignore-missing-imports]
+        # Tests are excluded from strict typing in pyproject.toml; mirror
+        # the same here so pre-commit doesn't trip on pytest fixture and
+        # async decorators that mypy strict can't introspect.
+        exclude: ^tests/
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]
+        exclude: \.env\.example$

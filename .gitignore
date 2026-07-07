@@ -1,0 +1,23 @@
+__pycache__/
+*.pyc
+.env
+venv/
+.venv/
+*.db
+.DS_Store
+.idea/
+.vscode/
+.mypy_cache/
+
+# graphify intermediate / temp files (regenerated on every rebuild)
+graphify-out/.graphify_*
+
+# graphify intermediate cache (regenerated on every rebuild, can be very large)
+graphify-out/cache/
+graphify-out/memory/
+.coverage
+knowledge/kuzu_db/
+
+# Проприетарный корпус знаний и графы — не публикуются
+База/
+graphify-out/
